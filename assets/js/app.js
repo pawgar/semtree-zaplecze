@@ -353,26 +353,37 @@ function loadWpData() {
     const status = document.getElementById('wpDataStatus');
     status.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Laduje...';
 
-    Promise.all([
-        api('GET', `api/wp-data.php?site_id=${siteId}&type=categories`),
-        api('GET', `api/wp-data.php?site_id=${siteId}&type=authors`),
-    ]).then(([cats, auths]) => {
-        if (cats.error) { status.textContent = 'Blad: ' + cats.error; return; }
-        if (auths.error) { status.textContent = 'Blad: ' + auths.error; return; }
+    const catPromise = api('GET', `api/wp-data.php?site_id=${siteId}&type=categories`).catch(() => ({ error: 'Nie udalo sie pobrac kategorii' }));
+    const authPromise = api('GET', `api/wp-data.php?site_id=${siteId}&type=authors`).catch(() => ({ error: 'Nie udalo sie pobrac autorow' }));
 
-        wpCategories = cats;
-        wpAuthors = auths;
+    Promise.all([catPromise, authPromise]).then(([cats, auths]) => {
+        const warnings = [];
 
-        // Fill bulk dropdowns
-        fillCategorySelect('bulkCategory', cats);
-        fillAuthorSelect('bulkAuthor', auths);
+        if (cats.error) {
+            wpCategories = [];
+            warnings.push('Kategorie: ' + cats.error);
+        } else {
+            wpCategories = cats;
+        }
 
-        status.innerHTML = `<i class="bi bi-check-circle text-success"></i> Zaladowano ${cats.length} kategorii, ${auths.length} autorow`;
+        if (auths.error) {
+            wpAuthors = [];
+            warnings.push('Autorzy: ' + auths.error);
+        } else {
+            wpAuthors = auths;
+        }
 
-        // Re-render articles table with updated dropdowns
+        fillCategorySelect('bulkCategory', wpCategories);
+        fillAuthorSelect('bulkAuthor', wpAuthors);
         renderArticles();
-    }).catch(e => {
-        status.textContent = 'Blad: ' + (e.message || 'polaczenie nieudane');
+
+        if (warnings.length === 2) {
+            status.innerHTML = `<i class="bi bi-x-circle text-danger"></i> ${warnings.join('; ')}`;
+        } else if (warnings.length === 1) {
+            status.innerHTML = `<i class="bi bi-exclamation-triangle text-warning"></i> Czesciowo zaladowano. ${warnings[0]}`;
+        } else {
+            status.innerHTML = `<i class="bi bi-check-circle text-success"></i> Zaladowano ${cats.length} kategorii, ${auths.length} autorow`;
+        }
     });
 }
 
