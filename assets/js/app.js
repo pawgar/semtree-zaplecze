@@ -372,7 +372,7 @@ function loadWpData() {
         // Re-render articles table with updated dropdowns
         renderArticles();
     }).catch(e => {
-        status.textContent = 'Blad polaczenia';
+        status.textContent = 'Blad: ' + (e.message || 'polaczenie nieudane');
     });
 }
 

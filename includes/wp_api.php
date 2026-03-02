@@ -154,17 +154,30 @@ class WpApi {
             $response = curl_exec($ch);
 
             if (curl_errno($ch)) {
+                $error = curl_error($ch);
                 curl_close($ch);
-                break;
+                throw new RuntimeException('cURL error: ' . $error);
             }
 
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
             $headers = substr($response, 0, $headerSize);
             $body = substr($response, $headerSize);
             curl_close($ch);
 
+            if ($httpCode >= 400) {
+                $data = json_decode($body, true) ?? [];
+                $msg = $data['message'] ?? "HTTP $httpCode";
+                throw new RuntimeException($msg);
+            }
+
             $items = json_decode($body, true) ?? [];
             if (!is_array($items) || empty($items)) break;
+
+            // Skip if WP returned an error object instead of a list
+            if (isset($items['code'])) {
+                throw new RuntimeException($items['message'] ?? $items['code']);
+            }
 
             $all = array_merge($all, $items);
 
