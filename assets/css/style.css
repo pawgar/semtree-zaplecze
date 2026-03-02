@@ -46,6 +46,12 @@
     color: #dc3545;
 }
 
+/* Category badges */
+.category-badge {
+    margin: 1px 2px;
+    font-weight: 500;
+}
+
 /* Spinner for status refresh */
 .spin {
     animation: spin 1s linear infinite;

@@ -5,7 +5,10 @@ $isAdminUser = isAdmin();
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0"><i class="bi bi-grid"></i> Strony zapleczowe</h4>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 align-items-center">
+        <select class="form-select form-select-sm" id="categoryFilter" style="width:200px" onchange="filterSites(this.value)">
+            <option value="">Wszystkie kategorie</option>
+        </select>
         <button class="btn btn-outline-primary btn-sm" onclick="refreshAllStatuses()">
             <i class="bi bi-arrow-clockwise"></i> Odswiez statusy
         </button>
@@ -35,6 +38,7 @@ $isAdminUser = isAdmin();
                 <th>Nazwa</th>
                 <th>URL</th>
                 <th>Login WP</th>
+                <th>Kategorie</th>
                 <th>Wpisy</th>
                 <th>Status HTTP</th>
                 <th>API</th>
@@ -44,7 +48,7 @@ $isAdminUser = isAdmin();
             </tr>
         </thead>
         <tbody id="sitesBody">
-            <tr><td colspan="8" class="text-center text-muted">Ladowanie...</td></tr>
+            <tr><td colspan="9" class="text-center text-muted">Ladowanie...</td></tr>
         </tbody>
     </table>
 </div>
@@ -67,6 +71,10 @@ $isAdminUser = isAdmin();
                 <div class="mb-3">
                     <label class="form-label">URL (https://)</label>
                     <input type="text" class="form-control" id="siteUrl" placeholder="https://example.com" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Kategorie</label>
+                    <input type="text" class="form-control" id="siteCategories" placeholder="np. finanse, zdrowie - oddziel przecinkiem">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Login WordPress</label>

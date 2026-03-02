@@ -7,7 +7,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     requireLoginApi();
     $db = getDb();
-    $result = $db->query('SELECT id, name, url, username, app_password, created_at FROM sites ORDER BY name');
+    $result = $db->query('SELECT id, name, url, username, app_password, categories, created_at FROM sites ORDER BY name');
     $sites = [];
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         $sites[] = $row;
@@ -25,6 +25,7 @@ if ($method === 'POST') {
     $url = trim($input['url'] ?? '');
     $username = trim($input['username'] ?? '');
     $appPassword = trim($input['app_password'] ?? '');
+    $categories = trim($input['categories'] ?? '');
 
     if (!$name || !$url || !$username || !$appPassword) {
         http_response_code(400);
@@ -38,11 +39,12 @@ if ($method === 'POST') {
     $url = rtrim($url, '/');
 
     $db = getDb();
-    $stmt = $db->prepare('INSERT INTO sites (name, url, username, app_password) VALUES (:name, :url, :username, :app_password)');
+    $stmt = $db->prepare('INSERT INTO sites (name, url, username, app_password, categories) VALUES (:name, :url, :username, :app_password, :categories)');
     $stmt->bindValue(':name', $name, SQLITE3_TEXT);
     $stmt->bindValue(':url', $url, SQLITE3_TEXT);
     $stmt->bindValue(':username', $username, SQLITE3_TEXT);
     $stmt->bindValue(':app_password', $appPassword, SQLITE3_TEXT);
+    $stmt->bindValue(':categories', $categories, SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['id' => $db->lastInsertRowID(), 'success' => true]);
@@ -56,6 +58,7 @@ if ($method === 'PUT') {
     $url = trim($input['url'] ?? '');
     $username = trim($input['username'] ?? '');
     $appPassword = trim($input['app_password'] ?? '');
+    $categories = trim($input['categories'] ?? '');
 
     if (!$id || !$name || !$url || !$username || !$appPassword) {
         http_response_code(400);
@@ -69,12 +72,13 @@ if ($method === 'PUT') {
     $url = rtrim($url, '/');
 
     $db = getDb();
-    $stmt = $db->prepare('UPDATE sites SET name=:name, url=:url, username=:username, app_password=:app_password WHERE id=:id');
+    $stmt = $db->prepare('UPDATE sites SET name=:name, url=:url, username=:username, app_password=:app_password, categories=:categories WHERE id=:id');
     $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
     $stmt->bindValue(':name', $name, SQLITE3_TEXT);
     $stmt->bindValue(':url', $url, SQLITE3_TEXT);
     $stmt->bindValue(':username', $username, SQLITE3_TEXT);
     $stmt->bindValue(':app_password', $appPassword, SQLITE3_TEXT);
+    $stmt->bindValue(':categories', $categories, SQLITE3_TEXT);
     $stmt->execute();
 
     echo json_encode(['success' => true]);

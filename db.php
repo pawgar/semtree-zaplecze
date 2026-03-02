@@ -15,6 +15,8 @@ function getDb(): SQLite3 {
 
     if ($isNew) {
         initSchema($db);
+    } else {
+        migrateSchema($db);
     }
 
     return $db;
@@ -38,9 +40,12 @@ function initSchema(SQLite3 $db): void {
             url TEXT NOT NULL,
             username TEXT NOT NULL,
             app_password TEXT NOT NULL,
+            categories TEXT NOT NULL DEFAULT "",
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ');
+
+    migrateSchema($db);
 
     // Create default admin account
     $hash = password_hash(DEFAULT_ADMIN_PASS, PASSWORD_BCRYPT);
@@ -48,4 +53,19 @@ function initSchema(SQLite3 $db): void {
     $stmt->bindValue(':u', DEFAULT_ADMIN_USER, SQLITE3_TEXT);
     $stmt->bindValue(':p', $hash, SQLITE3_TEXT);
     $stmt->execute();
+}
+
+function migrateSchema(SQLite3 $db): void {
+    // Add categories column if it doesn't exist
+    $cols = $db->query("PRAGMA table_info(sites)");
+    $hasCategories = false;
+    while ($col = $cols->fetchArray(SQLITE3_ASSOC)) {
+        if ($col['name'] === 'categories') {
+            $hasCategories = true;
+            break;
+        }
+    }
+    if (!$hasCategories) {
+        $db->exec('ALTER TABLE sites ADD COLUMN categories TEXT NOT NULL DEFAULT ""');
+    }
 }

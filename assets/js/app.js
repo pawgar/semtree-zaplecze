@@ -11,7 +11,8 @@ let sitesData = [];
 function loadSites() {
     api('GET', 'api/sites.php').then(sites => {
         sitesData = sites;
-        renderSites(sites);
+        buildCategoryFilter();
+        filterSites();
     });
 }
 
@@ -20,16 +21,20 @@ function renderSites(sites) {
     if (!tbody) return;
 
     if (sites.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>';
         return;
     }
 
-    tbody.innerHTML = sites.map((s, i) => `
+    tbody.innerHTML = sites.map((s, i) => {
+        const cats = (s.categories || '').split(',').map(c => c.trim()).filter(c => c);
+        const badges = cats.map(c => `<span class="badge bg-secondary category-badge">${esc(c)}</span>`).join(' ');
+        return `
         <tr data-id="${s.id}">
             <td>${i + 1}</td>
             <td>${esc(s.name)}</td>
             <td><a href="${esc(s.url)}" target="_blank">${esc(s.url)}</a></td>
             <td>${esc(s.username)}</td>
+            <td>${badges}</td>
             <td class="status-loading" id="posts-${s.id}">-</td>
             <td class="status-loading" id="status-${s.id}">-</td>
             <td class="status-loading" id="api-${s.id}">-</td>
@@ -42,8 +47,8 @@ function renderSites(sites) {
                     <i class="bi bi-trash"></i>
                 </button>
             </td>` : ''}
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 function saveSite() {
@@ -53,6 +58,7 @@ function saveSite() {
         url: document.getElementById('siteUrl').value.trim(),
         username: document.getElementById('siteUsername').value.trim(),
         app_password: document.getElementById('siteAppPassword').value.trim(),
+        categories: document.getElementById('siteCategories').value.trim(),
     };
 
     if (!data.name || !data.url || !data.username || !data.app_password) {
@@ -86,6 +92,7 @@ function editSite(id) {
     document.getElementById('siteUrl').value = site.url;
     document.getElementById('siteUsername').value = site.username;
     document.getElementById('siteAppPassword').value = site.app_password;
+    document.getElementById('siteCategories').value = site.categories || '';
 
     new bootstrap.Modal(document.getElementById('addSiteModal')).show();
 }
@@ -96,6 +103,33 @@ function deleteSite(id, name) {
         if (r.error) return alert(r.error);
         loadSites();
     });
+}
+
+// ── Category Filter ──────────────────────────────────────────
+function buildCategoryFilter() {
+    const sel = document.getElementById('categoryFilter');
+    if (!sel) return;
+    const all = new Set();
+    sitesData.forEach(s => {
+        (s.categories || '').split(',').map(c => c.trim()).filter(c => c).forEach(c => all.add(c));
+    });
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Wszystkie kategorie</option>' +
+        [...all].sort().map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    sel.value = current;
+}
+
+function filterSites(category) {
+    const cat = category || (document.getElementById('categoryFilter') ? document.getElementById('categoryFilter').value : '');
+    if (!cat) {
+        renderSites(sitesData);
+    } else {
+        const filtered = sitesData.filter(s => {
+            const cats = (s.categories || '').split(',').map(c => c.trim());
+            return cats.includes(cat);
+        });
+        renderSites(filtered);
+    }
 }
 
 // Reset modal on close
@@ -109,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('siteUrl').value = '';
             document.getElementById('siteUsername').value = '';
             document.getElementById('siteAppPassword').value = '';
+            document.getElementById('siteCategories').value = '';
         });
     }
 
