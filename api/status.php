@@ -25,14 +25,16 @@ if (!$site) {
     exit;
 }
 
-$response = ['id' => $id, 'http_status' => 0, 'post_count' => null, 'error' => null];
+$response = ['id' => $id, 'http_status' => 0, 'post_count' => null, 'api_ok' => false, 'error' => null];
 
 // Get HTTP status
 $response['http_status'] = WpApi::getHttpStatus($site['url']);
 
-// Get post count via WP REST API
+// Test API connection and get post count
 try {
     $api = new WpApi($site['url'], $site['username'], $site['app_password']);
+    $api->testConnection();
+    $response['api_ok'] = true;
     $response['post_count'] = $api->getPostCount();
 } catch (Exception $e) {
     $response['error'] = $e->getMessage();

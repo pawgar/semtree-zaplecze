@@ -37,13 +37,14 @@ $isAdminUser = isAdmin();
                 <th>Login WP</th>
                 <th>Wpisy</th>
                 <th>Status HTTP</th>
+                <th>API</th>
                 <?php if ($isAdminUser): ?>
                 <th>Akcje</th>
                 <?php endif; ?>
             </tr>
         </thead>
         <tbody id="sitesBody">
-            <tr><td colspan="7" class="text-center text-muted">Ladowanie...</td></tr>
+            <tr><td colspan="8" class="text-center text-muted">Ladowanie...</td></tr>
         </tbody>
     </table>
 </div>

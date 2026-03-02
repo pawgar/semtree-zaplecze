@@ -20,7 +20,7 @@ function renderSites(sites) {
     if (!tbody) return;
 
     if (sites.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>';
         return;
     }
 
@@ -32,6 +32,7 @@ function renderSites(sites) {
             <td>${esc(s.username)}</td>
             <td class="status-loading" id="posts-${s.id}">-</td>
             <td class="status-loading" id="status-${s.id}">-</td>
+            <td class="status-loading" id="api-${s.id}">-</td>
             ${IS_ADMIN ? `
             <td>
                 <button class="btn btn-sm btn-outline-primary me-1" onclick="editSite(${s.id})" title="Edytuj">
@@ -122,8 +123,10 @@ function refreshAllStatuses() {
     sitesData.forEach(site => {
         const postsCell = document.getElementById('posts-' + site.id);
         const statusCell = document.getElementById('status-' + site.id);
+        const apiCell = document.getElementById('api-' + site.id);
         if (postsCell) postsCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
         if (statusCell) statusCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+        if (apiCell) apiCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
 
         api('POST', 'api/status.php', {id: site.id}).then(r => {
             if (postsCell) {
@@ -134,9 +137,14 @@ function refreshAllStatuses() {
                 statusCell.textContent = r.http_status || 'ERR';
                 statusCell.className = (r.http_status >= 200 && r.http_status < 400) ? 'status-ok' : 'status-error';
             }
+            if (apiCell) {
+                apiCell.textContent = r.api_ok ? 'OK' : 'FAILED';
+                apiCell.className = r.api_ok ? 'status-ok' : 'status-error';
+            }
         }).catch(() => {
             if (postsCell) { postsCell.textContent = 'ERR'; postsCell.className = 'status-error'; }
             if (statusCell) { statusCell.textContent = 'ERR'; statusCell.className = 'status-error'; }
+            if (apiCell) { apiCell.textContent = 'ERR'; apiCell.className = 'status-error'; }
         });
     });
 }

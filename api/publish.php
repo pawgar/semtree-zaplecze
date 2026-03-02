@@ -78,7 +78,11 @@ try {
         $postData['featured_media'] = $featuredMediaId;
     }
     if ($publishDate) {
-        $postData['date'] = $publishDate;
+        // datetime-local gives "YYYY-MM-DDTHH:MM", WP needs "YYYY-MM-DDTHH:MM:SS"
+        $dt = date_create($publishDate);
+        if ($dt) {
+            $postData['date'] = $dt->format('Y-m-d\TH:i:s');
+        }
     }
 
     $result = $api->createPost($postData);
