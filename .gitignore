@@ -1,5 +1,4 @@
+data/database.sqlite
+data/*.sqlite
+data/*.db
 config.json
-__pycache__/
-*.pyc
-.venv/
-venv/

@@ -1,28 +1,40 @@
-# WordPress Password Manager
+# Semtree Zaplecze
 
-Desktop app to change WordPress admin login passwords across multiple sites at once.
+Web application for managing WordPress satellite sites - monitoring their status, post counts, and bulk-changing admin passwords.
 
 ## Requirements
 
-- Python 3.8+
-- WordPress sites with Application Passwords enabled (WP 5.6+, HTTPS required)
+- PHP 8.0+ with SQLite3 and cURL extensions
+- Apache with mod_rewrite (or nginx equivalent)
+- WordPress sites with Application Passwords enabled (WP 5.6+, HTTPS)
 
 ## Setup
 
-```bash
-pip install -r requirements.txt
-python main.py
+1. Upload files to your web server
+2. Ensure `data/` directory is writable by PHP
+3. Open in browser - default login: `admin` / `admin`
+4. Change the default password after first login
+
+## Features
+
+- **Dashboard** - list of all satellite sites with HTTP status and post count
+- **CSV import/export** - bulk add sites from CSV file (separator: `;`)
+- **Bulk password change** (admin only) - change WP login password on all sites at once
+- **User management** (admin only) - create worker accounts with read-only access
+
+## CSV Format
+
+```
+name;url;username;app_password
+MySite;https://example.com;admin;XXXX XXXX XXXX XXXX XXXX XXXX
 ```
 
-## Usage
+## Roles
 
-1. **Add sites** - click "Dodaj" and enter site name, URL, admin username, and Application Password
-2. **Test connection** - select sites and click "Testuj" to verify credentials
-3. **Change password** - enter new password, select sites (or click "WSZYSTKIE"), and confirm
-
-## Notes
-
-- Changes the **login password** (wp-login.php), NOT Application Passwords
-- Application Passwords used for API access remain unchanged
-- Credentials stored in `config.json` (gitignored) - keep this file secure
-- Requires admin-level Application Password for each site
+| Feature | Admin | Worker |
+|---|---|---|
+| View sites & statuses | Yes | Yes |
+| Add/edit/remove sites | Yes | No |
+| Import/export CSV | Yes | No |
+| Change WP passwords | Yes | No |
+| Manage users | Yes | No |

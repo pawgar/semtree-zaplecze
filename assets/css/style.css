@@ -1,0 +1,56 @@
+/* Login page */
+.login-body {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 420px;
+    padding: 15px;
+}
+
+.login-logo {
+    width: 200px;
+}
+
+/* Status badges */
+.status-ok {
+    color: #198754;
+    font-weight: 600;
+}
+
+.status-error {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.status-loading {
+    color: #6c757d;
+}
+
+/* Table tweaks */
+#sitesTable td, #sitesTable th {
+    vertical-align: middle;
+}
+
+/* Password change log */
+.pw-log-ok {
+    color: #198754;
+}
+
+.pw-log-fail {
+    color: #dc3545;
+}
+
+/* Spinner for status refresh */
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    100% { transform: rotate(360deg); }
+}
