@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-load data based on page
     if (document.getElementById('sitesBody')) loadSites();
     if (document.getElementById('usersBody')) loadUsers();
+    if (document.getElementById('publishSiteSelect')) initPublishPage();
 });
 
 // ── Status Refresh ───────────────────────────────────────────
@@ -304,6 +305,343 @@ function deleteUser(id, name) {
         if (r.error) return alert(r.error);
         loadUsers();
     });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── Publish Articles ─────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
+let articles = [];
+let wpCategories = [];
+let wpAuthors = [];
+let publishedUrls = [];
+
+function initPublishPage() {
+    // Load sites into dropdown
+    api('GET', 'api/sites.php').then(sites => {
+        sitesData = sites;
+        const sel = document.getElementById('publishSiteSelect');
+        sites.forEach(s => {
+            sel.innerHTML += `<option value="${s.id}">${esc(s.name)} (${esc(s.url)})</option>`;
+        });
+    });
+
+    // Reset manual article modal on close
+    const modal = document.getElementById('manualArticleModal');
+    if (modal) {
+        modal.addEventListener('hidden.bs.modal', () => {
+            document.getElementById('manualTitle').value = '';
+            document.getElementById('manualContent').value = '';
+            document.getElementById('manualImage').value = '';
+        });
+    }
+}
+
+// ── Load WP categories & authors ─────────────────────────────
+function loadWpData() {
+    const siteId = document.getElementById('publishSiteSelect').value;
+    if (!siteId) return alert('Wybierz strone');
+
+    const status = document.getElementById('wpDataStatus');
+    status.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Laduje...';
+
+    Promise.all([
+        api('GET', `api/wp-data.php?site_id=${siteId}&type=categories`),
+        api('GET', `api/wp-data.php?site_id=${siteId}&type=authors`),
+    ]).then(([cats, auths]) => {
+        if (cats.error) { status.textContent = 'Blad: ' + cats.error; return; }
+        if (auths.error) { status.textContent = 'Blad: ' + auths.error; return; }
+
+        wpCategories = cats;
+        wpAuthors = auths;
+
+        // Fill bulk dropdowns
+        fillCategorySelect('bulkCategory', cats);
+        fillAuthorSelect('bulkAuthor', auths);
+
+        status.innerHTML = `<i class="bi bi-check-circle text-success"></i> Zaladowano ${cats.length} kategorii, ${auths.length} autorow`;
+
+        // Re-render articles table with updated dropdowns
+        renderArticles();
+    }).catch(e => {
+        status.textContent = 'Blad polaczenia';
+    });
+}
+
+function fillCategorySelect(id, cats) {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">--</option>' + cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+}
+
+function fillAuthorSelect(id, auths) {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">--</option>' + auths.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+}
+
+// ── Add articles ─────────────────────────────────────────────
+function addManualArticle() {
+    const title = document.getElementById('manualTitle').value.trim();
+    const content = document.getElementById('manualContent').value;
+    const imageInput = document.getElementById('manualImage');
+
+    if (!title) return alert('Wpisz tytul');
+
+    const article = {
+        id: Date.now(),
+        title,
+        content,
+        slug: titleToSlug(title),
+        category_id: '',
+        author_id: '',
+        image_data: '',
+        image_filename: '',
+        publish_date: '',
+        status: 'draft',
+    };
+
+    if (imageInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            article.image_data = e.target.result.split(',')[1]; // strip data:... prefix
+            article.image_filename = imageInput.files[0].name;
+            articles.push(article);
+            renderArticles();
+            bootstrap.Modal.getInstance(document.getElementById('manualArticleModal')).hide();
+        };
+        reader.readAsDataURL(imageInput.files[0]);
+    } else {
+        articles.push(article);
+        renderArticles();
+        bootstrap.Modal.getInstance(document.getElementById('manualArticleModal')).hide();
+    }
+}
+
+function uploadDocxFiles(input) {
+    const files = Array.from(input.files);
+    if (!files.length) return;
+    input.value = '';
+
+    const status = document.getElementById('articleCount');
+    status.innerHTML = `<i class="bi bi-arrow-clockwise spin"></i> Przetwarzam ${files.length} plikow...`;
+
+    let done = 0;
+    files.forEach(file => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('api/upload-docx.php', {method: 'POST', body: formData})
+            .then(r => r.json())
+            .then(r => {
+                if (r.error) {
+                    alert(`Blad parsowania ${file.name}: ${r.error}`);
+                } else {
+                    articles.push({
+                        id: Date.now() + Math.random(),
+                        title: r.title,
+                        content: r.html_body,
+                        slug: titleToSlug(r.title),
+                        category_id: '',
+                        author_id: '',
+                        image_data: '',
+                        image_filename: '',
+                        publish_date: '',
+                        status: 'draft',
+                    });
+                }
+            })
+            .catch(e => alert(`Blad uploadu ${file.name}: ${e.message}`))
+            .finally(() => {
+                done++;
+                if (done === files.length) {
+                    renderArticles();
+                    status.textContent = '';
+                }
+            });
+    });
+}
+
+// ── Render articles table ────────────────────────────────────
+function renderArticles() {
+    const tbody = document.getElementById('articlesBody');
+    if (!tbody) return;
+
+    const count = document.getElementById('articleCount');
+    if (count) count.textContent = articles.length > 0 ? `${articles.length} artykulow` : '';
+
+    if (articles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Brak artykulow. Wgraj DOCX lub dodaj recznie.</td></tr>';
+        return;
+    }
+
+    const catOpts = wpCategories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    const authOpts = wpAuthors.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+
+    tbody.innerHTML = articles.map((a, i) => `
+        <tr>
+            <td>${i + 1}</td>
+            <td><input type="text" class="form-control form-control-sm" value="${esc(a.title)}" onchange="articles[${i}].title=this.value; articles[${i}].slug=titleToSlug(this.value)"></td>
+            <td>
+                <select class="form-select form-select-sm" onchange="articles[${i}].category_id=this.value">
+                    <option value="">--</option>
+                    ${catOpts}
+                </select>
+            </td>
+            <td>
+                <select class="form-select form-select-sm" onchange="articles[${i}].author_id=this.value">
+                    <option value="">--</option>
+                    ${authOpts}
+                </select>
+            </td>
+            <td>
+                ${a.image_filename
+                    ? `<span class="text-success small"><i class="bi bi-image"></i> ${esc(a.image_filename)}</span>`
+                    : `<input type="file" class="form-control form-control-sm" accept="image/*" onchange="setArticleImage(${i}, this)">`
+                }
+            </td>
+            <td><input type="datetime-local" class="form-control form-control-sm" value="${a.publish_date}" onchange="articles[${i}].publish_date=this.value"></td>
+            <td>
+                <select class="form-select form-select-sm" onchange="articles[${i}].status=this.value">
+                    <option value="draft" ${a.status==='draft'?'selected':''}>Szkic</option>
+                    <option value="publish" ${a.status==='publish'?'selected':''}>Publikuj</option>
+                </select>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-danger" onclick="removeArticle(${i})" title="Usun">
+                    <i class="bi bi-x"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+
+    // Set selected values for category/author dropdowns
+    articles.forEach((a, i) => {
+        const row = tbody.children[i];
+        if (a.category_id) row.querySelector('td:nth-child(3) select').value = a.category_id;
+        if (a.author_id) row.querySelector('td:nth-child(4) select').value = a.author_id;
+    });
+}
+
+function setArticleImage(index, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        articles[index].image_data = e.target.result.split(',')[1];
+        articles[index].image_filename = file.name;
+        renderArticles();
+    };
+    reader.readAsDataURL(file);
+}
+
+function removeArticle(index) {
+    articles.splice(index, 1);
+    renderArticles();
+}
+
+function clearArticles() {
+    if (articles.length && !confirm('Wyczysc cala liste artykulow?')) return;
+    articles = [];
+    publishedUrls = [];
+    renderArticles();
+    document.getElementById('publishReport').classList.add('d-none');
+}
+
+// ── Bulk operations ──────────────────────────────────────────
+function setBulkCategory(val) {
+    if (!val) return;
+    articles.forEach(a => a.category_id = val);
+    renderArticles();
+}
+
+function setBulkAuthor(val) {
+    if (!val) return;
+    articles.forEach(a => a.author_id = val);
+    renderArticles();
+}
+
+function setBulkStatus(val) {
+    articles.forEach(a => a.status = val);
+    renderArticles();
+}
+
+// ── Publish all ──────────────────────────────────────────────
+async function publishAllArticles() {
+    const siteId = document.getElementById('publishSiteSelect').value;
+    if (!siteId) return alert('Wybierz strone');
+    if (!articles.length) return alert('Dodaj artykuly');
+    if (!confirm(`Opublikowac ${articles.length} artykulow?`)) return;
+
+    const btn = document.getElementById('btnPublishAll');
+    const progressWrap = document.getElementById('publishProgress');
+    const progressBar = document.getElementById('publishProgressBar');
+    const report = document.getElementById('publishReport');
+    const log = document.getElementById('publishReportLog');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Publikuje...';
+    progressWrap.classList.remove('d-none');
+    report.classList.remove('d-none');
+    log.innerHTML = '';
+    publishedUrls = [];
+
+    const total = articles.length;
+
+    for (let i = 0; i < total; i++) {
+        const a = articles[i];
+        progressBar.style.width = ((i + 1) / total * 100) + '%';
+        progressBar.textContent = `${i + 1} / ${total}`;
+
+        try {
+            const r = await api('POST', 'api/publish.php', {
+                site_id: parseInt(siteId),
+                title: a.title,
+                content: a.content,
+                status: a.status,
+                category_id: a.category_id ? parseInt(a.category_id) : 0,
+                author_id: a.author_id ? parseInt(a.author_id) : 0,
+                publish_date: a.publish_date || '',
+                image_data: a.image_data || '',
+                image_filename: a.image_filename || '',
+            });
+
+            if (r.success) {
+                publishedUrls.push(r.post_url);
+                log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> <strong>${esc(r.title)}</strong> → <a href="${esc(r.post_url)}" target="_blank">${esc(r.post_url)}</a></div>`;
+            } else {
+                log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> <strong>${esc(r.title)}</strong> → ${esc(r.error)}</div>`;
+            }
+        } catch (e) {
+            log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> <strong>${esc(a.title)}</strong> → ${esc(e.message)}</div>`;
+        }
+
+        // 500ms delay between posts
+        if (i < total - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send"></i> Publikuj wszystkie';
+}
+
+function copyPublishedUrls() {
+    if (!publishedUrls.length) return alert('Brak linkow do skopiowania');
+    navigator.clipboard.writeText(publishedUrls.join('\n')).then(() => {
+        alert('Skopiowano ' + publishedUrls.length + ' linkow');
+    });
+}
+
+// ── Slug generation ──────────────────────────────────────────
+function titleToSlug(title) {
+    const polish = {'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z',
+                    'Ą':'a','Ć':'c','Ę':'e','Ł':'l','Ń':'n','Ó':'o','Ś':'s','Ź':'z','Ż':'z'};
+    return title
+        .toLowerCase()
+        .replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, c => polish[c] || c)
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
 }
 
 // ── Utility ──────────────────────────────────────────────────

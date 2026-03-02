@@ -21,6 +21,9 @@
                 <i class="bi bi-grid"></i> Dashboard
             </a>
             <?php if (isAdmin()): ?>
+            <a class="nav-link <?= ($page ?? '') === 'publish' ? 'active' : '' ?>" href="index.php?page=publish">
+                <i class="bi bi-pencil-square"></i> Publikuj artykuly
+            </a>
             <a class="nav-link <?= ($page ?? '') === 'users' ? 'active' : '' ?>" href="index.php?page=users">
                 <i class="bi bi-people"></i> Uzytkownicy
             </a>

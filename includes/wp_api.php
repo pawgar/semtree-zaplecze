@@ -78,6 +78,106 @@ class WpApi {
         return $this->request('POST', '/users/me', ['password' => $newPassword]);
     }
 
+    /**
+     * Get all categories (paginated).
+     */
+    public function getCategories(): array {
+        return $this->requestPaginated('/categories');
+    }
+
+    /**
+     * Get all authors/users (paginated).
+     */
+    public function getAuthors(): array {
+        return $this->requestPaginated('/users');
+    }
+
+    /**
+     * Upload media file to WordPress. Returns media ID.
+     */
+    public function uploadMedia(string $filename, string $binaryData, string $mimeType): int {
+        $url = $this->apiBase . '/media';
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                $this->authHeader,
+                'Content-Type: ' . $mimeType,
+                'Content-Disposition: attachment; filename="' . $filename . '"',
+            ],
+            CURLOPT_POSTFIELDS => $binaryData,
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+
+        $response = curl_exec($ch);
+        if (curl_errno($ch)) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            throw new RuntimeException('Upload error: ' . $error);
+        }
+
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $data = json_decode($response, true) ?? [];
+
+        if ($httpCode >= 400) {
+            throw new RuntimeException($data['message'] ?? "Upload failed: HTTP $httpCode");
+        }
+
+        return (int) ($data['id'] ?? 0);
+    }
+
+    /**
+     * Create a new post on WordPress.
+     */
+    public function createPost(array $postData): array {
+        return $this->request('POST', '/posts', $postData);
+    }
+
+    private function requestPaginated(string $endpoint): array {
+        $all = [];
+        $page = 1;
+        do {
+            $sep = str_contains($endpoint, '?') ? '&' : '?';
+            $url = $this->apiBase . $endpoint . $sep . 'per_page=100&page=' . $page;
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [$this->authHeader, 'Content-Type: application/json'],
+                CURLOPT_TIMEOUT => $this->timeout,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_HEADER => true,
+            ]);
+            $response = curl_exec($ch);
+
+            if (curl_errno($ch)) {
+                curl_close($ch);
+                break;
+            }
+
+            $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+            $headers = substr($response, 0, $headerSize);
+            $body = substr($response, $headerSize);
+            curl_close($ch);
+
+            $items = json_decode($body, true) ?? [];
+            if (!is_array($items) || empty($items)) break;
+
+            $all = array_merge($all, $items);
+
+            $totalPages = 1;
+            if (preg_match('/X-WP-TotalPages:\s*(\d+)/i', $headers, $m)) {
+                $totalPages = (int) $m[1];
+            }
+            $page++;
+        } while ($page <= $totalPages);
+
+        return $all;
+    }
+
     private function request(string $method, string $endpoint, ?array $body = null): array {
         $ch = curl_init($this->apiBase . $endpoint);
         $headers = [

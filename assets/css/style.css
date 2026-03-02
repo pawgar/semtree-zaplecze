@@ -54,3 +54,22 @@
 @keyframes spin {
     100% { transform: rotate(360deg); }
 }
+
+/* Publish page */
+#articlesTable td, #articlesTable th {
+    vertical-align: middle;
+}
+
+#articlesTable .form-control-sm,
+#articlesTable .form-select-sm {
+    font-size: 0.8rem;
+}
+
+#publishReportLog > div {
+    padding: 4px 0;
+    border-bottom: 1px solid #eee;
+}
+
+#publishReportLog > div:last-child {
+    border-bottom: none;
+}
