@@ -35,6 +35,7 @@ function parseDocx(string $path, string $filename): array {
 
     $html = convertDocxXmlToHtml($xml);
     $html = cleanHtml($html);
+    $html = stripBoldFromHeadings($html);
 
     // Extract title from first H1
     $title = '';
@@ -174,6 +175,22 @@ function convertTable(DOMNode $tbl, string $ns): string {
     }
     $html .= '</table>';
     return $html . "\n";
+}
+
+function stripBoldFromHeadings(string $html): string {
+    return preg_replace_callback(
+        '/<(h[1-6])(\s[^>]*)?>(.+?)<\/\1>/si',
+        function ($m) {
+            $tag = $m[1];
+            $attrs = $m[2] ?? '';
+            $content = $m[3];
+            $content = preg_replace('/<strong>(.*?)<\/strong>/si', '$1', $content);
+            $content = preg_replace('/<b>(.*?)<\/b>/si', '$1', $content);
+            $content = preg_replace('/<span[^>]*style="[^"]*font-weight\s*:\s*(bold|[7-9]\d\d)[^"]*"[^>]*>(.*?)<\/span>/si', '$2', $content);
+            return "<{$tag}{$attrs}>{$content}</{$tag}>";
+        },
+        $html
+    );
 }
 
 function cleanHtml(string $html): string {

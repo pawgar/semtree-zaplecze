@@ -2,6 +2,9 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0"><i class="bi bi-pencil-square"></i> Publikuj artykuly</h4>
+    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#geminiKeyModal" onclick="loadGeminiKey()">
+        <i class="bi bi-key"></i> Gemini API Key
+    </button>
 </div>
 
 <!-- Step 1: Select site -->
@@ -32,6 +35,10 @@
             <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#manualArticleModal">
                 <i class="bi bi-plus-lg"></i> Dodaj recznie
             </button>
+            <button class="btn btn-outline-info btn-sm" onclick="bulkGenerateImages()">
+                <i class="bi bi-stars"></i> Generuj obrazki AI
+            </button>
+            <span id="geminiStatus" class="text-muted small align-self-center"></span>
             <span id="articleCount" class="text-muted small align-self-center"></span>
         </div>
     </div>
@@ -63,6 +70,15 @@
                     <option value="publish">Publikuj</option>
                 </select>
             </div>
+            <div class="d-flex align-items-center gap-1">
+                <label class="small text-muted text-nowrap">Losowe daty:</label>
+                <input type="datetime-local" class="form-control form-control-sm" id="randomDateFrom" style="width:170px">
+                <span class="small text-muted">-</span>
+                <input type="datetime-local" class="form-control form-control-sm" id="randomDateTo" style="width:170px">
+                <button class="btn btn-outline-secondary btn-sm" onclick="setRandomDates()" title="Wylosuj daty publikacji">
+                    <i class="bi bi-shuffle"></i> Losuj
+                </button>
+            </div>
         </div>
 
         <div class="table-responsive">
@@ -73,7 +89,7 @@
                         <th>Tytul</th>
                         <th style="width:170px">Kategoria</th>
                         <th style="width:170px">Autor</th>
-                        <th style="width:120px">Obrazek</th>
+                        <th style="width:170px">Obrazek</th>
                         <th style="width:160px">Data publikacji</th>
                         <th style="width:100px">Status</th>
                         <th style="width:50px"></th>
@@ -141,6 +157,29 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
                 <button type="button" class="btn btn-primary" onclick="addManualArticle()">Dodaj do listy</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gemini API Key Modal -->
+<div class="modal fade" id="geminiKeyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-key"></i> Gemini API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Klucz API do generowania obrazkow przez Google Gemini. Pobierz z <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>.</p>
+                <div class="mb-3">
+                    <label class="form-label">API Key</label>
+                    <input type="password" class="form-control" id="geminiApiKey">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-primary" onclick="saveGeminiKey()">Zapisz</button>
             </div>
         </div>
     </div>

@@ -45,6 +45,13 @@ function initSchema(SQLite3 $db): void {
         )
     ');
 
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL DEFAULT ""
+        )
+    ');
+
     migrateSchema($db);
 
     // Create default admin account
@@ -68,4 +75,12 @@ function migrateSchema(SQLite3 $db): void {
     if (!$hasCategories) {
         $db->exec('ALTER TABLE sites ADD COLUMN categories TEXT NOT NULL DEFAULT ""');
     }
+
+    // Create settings table if it doesn't exist
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL DEFAULT ""
+        )
+    ');
 }

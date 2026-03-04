@@ -369,6 +369,20 @@ function initPublishPage() {
         });
     });
 
+    // Auto-load WP data when site changes, reset selections
+    document.getElementById('publishSiteSelect').addEventListener('change', function() {
+        wpCategories = [];
+        wpAuthors = [];
+        fillCategorySelect('bulkCategory', []);
+        fillAuthorSelect('bulkAuthor', []);
+        articles.forEach(a => { a.category_id = ''; a.author_id = ''; });
+        renderArticles();
+        document.getElementById('wpDataStatus').textContent = '';
+        if (this.value) {
+            loadWpData();
+        }
+    });
+
     // Reset manual article modal on close
     const modal = document.getElementById('manualArticleModal');
     if (modal) {
@@ -550,8 +564,10 @@ function renderArticles() {
             </td>
             <td>
                 ${a.image_filename
-                    ? `<span class="text-success small"><i class="bi bi-image"></i> ${esc(a.image_filename)}</span>`
-                    : `<input type="file" class="form-control form-control-sm" accept="image/*" onchange="setArticleImage(${i}, this)">`
+                    ? `<span class="text-success small"><i class="bi bi-image"></i> ${esc(a.image_filename)}</span>
+                       <button class="btn btn-sm btn-outline-danger p-0 ms-1" onclick="removeArticleImage(${i})" title="Usun"><i class="bi bi-x"></i></button>`
+                    : `<div class="d-flex gap-1"><input type="file" class="form-control form-control-sm" accept="image/*" onchange="setArticleImage(${i}, this)" style="max-width:110px">
+                       <button class="btn btn-sm btn-outline-info" onclick="generateGeminiImage(${i})" title="Generuj AI"><i class="bi bi-stars"></i></button></div>`
                 }
             </td>
             <td><input type="datetime-local" class="form-control form-control-sm" value="${a.publish_date}" onchange="articles[${i}].publish_date=this.value"></td>
@@ -594,6 +610,13 @@ function removeArticle(index) {
     renderArticles();
 }
 
+function removeArticleImage(index) {
+    articles[index].image_data = '';
+    articles[index].image_filename = '';
+    delete articles[index]._media_id;
+    renderArticles();
+}
+
 function clearArticles() {
     if (articles.length && !confirm('Wyczysc cala liste artykulow?')) return;
     articles = [];
@@ -620,7 +643,26 @@ function setBulkStatus(val) {
     renderArticles();
 }
 
-// ── Publish all ──────────────────────────────────────────────
+function setRandomDates() {
+    const fromStr = document.getElementById('randomDateFrom').value;
+    const toStr = document.getElementById('randomDateTo').value;
+    if (!fromStr || !toStr) return alert('Ustaw zakres dat (od - do)');
+
+    const from = new Date(fromStr).getTime();
+    const to = new Date(toStr).getTime();
+    if (from >= to) return alert('Data "od" musi byc wczesniejsza niz "do"');
+    if (!articles.length) return alert('Brak artykulow');
+
+    articles.forEach(a => {
+        const randomTime = from + Math.random() * (to - from);
+        const d = new Date(randomTime);
+        const pad = n => String(n).padStart(2, '0');
+        a.publish_date = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    });
+    renderArticles();
+}
+
+// ── Publish all (parallel image upload + sequential post creation) ──
 async function publishAllArticles() {
     const siteId = document.getElementById('publishSiteSelect').value;
     if (!siteId) return alert('Wybierz strone');
@@ -634,7 +676,6 @@ async function publishAllArticles() {
     const log = document.getElementById('publishReportLog');
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Publikuje...';
     progressWrap.classList.remove('d-none');
     report.classList.remove('d-none');
     log.innerHTML = '';
@@ -642,13 +683,49 @@ async function publishAllArticles() {
 
     const total = articles.length;
 
+    // Phase 1: Upload images in parallel
+    const articlesWithImages = articles.filter(a => a.image_data && !a._media_id);
+    if (articlesWithImages.length > 0) {
+        btn.innerHTML = `<i class="bi bi-arrow-clockwise spin"></i> Obrazki (0/${articlesWithImages.length})...`;
+        progressBar.style.width = '0%';
+        progressBar.textContent = `Obrazki: 0 / ${articlesWithImages.length}`;
+
+        let uploaded = 0;
+        const uploadPromises = articlesWithImages.map(a => {
+            return api('POST', 'api/upload-image.php', {
+                site_id: parseInt(siteId),
+                image_data: a.image_data,
+                image_filename: a.image_filename,
+            }).then(r => {
+                uploaded++;
+                progressBar.style.width = (uploaded / articlesWithImages.length * 50) + '%';
+                progressBar.textContent = `Obrazki: ${uploaded} / ${articlesWithImages.length}`;
+                if (r.success) {
+                    a._media_id = r.media_id;
+                    log.innerHTML += `<div class="text-muted small"><i class="bi bi-image"></i> Obrazek "${esc(a.title)}" przeslany</div>`;
+                } else {
+                    log.innerHTML += `<div class="text-warning small"><i class="bi bi-exclamation-triangle"></i> Obrazek "${esc(a.title)}": ${esc(r.error)}</div>`;
+                }
+            }).catch(e => {
+                uploaded++;
+                log.innerHTML += `<div class="text-warning small"><i class="bi bi-exclamation-triangle"></i> Obrazek "${esc(a.title)}": ${esc(e.message)}</div>`;
+            });
+        });
+
+        await Promise.all(uploadPromises);
+        log.innerHTML += '<hr>';
+    }
+
+    // Phase 2: Create posts sequentially
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Posty...';
+
     for (let i = 0; i < total; i++) {
         const a = articles[i];
-        progressBar.style.width = ((i + 1) / total * 100) + '%';
-        progressBar.textContent = `${i + 1} / ${total}`;
+        progressBar.style.width = (50 + (i + 1) / total * 50) + '%';
+        progressBar.textContent = `Posty: ${i + 1} / ${total}`;
 
         try {
-            const r = await api('POST', 'api/publish.php', {
+            const postData = {
                 site_id: parseInt(siteId),
                 title: a.title,
                 content: a.content,
@@ -656,9 +733,17 @@ async function publishAllArticles() {
                 category_id: a.category_id ? parseInt(a.category_id) : 0,
                 author_id: a.author_id ? parseInt(a.author_id) : 0,
                 publish_date: a.publish_date || '',
-                image_data: a.image_data || '',
-                image_filename: a.image_filename || '',
-            });
+            };
+
+            // Use pre-uploaded media_id if available
+            if (a._media_id) {
+                postData.media_id = a._media_id;
+            } else if (a.image_data) {
+                postData.image_data = a.image_data;
+                postData.image_filename = a.image_filename;
+            }
+
+            const r = await api('POST', 'api/publish.php', postData);
 
             if (r.success) {
                 publishedUrls.push(r.post_url);
@@ -670,7 +755,6 @@ async function publishAllArticles() {
             log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> <strong>${esc(a.title)}</strong> → ${esc(e.message)}</div>`;
         }
 
-        // 500ms delay between posts
         if (i < total - 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
         }
@@ -685,6 +769,70 @@ function copyPublishedUrls() {
     navigator.clipboard.writeText(publishedUrls.join('\n')).then(() => {
         alert('Skopiowano ' + publishedUrls.length + ' linkow');
     });
+}
+
+// ── Gemini Image Generation ─────────────────────────────────
+async function generateGeminiImage(index) {
+    const a = articles[index];
+    if (!a) return;
+
+    const tbody = document.getElementById('articlesBody');
+    const row = tbody.children[index];
+    const imgCell = row.querySelector('td:nth-child(5)');
+    imgCell.innerHTML = '<i class="bi bi-arrow-clockwise spin text-primary"></i> <span class="small">Generuje...</span>';
+
+    try {
+        const r = await api('POST', 'api/gemini-generate.php', { title: a.title });
+        if (r.error) {
+            imgCell.innerHTML = `<span class="text-danger small">${esc(r.error)}</span>`;
+            return;
+        }
+        articles[index].image_data = r.image_data;
+        articles[index].image_filename = r.image_filename;
+        renderArticles();
+    } catch (e) {
+        imgCell.innerHTML = `<span class="text-danger small">Blad: ${esc(e.message)}</span>`;
+    }
+}
+
+async function bulkGenerateImages() {
+    const indices = articles.map((a, i) => !a.image_data ? i : -1).filter(i => i >= 0);
+    if (!indices.length) return alert('Wszystkie artykuly maja juz obrazki');
+    if (!confirm(`Wygenerowac obrazki AI dla ${indices.length} artykulow?`)) return;
+
+    const status = document.getElementById('geminiStatus');
+    let success = 0;
+
+    for (let j = 0; j < indices.length; j++) {
+        status.innerHTML = `<i class="bi bi-arrow-clockwise spin"></i> Generuje ${j + 1}/${indices.length}...`;
+        await generateGeminiImage(indices[j]);
+        if (articles[indices[j]].image_data) success++;
+        if (j < indices.length - 1) {
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    }
+
+    status.innerHTML = `<i class="bi bi-check-circle text-success"></i> Wygenerowano ${success}/${indices.length} obrazkow`;
+}
+
+async function loadGeminiKey() {
+    try {
+        const r = await api('GET', 'api/settings.php?key=gemini_api_key');
+        document.getElementById('geminiApiKey').value = r.value || '';
+    } catch (e) {
+        // ignore
+    }
+}
+
+async function saveGeminiKey() {
+    const key = document.getElementById('geminiApiKey').value.trim();
+    try {
+        await api('POST', 'api/settings.php', { key: 'gemini_api_key', value: key });
+        bootstrap.Modal.getInstance(document.getElementById('geminiKeyModal')).hide();
+        alert('Klucz API zapisany');
+    } catch (e) {
+        alert('Blad zapisu: ' + e.message);
+    }
 }
 
 // ── Slug generation ──────────────────────────────────────────

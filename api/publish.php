@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../includes/wp_api.php';
+require_once __DIR__ . '/../includes/image_utils.php';
 header('Content-Type: application/json');
 requireAdminApi();
 
@@ -15,6 +16,7 @@ $authorId = (int) ($input['author_id'] ?? 0);
 $publishDate = $input['publish_date'] ?? '';
 $imageData = $input['image_data'] ?? '';
 $imageFilename = $input['image_filename'] ?? 'image.jpg';
+$mediaId = (int) ($input['media_id'] ?? 0);
 
 if (!$siteId || !$title) {
     http_response_code(400);
@@ -36,29 +38,17 @@ if (!$site) {
 try {
     $api = new WpApi($site['url'], $site['username'], $site['app_password']);
 
-    // Upload featured image if provided
+    // Featured image: use pre-uploaded media_id, or upload with optimization
     $featuredMediaId = 0;
-    if ($imageData) {
-        // Decode base64 image
+    if ($mediaId > 0) {
+        $featuredMediaId = $mediaId;
+    } elseif ($imageData) {
         $binary = base64_decode($imageData);
         if ($binary === false) {
             throw new RuntimeException('Nieprawidlowe dane obrazka');
         }
-
-        $mimeType = 'image/jpeg';
-        $ext = strtolower(pathinfo($imageFilename, PATHINFO_EXTENSION));
-        $mimeMap = [
-            'png' => 'image/png',
-            'gif' => 'image/gif',
-            'webp' => 'image/webp',
-            'jpg' => 'image/jpeg',
-            'jpeg' => 'image/jpeg',
-        ];
-        if (isset($mimeMap[$ext])) {
-            $mimeType = $mimeMap[$ext];
-        }
-
-        $featuredMediaId = $api->uploadMedia($imageFilename, $binary, $mimeType);
+        $optimized = optimizeImage($binary, $imageFilename);
+        $featuredMediaId = $api->uploadMedia($optimized['filename'], $optimized['data'], $optimized['mime']);
     }
 
     // Build post data
