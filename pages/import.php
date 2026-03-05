@@ -39,17 +39,11 @@
     </div>
 </div>
 
-<!-- Step 3: Upload DOCX files -->
-<div class="card mb-3 d-none" id="docxUploadCard">
+<!-- Step 3: Load DOCX files from disk -->
+<div class="card mb-3 d-none" id="docxLoadCard">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-3-circle"></i> Wgraj pliki DOCX</h6>
-        <div class="d-flex gap-2 align-items-center">
-            <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('importDocxFiles').click()">
-                <i class="bi bi-file-earmark-word"></i> Wybierz pliki DOCX (wiele)
-            </button>
-            <input type="file" id="importDocxFiles" accept=".docx" multiple style="display:none" onchange="uploadImportDocxFiles(this)">
-            <span id="docxMatchStatus" class="text-muted small"></span>
-        </div>
+        <h6 class="card-title"><i class="bi bi-3-circle"></i> Wczytywanie plikow DOCX</h6>
+        <span id="docxMatchStatus" class="text-muted small"></span>
         <div class="progress mt-2 d-none" id="docxProgress" style="height:20px">
             <div class="progress-bar progress-bar-striped progress-bar-animated" id="docxProgressBar" role="progressbar" style="width:0%">0 / 0</div>
         </div>
@@ -116,7 +110,7 @@
                     </tr>
                 </thead>
                 <tbody id="articlesBody">
-                    <tr><td colspan="8" class="text-center text-muted">Wgraj XLSX i pliki DOCX aby zobaczyc artykuly.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted">Wgraj XLSX aby zaladowac artykuly.</td></tr>
                 </tbody>
             </table>
         </div>

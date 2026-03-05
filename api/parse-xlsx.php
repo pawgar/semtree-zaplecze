@@ -89,13 +89,14 @@ function parseXlsx(string $path): array {
 
         if (empty($title)) continue;
 
-        // Extract just the filename from full local path
+        // Extract filename and keep full path for local reading
         $docxFilename = basename(str_replace('\\', '/', $docxPath));
 
         $articles[] = [
             'title' => $title,
             'category_name' => $category,
             'docx_filename' => $docxFilename,
+            'docx_path' => $docxPath,
         ];
     }
 

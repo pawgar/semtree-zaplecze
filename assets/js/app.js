@@ -886,7 +886,7 @@ function initImportPage() {
     });
 }
 
-// ── Parse XLSX ──────────────────────────────────────────────
+// ── Parse XLSX and auto-load DOCX files ─────────────────────
 async function parseXlsxFile(input) {
     const file = input.files[0];
     if (!file) return;
@@ -922,8 +922,8 @@ async function parseXlsxFile(input) {
         // Show category mapping
         matchCategories();
 
-        // Show DOCX upload card
-        document.getElementById('docxUploadCard').classList.remove('d-none');
+        // Auto-load DOCX files from disk
+        await loadDocxFromDisk();
     } catch (e) {
         status.innerHTML = `<i class="bi bi-x-circle text-danger"></i> Blad: ${esc(e.message)}`;
     }
@@ -1007,96 +1007,61 @@ function setCategoryMapping(xlsxCat, wpCatId) {
     renderArticles();
 }
 
-// ── Upload DOCX files for import ────────────────────────────
-async function uploadImportDocxFiles(input) {
-    const files = Array.from(input.files);
-    if (!files.length) return;
-    input.value = '';
+// ── Load DOCX files from local disk paths ───────────────────
+async function loadDocxFromDisk() {
+    if (!importPlan.length) return;
 
-    if (!importPlan.length) {
-        alert('Najpierw wgraj plik XLSX');
-        return;
-    }
+    // Filter rows that have docx_path
+    const rowsWithPath = importPlan.filter(row => row.docx_path);
+    if (!rowsWithPath.length) return;
 
+    const loadCard = document.getElementById('docxLoadCard');
     const status = document.getElementById('docxMatchStatus');
     const progressWrap = document.getElementById('docxProgress');
     const progressBar = document.getElementById('docxProgressBar');
 
+    loadCard.classList.remove('d-none');
     progressWrap.classList.remove('d-none');
+    status.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Wczytuje pliki DOCX z dysku...';
 
-    // Build filename → importPlan index map
-    const planByFilename = {};
-    importPlan.forEach((row, idx) => {
-        const fn = row.docx_filename.toLowerCase();
-        planByFilename[fn] = idx;
-    });
-
-    const total = files.length;
+    const total = rowsWithPath.length;
     let done = 0;
-    let matched = 0;
-    const unmatched = [];
+    let success = 0;
+    const errors = [];
 
     // Process in batches of 5
     const BATCH_SIZE = 5;
 
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < rowsWithPath.length; i += BATCH_SIZE) {
+        const batch = rowsWithPath.slice(i, i + BATCH_SIZE);
 
-        await Promise.all(batch.map(async (file) => {
+        await Promise.all(batch.map(async (plan) => {
             try {
-                const formData = new FormData();
-                formData.append('file', file);
-
-                const response = await fetch('api/upload-docx.php', { method: 'POST', body: formData });
-                const r = await response.json();
+                const r = await api('POST', 'api/read-docx.php', { path: plan.docx_path });
 
                 if (r.error) {
-                    unmatched.push(file.name + ' (blad parsowania)');
+                    errors.push(plan.docx_filename + ': ' + r.error);
                 } else {
-                    // Match by filename to import plan
-                    const fnLower = file.name.toLowerCase();
-                    const planIdx = planByFilename[fnLower];
+                    const catId = categoryMap[plan.category_name] || '';
 
-                    if (planIdx !== undefined) {
-                        const plan = importPlan[planIdx];
-                        const catId = categoryMap[plan.category_name] || '';
-
-                        articles.push({
-                            id: Date.now() + Math.random(),
-                            title: plan.title,           // Use title from XLSX, not from DOCX
-                            content: r.html_body,
-                            slug: titleToSlug(plan.title),
-                            category_id: catId ? String(catId) : '',
-                            author_id: '',
-                            image_data: '',
-                            image_filename: '',
-                            publish_date: '',
-                            status: 'draft',
-                            _xlsx_category: plan.category_name,
-                            _docx_filename: file.name,
-                        });
-                        matched++;
-                    } else {
-                        // Not in plan — add with DOCX title
-                        articles.push({
-                            id: Date.now() + Math.random(),
-                            title: r.title,
-                            content: r.html_body,
-                            slug: titleToSlug(r.title),
-                            category_id: '',
-                            author_id: '',
-                            image_data: '',
-                            image_filename: '',
-                            publish_date: '',
-                            status: 'draft',
-                            _xlsx_category: '',
-                            _docx_filename: file.name,
-                        });
-                        unmatched.push(file.name);
-                    }
+                    articles.push({
+                        id: Date.now() + Math.random(),
+                        title: plan.title,
+                        content: r.html_body,
+                        slug: titleToSlug(plan.title),
+                        category_id: catId ? String(catId) : '',
+                        author_id: '',
+                        image_data: '',
+                        image_filename: '',
+                        publish_date: '',
+                        status: 'draft',
+                        _xlsx_category: plan.category_name,
+                        _docx_filename: plan.docx_filename,
+                    });
+                    success++;
                 }
             } catch (e) {
-                unmatched.push(file.name + ' (' + e.message + ')');
+                errors.push(plan.docx_filename + ': ' + e.message);
             } finally {
                 done++;
                 const pct = Math.round(done / total * 100);
@@ -1107,9 +1072,9 @@ async function uploadImportDocxFiles(input) {
     }
 
     // Show results
-    let statusText = `<i class="bi bi-check-circle text-success"></i> Dopasowano ${matched}/${total} plikow.`;
-    if (unmatched.length > 0) {
-        statusText += ` <span class="text-warning">${unmatched.length} niedopasowanych:</span> <span class="text-muted small">${unmatched.slice(0, 5).map(f => esc(f)).join(', ')}${unmatched.length > 5 ? '...' : ''}</span>`;
+    let statusText = `<i class="bi bi-check-circle text-success"></i> Wczytano ${success}/${total} plikow DOCX.`;
+    if (errors.length > 0) {
+        statusText += ` <span class="text-danger">${errors.length} bledow:</span> <span class="text-muted small">${errors.slice(0, 5).map(e => esc(e)).join('; ')}${errors.length > 5 ? '...' : ''}</span>`;
     }
     status.innerHTML = statusText;
 
