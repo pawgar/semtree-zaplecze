@@ -34,6 +34,10 @@ switch ($page) {
         requireAdmin();
         require __DIR__ . '/pages/publish.php';
         break;
+    case 'import':
+        requireAdmin();
+        require __DIR__ . '/pages/import.php';
+        break;
     case 'users':
         requireAdmin();
         require __DIR__ . '/pages/users.php';

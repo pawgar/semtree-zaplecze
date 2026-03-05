@@ -150,7 +150,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-load data based on page
     if (document.getElementById('sitesBody')) loadSites();
     if (document.getElementById('usersBody')) loadUsers();
-    if (document.getElementById('publishSiteSelect')) initPublishPage();
+    if (document.getElementById('xlsxFile')) {
+        initImportPage();
+    } else if (document.getElementById('publishSiteSelect')) {
+        initPublishPage();
+    }
 });
 
 // ── Status Refresh ───────────────────────────────────────────
@@ -351,13 +355,15 @@ function deleteUser(id, name) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// ── Publish Articles ─────────────────────────────────────────
+// ── Publish / Import Articles ────────────────────────────────
 // ══════════════════════════════════════════════════════════════
 
 let articles = [];
 let wpCategories = [];
 let wpAuthors = [];
 let publishedUrls = [];
+let importPlan = [];
+let categoryMap = {};
 
 function initPublishPage() {
     // Load sites into dropdown
@@ -432,6 +438,11 @@ function loadWpData() {
             status.innerHTML = `<i class="bi bi-exclamation-triangle text-warning"></i> Czesciowo zaladowano. ${warnings[0]}`;
         } else {
             status.innerHTML = `<i class="bi bi-check-circle text-success"></i> Zaladowano ${cats.length} kategorii, ${auths.length} autorow`;
+        }
+
+        // If on import page, update category mapping
+        if (document.getElementById('categoryMapping') && importPlan.length > 0) {
+            matchCategories();
         }
     });
 }
@@ -844,6 +855,269 @@ function titleToSlug(title) {
         .replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, c => polish[c] || c)
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── Import Masowy ────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
+function initImportPage() {
+    // Load sites into dropdown (reuses same publishSiteSelect ID)
+    api('GET', 'api/sites.php').then(sites => {
+        sitesData = sites;
+        const sel = document.getElementById('publishSiteSelect');
+        sites.forEach(s => {
+            sel.innerHTML += `<option value="${s.id}">${esc(s.name)} (${esc(s.url)})</option>`;
+        });
+    });
+
+    // Auto-load WP data when site changes, reset selections
+    document.getElementById('publishSiteSelect').addEventListener('change', function() {
+        wpCategories = [];
+        wpAuthors = [];
+        fillCategorySelect('bulkCategory', []);
+        fillAuthorSelect('bulkAuthor', []);
+        articles.forEach(a => { a.category_id = ''; a.author_id = ''; });
+        renderArticles();
+        document.getElementById('wpDataStatus').textContent = '';
+        if (this.value) {
+            loadWpData();
+        }
+    });
+}
+
+// ── Parse XLSX ──────────────────────────────────────────────
+async function parseXlsxFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+
+    const status = document.getElementById('xlsxStatus');
+    status.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Parsuje XLSX...';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch('api/parse-xlsx.php', { method: 'POST', body: formData });
+        const r = await response.json();
+
+        if (r.error) {
+            status.innerHTML = `<i class="bi bi-x-circle text-danger"></i> ${esc(r.error)}`;
+            return;
+        }
+
+        importPlan = r.rows;
+
+        // Count categories
+        const catCounts = {};
+        importPlan.forEach(row => {
+            const cat = row.category_name || '(brak)';
+            catCounts[cat] = (catCounts[cat] || 0) + 1;
+        });
+        const catCount = Object.keys(catCounts).filter(c => c !== '(brak)').length;
+
+        status.innerHTML = `<i class="bi bi-check-circle text-success"></i> Znaleziono ${importPlan.length} artykulow w ${catCount} kategoriach`;
+
+        // Show category mapping
+        matchCategories();
+
+        // Show DOCX upload card
+        document.getElementById('docxUploadCard').classList.remove('d-none');
+    } catch (e) {
+        status.innerHTML = `<i class="bi bi-x-circle text-danger"></i> Blad: ${esc(e.message)}`;
+    }
+}
+
+// ── Match XLSX categories to WP categories ──────────────────
+function matchCategories() {
+    const container = document.getElementById('categoryMapping');
+    if (!container) return;
+
+    // Count categories from import plan
+    const catCounts = {};
+    importPlan.forEach(row => {
+        const cat = row.category_name || '(brak)';
+        catCounts[cat] = (catCounts[cat] || 0) + 1;
+    });
+
+    // Build category map (case-insensitive match)
+    categoryMap = {};
+    const wpCatLower = {};
+    wpCategories.forEach(c => {
+        wpCatLower[c.name.toLowerCase().trim()] = c;
+    });
+
+    let html = '<h6 class="mb-2"><i class="bi bi-diagram-3"></i> Mapowanie kategorii</h6>';
+    html += '<table class="table table-sm table-bordered" style="max-width:700px"><thead class="table-light"><tr><th>Kategoria XLSX</th><th>Artykuly</th><th>Kategoria WP</th></tr></thead><tbody>';
+
+    const sortedCats = Object.keys(catCounts).sort();
+    let matchedCount = 0;
+
+    sortedCats.forEach(catName => {
+        if (catName === '(brak)') {
+            html += `<tr class="table-warning"><td>${esc(catName)}</td><td>${catCounts[catName]}</td><td><span class="text-muted">-</span></td></tr>`;
+            return;
+        }
+
+        const wpMatch = wpCatLower[catName.toLowerCase().trim()];
+        if (wpMatch) {
+            categoryMap[catName] = wpMatch.id;
+            matchedCount++;
+            html += `<tr class="table-success"><td>${esc(catName)}</td><td>${catCounts[catName]}</td><td><i class="bi bi-check-circle text-success"></i> ${esc(wpMatch.name)} (ID: ${wpMatch.id})</td></tr>`;
+        } else {
+            // Show dropdown to manually map
+            const opts = wpCategories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+            html += `<tr class="table-warning"><td>${esc(catName)}</td><td>${catCounts[catName]}</td><td>
+                <div class="d-flex gap-1 align-items-center">
+                    <i class="bi bi-exclamation-triangle text-warning"></i>
+                    <select class="form-select form-select-sm" style="width:200px" onchange="setCategoryMapping('${esc(catName).replace(/'/g, "\\'")}', this.value)">
+                        <option value="">-- wybierz --</option>
+                        ${opts}
+                    </select>
+                </div>
+            </td></tr>`;
+        }
+    });
+
+    html += '</tbody></table>';
+
+    if (wpCategories.length === 0) {
+        html += '<div class="text-muted small"><i class="bi bi-info-circle"></i> Zaladuj dane WP (krok 1), aby dopasowac kategorie automatycznie.</div>';
+    } else {
+        html += `<div class="small text-muted">Dopasowano automatycznie: ${matchedCount}/${sortedCats.filter(c => c !== '(brak)').length} kategorii</div>`;
+    }
+
+    container.innerHTML = html;
+    container.classList.remove('d-none');
+}
+
+function setCategoryMapping(xlsxCat, wpCatId) {
+    if (wpCatId) {
+        categoryMap[xlsxCat] = parseInt(wpCatId);
+    } else {
+        delete categoryMap[xlsxCat];
+    }
+    // Update existing articles that use this category
+    articles.forEach(a => {
+        if (a._xlsx_category === xlsxCat) {
+            a.category_id = wpCatId || '';
+        }
+    });
+    renderArticles();
+}
+
+// ── Upload DOCX files for import ────────────────────────────
+async function uploadImportDocxFiles(input) {
+    const files = Array.from(input.files);
+    if (!files.length) return;
+    input.value = '';
+
+    if (!importPlan.length) {
+        alert('Najpierw wgraj plik XLSX');
+        return;
+    }
+
+    const status = document.getElementById('docxMatchStatus');
+    const progressWrap = document.getElementById('docxProgress');
+    const progressBar = document.getElementById('docxProgressBar');
+
+    progressWrap.classList.remove('d-none');
+
+    // Build filename → importPlan index map
+    const planByFilename = {};
+    importPlan.forEach((row, idx) => {
+        const fn = row.docx_filename.toLowerCase();
+        planByFilename[fn] = idx;
+    });
+
+    const total = files.length;
+    let done = 0;
+    let matched = 0;
+    const unmatched = [];
+
+    // Process in batches of 5
+    const BATCH_SIZE = 5;
+
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+
+        await Promise.all(batch.map(async (file) => {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('api/upload-docx.php', { method: 'POST', body: formData });
+                const r = await response.json();
+
+                if (r.error) {
+                    unmatched.push(file.name + ' (blad parsowania)');
+                } else {
+                    // Match by filename to import plan
+                    const fnLower = file.name.toLowerCase();
+                    const planIdx = planByFilename[fnLower];
+
+                    if (planIdx !== undefined) {
+                        const plan = importPlan[planIdx];
+                        const catId = categoryMap[plan.category_name] || '';
+
+                        articles.push({
+                            id: Date.now() + Math.random(),
+                            title: plan.title,           // Use title from XLSX, not from DOCX
+                            content: r.html_body,
+                            slug: titleToSlug(plan.title),
+                            category_id: catId ? String(catId) : '',
+                            author_id: '',
+                            image_data: '',
+                            image_filename: '',
+                            publish_date: '',
+                            status: 'draft',
+                            _xlsx_category: plan.category_name,
+                            _docx_filename: file.name,
+                        });
+                        matched++;
+                    } else {
+                        // Not in plan — add with DOCX title
+                        articles.push({
+                            id: Date.now() + Math.random(),
+                            title: r.title,
+                            content: r.html_body,
+                            slug: titleToSlug(r.title),
+                            category_id: '',
+                            author_id: '',
+                            image_data: '',
+                            image_filename: '',
+                            publish_date: '',
+                            status: 'draft',
+                            _xlsx_category: '',
+                            _docx_filename: file.name,
+                        });
+                        unmatched.push(file.name);
+                    }
+                }
+            } catch (e) {
+                unmatched.push(file.name + ' (' + e.message + ')');
+            } finally {
+                done++;
+                const pct = Math.round(done / total * 100);
+                progressBar.style.width = pct + '%';
+                progressBar.textContent = `${done} / ${total}`;
+            }
+        }));
+    }
+
+    // Show results
+    let statusText = `<i class="bi bi-check-circle text-success"></i> Dopasowano ${matched}/${total} plikow.`;
+    if (unmatched.length > 0) {
+        statusText += ` <span class="text-warning">${unmatched.length} niedopasowanych:</span> <span class="text-muted small">${unmatched.slice(0, 5).map(f => esc(f)).join(', ')}${unmatched.length > 5 ? '...' : ''}</span>`;
+    }
+    status.innerHTML = statusText;
+
+    // Show articles card and publish card
+    document.getElementById('importArticlesCard').classList.remove('d-none');
+    document.getElementById('importPublishCard').classList.remove('d-none');
+
+    renderArticles();
 }
 
 // ── Utility ──────────────────────────────────────────────────
