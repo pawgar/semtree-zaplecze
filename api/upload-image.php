@@ -3,6 +3,7 @@
  * Upload and optimize a single image to WordPress.
  * Used for parallel image uploads before post creation.
  */
+set_time_limit(180); // Allow up to 3 minutes for image upload
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../includes/wp_api.php';
 require_once __DIR__ . '/../includes/image_utils.php';

@@ -107,10 +107,17 @@
 <div class="card mb-3">
     <div class="card-body">
         <h6 class="card-title"><i class="bi bi-4-circle"></i> Publikuj</h6>
-        <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
             <button class="btn btn-success" id="btnPublishAll" onclick="publishAllArticles()">
                 <i class="bi bi-send"></i> Publikuj wszystkie
             </button>
+            <button class="btn btn-outline-info btn-sm" onclick="exportArticlesJson()">
+                <i class="bi bi-download"></i> Zapisz stan (JSON)
+            </button>
+            <button class="btn btn-outline-info btn-sm" onclick="document.getElementById('importJsonFile').click()">
+                <i class="bi bi-upload"></i> Wczytaj stan (JSON)
+            </button>
+            <input type="file" id="importJsonFile" accept=".json" style="display:none" onchange="importArticlesJson(this)">
             <button class="btn btn-outline-secondary btn-sm" onclick="clearArticles()">
                 <i class="bi bi-trash"></i> Wyczysc liste
             </button>

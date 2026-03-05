@@ -673,7 +673,52 @@ function setRandomDates() {
     renderArticles();
 }
 
-// ── Publish all (parallel image upload + sequential post creation) ──
+// ── Save/Load articles state ──────────────────────────────────
+function exportArticlesJson() {
+    if (!articles.length) return alert('Brak artykulow do zapisania');
+    const data = JSON.stringify(articles, null, 0);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    a.download = `artykuly-${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function importArticlesJson(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) throw new Error('Plik nie zawiera tablicy artykulow');
+            articles = data;
+            renderArticles();
+
+            // Show articles card + publish card if hidden
+            const artCard = document.getElementById('importArticlesCard');
+            const pubCard = document.getElementById('importPublishCard');
+            if (artCard) artCard.classList.remove('d-none');
+            if (pubCard) pubCard.classList.remove('d-none');
+
+            const imgCount = articles.filter(a => a.image_data).length;
+            const mediaCount = articles.filter(a => a._media_id).length;
+            alert(`Wczytano ${data.length} artykulow (${imgCount} z obrazkami, ${mediaCount} juz uploadowanych).`);
+        } catch (err) {
+            alert('Blad wczytywania: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
+}
+
+// ── Publish all (batched image upload + sequential post creation) ──
 async function publishAllArticles() {
     const siteId = document.getElementById('publishSiteSelect').value;
     if (!siteId) return alert('Wybierz strone');
@@ -694,7 +739,7 @@ async function publishAllArticles() {
 
     const total = articles.length;
 
-    // Phase 1: Upload images in parallel
+    // Phase 1: Upload images in batches of 3 (not all at once!)
     const articlesWithImages = articles.filter(a => a.image_data && !a._media_id);
     if (articlesWithImages.length > 0) {
         btn.innerHTML = `<i class="bi bi-arrow-clockwise spin"></i> Obrazki (0/${articlesWithImages.length})...`;
@@ -702,28 +747,33 @@ async function publishAllArticles() {
         progressBar.textContent = `Obrazki: 0 / ${articlesWithImages.length}`;
 
         let uploaded = 0;
-        const uploadPromises = articlesWithImages.map(a => {
-            return api('POST', 'api/upload-image.php', {
-                site_id: parseInt(siteId),
-                image_data: a.image_data,
-                image_filename: a.image_filename,
-            }).then(r => {
-                uploaded++;
-                progressBar.style.width = (uploaded / articlesWithImages.length * 50) + '%';
-                progressBar.textContent = `Obrazki: ${uploaded} / ${articlesWithImages.length}`;
-                if (r.success) {
-                    a._media_id = r.media_id;
-                    log.innerHTML += `<div class="text-muted small"><i class="bi bi-image"></i> Obrazek "${esc(a.title)}" przeslany</div>`;
-                } else {
-                    log.innerHTML += `<div class="text-warning small"><i class="bi bi-exclamation-triangle"></i> Obrazek "${esc(a.title)}": ${esc(r.error)}</div>`;
-                }
-            }).catch(e => {
-                uploaded++;
-                log.innerHTML += `<div class="text-warning small"><i class="bi bi-exclamation-triangle"></i> Obrazek "${esc(a.title)}": ${esc(e.message)}</div>`;
-            });
-        });
+        const IMG_BATCH = 3;
 
-        await Promise.all(uploadPromises);
+        for (let i = 0; i < articlesWithImages.length; i += IMG_BATCH) {
+            const batch = articlesWithImages.slice(i, i + IMG_BATCH);
+
+            await Promise.all(batch.map(a => {
+                return api('POST', 'api/upload-image.php', {
+                    site_id: parseInt(siteId),
+                    image_data: a.image_data,
+                    image_filename: a.image_filename,
+                }).then(r => {
+                    uploaded++;
+                    progressBar.style.width = (uploaded / articlesWithImages.length * 50) + '%';
+                    progressBar.textContent = `Obrazki: ${uploaded} / ${articlesWithImages.length}`;
+                    if (r.success) {
+                        a._media_id = r.media_id;
+                        log.innerHTML += `<div class="text-muted small"><i class="bi bi-image"></i> Obrazek "${esc(a.title)}" przeslany (media_id: ${r.media_id})</div>`;
+                    } else {
+                        log.innerHTML += `<div class="text-warning small"><i class="bi bi-exclamation-triangle"></i> Obrazek "${esc(a.title)}": ${esc(r.error)}</div>`;
+                    }
+                }).catch(e => {
+                    uploaded++;
+                    log.innerHTML += `<div class="text-warning small"><i class="bi bi-exclamation-triangle"></i> Obrazek "${esc(a.title)}": ${esc(e.message)}</div>`;
+                });
+            }));
+        }
+
         log.innerHTML += '<hr>';
     }
 

@@ -107,7 +107,8 @@ class WpApi {
                 'Content-Disposition: attachment; filename="' . $filename . '"',
             ],
             CURLOPT_POSTFIELDS => $binaryData,
-            CURLOPT_TIMEOUT => 60,
+            CURLOPT_TIMEOUT => 120,
+            CURLOPT_CONNECTTIMEOUT => 30,
             CURLOPT_SSL_VERIFYPEER => false,
         ]);
 
