@@ -39,13 +39,25 @@
     </div>
 </div>
 
-<!-- Step 3: Load DOCX files from disk -->
+<!-- Step 3: Load DOCX files -->
 <div class="card mb-3 d-none" id="docxLoadCard">
     <div class="card-body">
         <h6 class="card-title"><i class="bi bi-3-circle"></i> Wczytywanie plikow DOCX</h6>
         <span id="docxMatchStatus" class="text-muted small"></span>
         <div class="progress mt-2 d-none" id="docxProgress" style="height:20px">
             <div class="progress-bar progress-bar-striped progress-bar-animated" id="docxProgressBar" role="progressbar" style="width:0%">0 / 0</div>
+        </div>
+        <!-- Fallback: manual upload when server can't read local paths -->
+        <div id="docxManualUpload" class="mt-3 d-none">
+            <div class="alert alert-warning mb-2">
+                <i class="bi bi-exclamation-triangle"></i> Serwer nie ma dostepu do plikow DOCX. Wgraj je recznie — system dopasuje po nazwie pliku.
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('importDocxFiles').click()">
+                    <i class="bi bi-file-earmark-word"></i> Wybierz pliki DOCX (wiele)
+                </button>
+                <input type="file" id="importDocxFiles" accept=".docx" multiple style="display:none" onchange="uploadImportDocxFiles(this)">
+            </div>
         </div>
     </div>
 </div>

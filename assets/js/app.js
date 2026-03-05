@@ -1013,7 +1013,11 @@ async function loadDocxFromDisk() {
 
     // Filter rows that have docx_path
     const rowsWithPath = importPlan.filter(row => row.docx_path);
-    if (!rowsWithPath.length) return;
+    if (!rowsWithPath.length) {
+        // No paths in XLSX — go straight to manual upload
+        showDocxManualUpload('XLSX nie zawiera sciezek do plikow DOCX.');
+        return;
+    }
 
     const loadCard = document.getElementById('docxLoadCard');
     const status = document.getElementById('docxMatchStatus');
@@ -1032,32 +1036,49 @@ async function loadDocxFromDisk() {
     // Process in batches of 5
     const BATCH_SIZE = 5;
 
-    for (let i = 0; i < rowsWithPath.length; i += BATCH_SIZE) {
+    // Try first batch to detect if server has access to files
+    const firstBatch = rowsWithPath.slice(0, BATCH_SIZE);
+    let firstBatchErrors = 0;
+
+    await Promise.all(firstBatch.map(async (plan) => {
+        try {
+            const r = await api('POST', 'api/read-docx.php', { path: plan.docx_path });
+            if (r.error) {
+                errors.push(plan.docx_filename + ': ' + r.error);
+                firstBatchErrors++;
+            } else {
+                addArticleFromDocx(plan, r.html_body);
+                success++;
+            }
+        } catch (e) {
+            errors.push(plan.docx_filename + ': ' + e.message);
+            firstBatchErrors++;
+        } finally {
+            done++;
+            const pct = Math.round(done / total * 100);
+            progressBar.style.width = pct + '%';
+            progressBar.textContent = `${done} / ${total}`;
+        }
+    }));
+
+    // If ALL files in first batch failed, server can't access local paths — show manual upload
+    if (firstBatchErrors === firstBatch.length) {
+        progressWrap.classList.add('d-none');
+        showDocxManualUpload('Serwer nie ma dostepu do plikow DOCX na dysku lokalnym. Wgraj je recznie.');
+        return;
+    }
+
+    // Continue with remaining batches
+    for (let i = BATCH_SIZE; i < rowsWithPath.length; i += BATCH_SIZE) {
         const batch = rowsWithPath.slice(i, i + BATCH_SIZE);
 
         await Promise.all(batch.map(async (plan) => {
             try {
                 const r = await api('POST', 'api/read-docx.php', { path: plan.docx_path });
-
                 if (r.error) {
                     errors.push(plan.docx_filename + ': ' + r.error);
                 } else {
-                    const catId = categoryMap[plan.category_name] || '';
-
-                    articles.push({
-                        id: Date.now() + Math.random(),
-                        title: plan.title,
-                        content: r.html_body,
-                        slug: titleToSlug(plan.title),
-                        category_id: catId ? String(catId) : '',
-                        author_id: '',
-                        image_data: '',
-                        image_filename: '',
-                        publish_date: '',
-                        status: 'draft',
-                        _xlsx_category: plan.category_name,
-                        _docx_filename: plan.docx_filename,
-                    });
+                    addArticleFromDocx(plan, r.html_body);
                     success++;
                 }
             } catch (e) {
@@ -1083,6 +1104,132 @@ async function loadDocxFromDisk() {
     document.getElementById('importPublishCard').classList.remove('d-none');
 
     renderArticles();
+}
+
+function addArticleFromDocx(plan, htmlBody) {
+    const catId = categoryMap[plan.category_name] || '';
+    articles.push({
+        id: Date.now() + Math.random(),
+        title: plan.title,
+        content: htmlBody,
+        slug: titleToSlug(plan.title),
+        category_id: catId ? String(catId) : '',
+        author_id: '',
+        image_data: '',
+        image_filename: '',
+        publish_date: '',
+        status: 'draft',
+        _xlsx_category: plan.category_name,
+        _docx_filename: plan.docx_filename,
+    });
+}
+
+function showDocxManualUpload(msg) {
+    const loadCard = document.getElementById('docxLoadCard');
+    const status = document.getElementById('docxMatchStatus');
+    const manualDiv = document.getElementById('docxManualUpload');
+
+    loadCard.classList.remove('d-none');
+    status.innerHTML = `<i class="bi bi-exclamation-triangle text-warning"></i> ${esc(msg)}`;
+    manualDiv.classList.remove('d-none');
+}
+
+async function uploadImportDocxFiles(input) {
+    const files = Array.from(input.files);
+    if (!files.length) return;
+
+    const status = document.getElementById('docxMatchStatus');
+    const progressWrap = document.getElementById('docxProgress');
+    const progressBar = document.getElementById('docxProgressBar');
+
+    progressWrap.classList.remove('d-none');
+    status.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Wgrywam i przetwarzam pliki DOCX...';
+
+    const total = files.length;
+    let done = 0;
+    let matched = 0;
+    let unmatched = [];
+    const BATCH_SIZE = 5;
+
+    // Build lookup: lowercase filename -> importPlan row(s)
+    const planByFilename = {};
+    for (const plan of importPlan) {
+        const key = (plan.docx_filename || '').toLowerCase();
+        if (key) {
+            if (!planByFilename[key]) planByFilename[key] = [];
+            planByFilename[key].push(plan);
+        }
+    }
+
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+
+        await Promise.all(batch.map(async (file) => {
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                const r = await fetch('api/upload-docx.php', {
+                    method: 'POST',
+                    headers: { 'X-Auth': localStorage.getItem('authToken') || '' },
+                    body: fd,
+                }).then(res => res.json());
+
+                if (r.error) {
+                    unmatched.push(file.name + ': ' + r.error);
+                } else {
+                    // Match by filename (case-insensitive)
+                    const key = file.name.toLowerCase();
+                    const plans = planByFilename[key];
+                    if (plans && plans.length > 0) {
+                        for (const plan of plans) {
+                            addArticleFromDocx(plan, r.html_body);
+                            matched++;
+                        }
+                    } else {
+                        // No match in plan — add with title from DOCX
+                        articles.push({
+                            id: Date.now() + Math.random(),
+                            title: r.title || file.name.replace(/\.docx$/i, ''),
+                            content: r.html_body,
+                            slug: titleToSlug(r.title || file.name.replace(/\.docx$/i, '')),
+                            category_id: '',
+                            author_id: '',
+                            image_data: '',
+                            image_filename: '',
+                            publish_date: '',
+                            status: 'draft',
+                            _xlsx_category: '',
+                            _docx_filename: file.name,
+                        });
+                        unmatched.push(file.name + ': brak w planie XLSX (dodano bez kategorii)');
+                    }
+                }
+            } catch (e) {
+                unmatched.push(file.name + ': ' + e.message);
+            } finally {
+                done++;
+                const pct = Math.round(done / total * 100);
+                progressBar.style.width = pct + '%';
+                progressBar.textContent = `${done} / ${total}`;
+            }
+        }));
+    }
+
+    // Results
+    let statusText = `<i class="bi bi-check-circle text-success"></i> Wgrano ${done} plikow, dopasowano ${matched} do planu XLSX.`;
+    if (unmatched.length > 0) {
+        statusText += ` <span class="text-warning">${unmatched.length} uwag:</span> <span class="text-muted small">${unmatched.slice(0, 5).map(e => esc(e)).join('; ')}${unmatched.length > 5 ? '...' : ''}</span>`;
+    }
+    status.innerHTML = statusText;
+
+    // Show articles table
+    document.getElementById('importArticlesCard').classList.remove('d-none');
+    document.getElementById('importPublishCard').classList.remove('d-none');
+
+    renderArticles();
+
+    // Reset file input
+    input.value = '';
 }
 
 // ── Utility ──────────────────────────────────────────────────
