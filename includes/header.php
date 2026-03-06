@@ -27,6 +27,9 @@
             <a class="nav-link <?= ($page ?? '') === 'import' ? 'active' : '' ?>" href="index.php?page=import">
                 <i class="bi bi-cloud-upload"></i> Import masowy
             </a>
+            <a class="nav-link <?= ($page ?? '') === 'links' ? 'active' : '' ?>" href="index.php?page=links">
+                <i class="bi bi-link-45deg"></i> Linki
+            </a>
             <a class="nav-link <?= ($page ?? '') === 'users' ? 'active' : '' ?>" href="index.php?page=users">
                 <i class="bi bi-people"></i> Uzytkownicy
             </a>

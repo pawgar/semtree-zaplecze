@@ -21,7 +21,7 @@ function renderSites(sites) {
     if (!tbody) return;
 
     if (sites.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>';
         return;
     }
 
@@ -41,6 +41,7 @@ function renderSites(sites) {
             </td>
             <td>${badges}</td>
             <td class="status-loading" id="posts-${s.id}">-</td>
+            <td>${s.link_count || 0}</td>
             <td class="status-loading" id="status-${s.id}">-</td>
             <td class="status-loading" id="api-${s.id}">-</td>
             ${IS_ADMIN ? `
@@ -155,7 +156,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-load data based on page
     if (document.getElementById('sitesBody')) loadSites();
     if (document.getElementById('usersBody')) loadUsers();
-    if (document.getElementById('xlsxFile')) {
+    if (document.getElementById('linksOverviewBody')) {
+        initLinksPage();
+    } else if (document.getElementById('xlsxFile')) {
         initImportPage();
     } else if (document.getElementById('publishSiteSelect')) {
         initPublishPage();
@@ -829,6 +832,8 @@ async function publishAllArticles() {
             if (r.success) {
                 publishedUrls.push(r.post_url);
                 log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> <strong>${esc(r.title)}</strong> → <a href="${esc(r.post_url)}" target="_blank">${esc(r.post_url)}</a></div>`;
+                // Fire-and-forget: extract and save links
+                extractAndSaveLinks(parseInt(siteId), r.post_url, r.title, a.content);
             } else {
                 log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> <strong>${esc(r.title)}</strong> → ${esc(r.error)}</div>`;
             }
@@ -1194,7 +1199,577 @@ async function uploadImportDocxFiles(input) {
     input.value = '';
 }
 
+// ══════════════════════════════════════════════════════════════
+// ── Links Tracking ───────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
+let linksClients = [];
+let linksSites = [];
+let reportLinks = []; // for CSV export of current report
+
+function initLinksPage() {
+    // Load sites for filter dropdowns
+    api('GET', 'api/sites.php').then(sites => {
+        linksSites = sites;
+        // History site filter
+        const hSel = document.getElementById('historySiteFilter');
+        if (hSel) {
+            sites.forEach(s => { hSel.innerHTML += `<option value="${s.id}">${esc(s.name)}</option>`; });
+        }
+    });
+
+    // Load clients
+    loadClients();
+
+    // Load overview
+    loadLinksOverview();
+
+    // Tab change listeners
+    document.querySelectorAll('#linksTabs button').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', e => {
+            const target = e.target.getAttribute('data-bs-target');
+            if (target === '#pane-overview') loadLinksOverview();
+            if (target === '#pane-clients') loadClients();
+            if (target === '#pane-history') loadLinksHistory();
+        });
+    });
+}
+
+// ── Clients ──────────────────────────────────────────────────
+function loadClients() {
+    api('GET', 'api/clients.php').then(clients => {
+        linksClients = clients;
+
+        // Render clients table
+        const tbody = document.getElementById('clientsBody');
+        if (!tbody) return;
+
+        if (clients.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Brak klientow.</td></tr>';
+        } else {
+            tbody.innerHTML = clients.map(c => `
+                <tr>
+                    <td><span class="badge" style="background:${esc(c.color)}">${esc(c.name)}</span></td>
+                    <td class="small">${esc(c.domain)}</td>
+                    <td>${c.link_count}</td>
+                    <td>${c.site_count}</td>
+                    <td class="text-nowrap">
+                        <button class="btn btn-sm btn-outline-info me-1" onclick="loadLinksForClient(${c.id}, '${esc(c.name).replace(/'/g, "\\'")}')" title="Pokaz linki"><i class="bi bi-eye"></i></button>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="editClient(${c.id})" title="Edytuj"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteClient(${c.id}, '${esc(c.name).replace(/'/g, "\\'")}')" title="Usun"><i class="bi bi-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Fill filter dropdowns
+        const hcSel = document.getElementById('historyClientFilter');
+        if (hcSel) {
+            const val = hcSel.value;
+            hcSel.innerHTML = '<option value="">Wszyscy klienci</option>' +
+                clients.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+            hcSel.value = val;
+        }
+        const rSel = document.getElementById('reportClientSelect');
+        if (rSel) {
+            const val = rSel.value;
+            rSel.innerHTML = '<option value="">-- wybierz klienta --</option>' +
+                clients.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.domain)})</option>`).join('');
+            rSel.value = val;
+        }
+    });
+}
+
+function resetClientModal() {
+    document.getElementById('clientModalTitle').textContent = 'Dodaj klienta';
+    document.getElementById('clientEditId').value = '';
+    document.getElementById('clientName').value = '';
+    document.getElementById('clientDomain').value = '';
+    document.getElementById('clientColor').value = '#6c757d';
+}
+
+function saveClient() {
+    const editId = document.getElementById('clientEditId').value;
+    const data = {
+        name: document.getElementById('clientName').value.trim(),
+        domain: document.getElementById('clientDomain').value.trim(),
+        color: document.getElementById('clientColor').value,
+    };
+
+    if (!data.name || !data.domain) {
+        alert('Wypelnij nazwe i domene');
+        return;
+    }
+
+    const method = editId ? 'PUT' : 'POST';
+    if (editId) data.id = parseInt(editId);
+
+    api(method, 'api/clients.php', data).then(r => {
+        if (r.error) return alert(r.error);
+        bootstrap.Modal.getInstance(document.getElementById('clientModal')).hide();
+        loadClients();
+    });
+}
+
+function editClient(id) {
+    const c = linksClients.find(x => x.id === id);
+    if (!c) return;
+    document.getElementById('clientModalTitle').textContent = 'Edytuj klienta';
+    document.getElementById('clientEditId').value = id;
+    document.getElementById('clientName').value = c.name;
+    document.getElementById('clientDomain').value = c.domain;
+    document.getElementById('clientColor').value = c.color || '#6c757d';
+    new bootstrap.Modal(document.getElementById('clientModal')).show();
+}
+
+function deleteClient(id, name) {
+    if (!confirm(`Usunac klienta "${name}"? Linki pozostana ale bez przypisania.`)) return;
+    api('DELETE', 'api/clients.php', { id }).then(r => {
+        if (r.error) return alert(r.error);
+        loadClients();
+    });
+}
+
+function loadLinksForClient(clientId, clientName) {
+    const panel = document.getElementById('clientLinksPanel');
+    const title = document.getElementById('clientLinksTitle');
+    const tbody = document.getElementById('clientLinksBody');
+
+    panel.style.display = 'block';
+    title.innerHTML = `<i class="bi bi-link-45deg"></i> Linki: <strong>${esc(clientName)}</strong>`;
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center"><i class="bi bi-arrow-clockwise spin"></i></td></tr>';
+
+    api('GET', `api/links.php?client_id=${clientId}&limit=500`).then(r => {
+        const links = r.links || [];
+        if (links.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Brak linkow.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = links.map(l => `
+            <tr>
+                <td class="small">${esc(l.site_name)}</td>
+                <td class="small"><a href="${esc(l.post_url)}" target="_blank" title="${esc(l.post_title)}">${esc(truncate(l.post_title || l.post_url, 40))}</a></td>
+                <td class="small">${esc(l.anchor_text)}</td>
+                <td class="small"><a href="${esc(l.target_url)}" target="_blank">${esc(truncate(l.target_url, 40))}</a></td>
+                <td><span class="badge bg-${l.link_type === 'dofollow' ? 'success' : 'secondary'}">${l.link_type}</span></td>
+                <td class="small text-muted">${formatDate(l.created_at)}</td>
+            </tr>
+        `).join('');
+    });
+}
+
+// ── Overview ─────────────────────────────────────────────────
+function loadLinksOverview() {
+    const tbody = document.getElementById('linksOverviewBody');
+    if (!tbody) return;
+
+    api('GET', 'api/sites.php').then(sites => {
+        if (sites.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Brak stron.</td></tr>';
+            return;
+        }
+
+        // For each site, get link summary
+        const promises = sites.map(s =>
+            api('GET', `api/links.php?site_id=${s.id}&limit=1`).then(r => ({
+                site: s,
+                total: r.total || 0,
+                lastLink: (r.links && r.links[0]) ? r.links[0] : null,
+            }))
+        );
+
+        Promise.all(promises).then(results => {
+            // Get unique client counts per site
+            const clientPromises = results.map(r => {
+                if (r.total === 0) return Promise.resolve({ ...r, clientCount: 0 });
+                return api('GET', `api/links.php?site_id=${r.site.id}&limit=2000`).then(lr => {
+                    const clientIds = new Set((lr.links || []).filter(l => l.client_id).map(l => l.client_id));
+                    return { ...r, clientCount: clientIds.size };
+                });
+            });
+
+            Promise.all(clientPromises).then(data => {
+                tbody.innerHTML = data.map((d, i) => `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td><a href="${esc(d.site.url)}" target="_blank">${esc(d.site.name)}</a></td>
+                        <td><strong>${d.total}</strong></td>
+                        <td>${d.clientCount}</td>
+                        <td class="small text-muted">${d.lastLink ? formatDate(d.lastLink.created_at) : '-'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="scanSiteLinks(${d.site.id}, this)" title="Skanuj">
+                                <i class="bi bi-search"></i> Skanuj
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            });
+        });
+    });
+}
+
+function scanSiteLinks(siteId, btn) {
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+    }
+
+    api('POST', 'api/scan-links.php', { site_id: siteId }).then(r => {
+        if (r.error) {
+            alert('Blad skanowania: ' + r.error);
+        } else {
+            if (btn) btn.innerHTML = `<i class="bi bi-check text-success"></i> +${r.links_inserted}`;
+        }
+    }).catch(e => {
+        alert('Blad: ' + e.message);
+        if (btn) btn.innerHTML = '<i class="bi bi-x text-danger"></i>';
+    }).finally(() => {
+        if (btn) btn.disabled = false;
+    });
+}
+
+function scanAllSitesLinks() {
+    const status = document.getElementById('scanAllStatus');
+    status.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Skanuje...';
+
+    api('GET', 'api/sites.php').then(async sites => {
+        let totalInserted = 0;
+        let errors = 0;
+        for (let i = 0; i < sites.length; i++) {
+            status.innerHTML = `<i class="bi bi-arrow-clockwise spin"></i> ${i + 1}/${sites.length}: ${esc(sites[i].name)}...`;
+            try {
+                const r = await api('POST', 'api/scan-links.php', { site_id: sites[i].id });
+                if (r.error) { errors++; }
+                else { totalInserted += r.links_inserted; }
+            } catch (e) { errors++; }
+        }
+        status.innerHTML = `<i class="bi bi-check-circle text-success"></i> Gotowe! Nowych linkow: ${totalInserted}${errors ? `, bledy: ${errors}` : ''}`;
+        loadLinksOverview();
+    });
+}
+
+// ── History ──────────────────────────────────────────────────
+function loadLinksHistory() {
+    const tbody = document.getElementById('linksHistoryBody');
+    if (!tbody) return;
+
+    const clientId = document.getElementById('historyClientFilter').value;
+    const siteId = document.getElementById('historySiteFilter').value;
+    const dateFrom = document.getElementById('historyDateFrom').value;
+    const dateTo = document.getElementById('historyDateTo').value;
+
+    let qs = 'limit=500';
+    if (clientId) qs += `&client_id=${clientId}`;
+    if (siteId) qs += `&site_id=${siteId}`;
+    if (dateFrom) qs += `&date_from=${dateFrom}`;
+    if (dateTo) qs += `&date_to=${dateTo}`;
+
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center"><i class="bi bi-arrow-clockwise spin"></i></td></tr>';
+
+    api('GET', `api/links.php?${qs}`).then(r => {
+        const links = r.links || [];
+        const count = document.getElementById('historyCount');
+        if (count) count.textContent = `${links.length} z ${r.total} linkow`;
+
+        if (links.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Brak linkow.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = links.map((l, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td class="small text-muted">${formatDate(l.created_at)}</td>
+                <td class="small">${esc(l.site_name)}</td>
+                <td class="small"><a href="${esc(l.post_url)}" target="_blank" title="${esc(l.post_title)}">${esc(truncate(l.post_title || l.post_url, 30))}</a></td>
+                <td>${l.client_name ? `<span class="badge" style="background:${esc(l.client_color || '#6c757d')}">${esc(l.client_name)}</span>` : '<span class="text-muted small">-</span>'}</td>
+                <td class="small">${esc(l.anchor_text)}</td>
+                <td class="small"><a href="${esc(l.target_url)}" target="_blank">${esc(truncate(l.target_url, 35))}</a></td>
+                <td><span class="badge bg-${l.link_type === 'dofollow' ? 'success' : 'secondary'} small">${l.link_type}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger p-0 px-1" onclick="deleteLink(${l.id})" title="Usun"><i class="bi bi-x small"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    });
+}
+
+function deleteLink(id) {
+    if (!confirm('Usunac ten link?')) return;
+    api('DELETE', 'api/links.php', { id }).then(r => {
+        if (r.error) return alert(r.error);
+        loadLinksHistory();
+    });
+}
+
+function clearAllLinks() {
+    if (!confirm('UWAGA: Usunac WSZYSTKIE linki z bazy? Tej operacji nie mozna cofnac!')) return;
+    if (!confirm('Na pewno? To usunie cala historie linkow.')) return;
+    api('DELETE', 'api/links.php', { all: true }).then(r => {
+        if (r.error) return alert(r.error);
+        alert(`Usunieto ${r.deleted} linkow.`);
+        loadLinksHistory();
+        loadLinksOverview();
+    });
+}
+
+function exportLinksCsv() {
+    const clientId = document.getElementById('historyClientFilter').value;
+    const siteId = document.getElementById('historySiteFilter').value;
+    const dateFrom = document.getElementById('historyDateFrom').value;
+    const dateTo = document.getElementById('historyDateTo').value;
+
+    let qs = 'limit=2000';
+    if (clientId) qs += `&client_id=${clientId}`;
+    if (siteId) qs += `&site_id=${siteId}`;
+    if (dateFrom) qs += `&date_from=${dateFrom}`;
+    if (dateTo) qs += `&date_to=${dateTo}`;
+
+    api('GET', `api/links.php?${qs}`).then(r => {
+        const links = r.links || [];
+        if (!links.length) return alert('Brak linkow do eksportu');
+
+        let csv = 'Data;Strona;Post URL;Post Tytul;Klient;Anchor;URL docelowy;Typ\n';
+        links.forEach(l => {
+            csv += `${l.created_at};${l.site_name};${l.post_url};${l.post_title};${l.client_name || ''};${l.anchor_text};${l.target_url};${l.link_type}\n`;
+        });
+
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'linki-historia.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+}
+
+// ── Report ───────────────────────────────────────────────────
+function generateReport() {
+    const clientId = document.getElementById('reportClientSelect').value;
+    const dateFrom = document.getElementById('reportDateFrom').value;
+    const dateTo = document.getElementById('reportDateTo').value;
+    const container = document.getElementById('reportContent');
+
+    if (!clientId) return alert('Wybierz klienta');
+
+    let qs = `client_id=${clientId}&limit=2000`;
+    if (dateFrom) qs += `&date_from=${dateFrom}`;
+    if (dateTo) qs += `&date_to=${dateTo}`;
+
+    container.innerHTML = '<div class="text-center"><i class="bi bi-arrow-clockwise spin"></i> Generuje raport...</div>';
+
+    api('GET', `api/links.php?${qs}`).then(r => {
+        const links = r.links || [];
+        reportLinks = links;
+        const client = linksClients.find(c => c.id === parseInt(clientId));
+        const clientName = client ? client.name : '?';
+        const clientDomain = client ? client.domain : '?';
+
+        document.getElementById('btnCopyReport').classList.remove('d-none');
+        document.getElementById('btnExportReportCsv').classList.remove('d-none');
+
+        if (links.length === 0) {
+            container.innerHTML = `<div class="alert alert-info">Brak linkow dla klienta <strong>${esc(clientName)}</strong> w wybranym okresie.</div>`;
+            return;
+        }
+
+        // Summary
+        const uniqueSites = new Set(links.map(l => l.site_id));
+        const uniquePosts = new Set(links.map(l => l.post_url));
+        const dofollowCount = links.filter(l => l.link_type === 'dofollow').length;
+        const nofollowCount = links.filter(l => l.link_type === 'nofollow').length;
+
+        // By site
+        const bySite = {};
+        links.forEach(l => {
+            if (!bySite[l.site_name]) bySite[l.site_name] = [];
+            bySite[l.site_name].push(l);
+        });
+
+        // By month
+        const byMonth = {};
+        links.forEach(l => {
+            const m = (l.created_at || '').substring(0, 7); // YYYY-MM
+            if (!byMonth[m]) byMonth[m] = 0;
+            byMonth[m]++;
+        });
+
+        // Anchor distribution
+        const anchors = {};
+        links.forEach(l => {
+            const a = l.anchor_text || '(pusty)';
+            if (!anchors[a]) anchors[a] = 0;
+            anchors[a]++;
+        });
+
+        let html = '';
+
+        // Summary card
+        const periodStr = dateFrom || dateTo
+            ? `${dateFrom || '...'} - ${dateTo || '...'}`
+            : 'caly okres';
+
+        html += `<div class="card mb-3"><div class="card-body">
+            <h5><span class="badge" style="background:${esc(client?.color || '#6c757d')}">${esc(clientName)}</span> — ${esc(clientDomain)}</h5>
+            <p class="text-muted mb-2">Okres: ${esc(periodStr)}</p>
+            <div class="row text-center">
+                <div class="col"><h3>${links.length}</h3><small class="text-muted">Linkow</small></div>
+                <div class="col"><h3>${uniqueSites.size}</h3><small class="text-muted">Stron</small></div>
+                <div class="col"><h3>${uniquePosts.size}</h3><small class="text-muted">Postow</small></div>
+                <div class="col"><h3>${dofollowCount}</h3><small class="text-muted">Dofollow</small></div>
+                <div class="col"><h3>${nofollowCount}</h3><small class="text-muted">Nofollow</small></div>
+            </div>
+        </div></div>`;
+
+        // By site
+        html += `<div class="card mb-3"><div class="card-body">
+            <h6>Linki per strona</h6>
+            <table class="table table-sm table-striped">
+                <thead><tr><th>Strona</th><th>Linki</th><th>Posty</th></tr></thead>
+                <tbody>${Object.entries(bySite).sort((a, b) => b[1].length - a[1].length).map(([name, ls]) => {
+                    const posts = new Set(ls.map(l => l.post_url));
+                    return `<tr><td>${esc(name)}</td><td>${ls.length}</td><td>${posts.size}</td></tr>`;
+                }).join('')}</tbody>
+            </table>
+        </div></div>`;
+
+        // Anchors
+        html += `<div class="card mb-3"><div class="card-body">
+            <h6>Anchory</h6>
+            <table class="table table-sm table-striped">
+                <thead><tr><th>Anchor text</th><th>Ilosc</th></tr></thead>
+                <tbody>${Object.entries(anchors).sort((a, b) => b[1] - a[1]).map(([text, cnt]) =>
+                    `<tr><td>${esc(text)}</td><td>${cnt}</td></tr>`
+                ).join('')}</tbody>
+            </table>
+        </div></div>`;
+
+        // Monthly distribution
+        const sortedMonths = Object.keys(byMonth).sort();
+        if (sortedMonths.length > 1) {
+            html += `<div class="card mb-3"><div class="card-body">
+                <h6>Rozklad miesięczny</h6>
+                <table class="table table-sm table-striped">
+                    <thead><tr><th>Miesiac</th><th>Linki</th></tr></thead>
+                    <tbody>${sortedMonths.map(m => `<tr><td>${m}</td><td>${byMonth[m]}</td></tr>`).join('')}</tbody>
+                </table>
+            </div></div>`;
+        }
+
+        // Full link list
+        html += `<div class="card mb-3"><div class="card-body">
+            <h6>Wszystkie linki (${links.length})</h6>
+            <div class="table-responsive" style="max-height:400px; overflow-y:auto">
+            <table class="table table-sm table-striped">
+                <thead class="table-light"><tr><th>Data</th><th>Strona</th><th>Post</th><th>Anchor</th><th>URL</th><th>Typ</th></tr></thead>
+                <tbody>${links.map(l => `
+                    <tr>
+                        <td class="small">${formatDate(l.created_at)}</td>
+                        <td class="small">${esc(l.site_name)}</td>
+                        <td class="small"><a href="${esc(l.post_url)}" target="_blank">${esc(truncate(l.post_title || l.post_url, 30))}</a></td>
+                        <td class="small">${esc(l.anchor_text)}</td>
+                        <td class="small"><a href="${esc(l.target_url)}" target="_blank">${esc(truncate(l.target_url, 35))}</a></td>
+                        <td><span class="badge bg-${l.link_type === 'dofollow' ? 'success' : 'secondary'} small">${l.link_type}</span></td>
+                    </tr>
+                `).join('')}</tbody>
+            </table>
+            </div>
+        </div></div>`;
+
+        container.innerHTML = html;
+    });
+}
+
+function copyReportToClipboard() {
+    const container = document.getElementById('reportContent');
+    if (!container || !container.textContent.trim()) return alert('Brak raportu');
+
+    // Build plain text version
+    const client = linksClients.find(c => c.id === parseInt(document.getElementById('reportClientSelect').value));
+    let text = `RAPORT LINKOW: ${client?.name || '?'} (${client?.domain || '?'})\n`;
+    text += `Linkow: ${reportLinks.length}\n\n`;
+
+    reportLinks.forEach(l => {
+        text += `${l.created_at} | ${l.site_name} | ${l.post_url} | ${l.anchor_text} | ${l.target_url} | ${l.link_type}\n`;
+    });
+
+    navigator.clipboard.writeText(text).then(() => alert('Raport skopiowany do schowka'));
+}
+
+function exportReportCsv() {
+    if (!reportLinks.length) return alert('Brak danych raportu');
+    let csv = 'Data;Strona;Post URL;Post Tytul;Anchor;URL docelowy;Typ\n';
+    reportLinks.forEach(l => {
+        csv += `${l.created_at};${l.site_name};${l.post_url};${l.post_title};${l.anchor_text};${l.target_url};${l.link_type}\n`;
+    });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'raport-linki.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ── Publish hook: extract links client-side ──────────────────
+function extractAndSaveLinks(siteId, postUrl, postTitle, html) {
+    if (!html) return;
+
+    // Get site domain from sitesData
+    const site = sitesData.find(s => s.id === siteId);
+    if (!site) return;
+
+    let siteDomain = '';
+    try {
+        siteDomain = new URL(site.url).hostname.replace(/^www\./, '').toLowerCase();
+    } catch (e) { return; }
+
+    // Parse HTML with DOMParser
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const anchors = doc.querySelectorAll('a[href]');
+    const links = [];
+
+    anchors.forEach(a => {
+        const href = a.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('javascript:') || href.startsWith('tel:')) return;
+
+        let linkDomain;
+        try {
+            const u = new URL(href, 'https://placeholder.com');
+            linkDomain = u.hostname.replace(/^www\./, '').toLowerCase();
+        } catch (e) { return; }
+
+        if (linkDomain === siteDomain) return;
+        if (/\/(wp-admin|wp-content|wp-includes|wp-login)\//i.test(href)) return;
+
+        const rel = (a.getAttribute('rel') || '').toLowerCase();
+        links.push({
+            post_url: postUrl,
+            post_title: postTitle,
+            target_url: href,
+            anchor_text: a.textContent.trim(),
+            link_type: rel.includes('nofollow') ? 'nofollow' : 'dofollow',
+        });
+    });
+
+    if (links.length === 0) return;
+
+    // Fire and forget
+    api('POST', 'api/links.php', { site_id: siteId, links }).catch(() => {});
+}
+
 // ── Utility ──────────────────────────────────────────────────
+function truncate(str, max) {
+    if (!str) return '';
+    return str.length > max ? str.substring(0, max) + '...' : str;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    return dateStr.substring(0, 16).replace('T', ' ');
+}
+
 function esc(str) {
     if (!str) return '';
     const div = document.createElement('div');

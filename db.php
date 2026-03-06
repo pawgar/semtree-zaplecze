@@ -83,4 +83,35 @@ function migrateSchema(SQLite3 $db): void {
             value TEXT NOT NULL DEFAULT ""
         )
     ');
+
+    // Create clients table
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS clients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            domain TEXT NOT NULL,
+            color TEXT NOT NULL DEFAULT "#6c757d",
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ');
+
+    // Create links table
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_id INTEGER NOT NULL,
+            client_id INTEGER,
+            post_url TEXT NOT NULL,
+            post_title TEXT NOT NULL DEFAULT "",
+            target_url TEXT NOT NULL,
+            anchor_text TEXT NOT NULL DEFAULT "",
+            link_type TEXT NOT NULL DEFAULT "dofollow",
+            notes TEXT NOT NULL DEFAULT "",
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
+        )
+    ');
+
+    $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_links_unique ON links(site_id, post_url, target_url)');
 }

@@ -7,7 +7,14 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     requireLoginApi();
     $db = getDb();
-    $result = $db->query('SELECT id, name, url, username, app_password, categories, created_at FROM sites ORDER BY name');
+    $result = $db->query('
+        SELECT s.id, s.name, s.url, s.username, s.app_password, s.categories, s.created_at,
+               COUNT(l.id) AS link_count
+        FROM sites s
+        LEFT JOIN links l ON l.site_id = s.id
+        GROUP BY s.id
+        ORDER BY s.name
+    ');
     $sites = [];
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         $sites[] = $row;

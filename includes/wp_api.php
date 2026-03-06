@@ -93,6 +93,14 @@ class WpApi {
     }
 
     /**
+     * Get all published posts (paginated).
+     * Returns id, link, title (rendered), content (rendered).
+     */
+    public function getPosts(): array {
+        return $this->requestPaginated('/posts?status=publish&_fields=id,link,title,content');
+    }
+
+    /**
      * Upload media file to WordPress. Returns media ID.
      */
     public function uploadMedia(string $filename, string $binaryData, string $mimeType): int {

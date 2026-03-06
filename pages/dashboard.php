@@ -41,6 +41,7 @@ $isAdminUser = isAdmin();
                 <th>App Password</th>
                 <th>Kategorie</th>
                 <th>Wpisy</th>
+                <th>Linki</th>
                 <th>Status HTTP</th>
                 <th>API</th>
                 <?php if ($isAdminUser): ?>
@@ -49,7 +50,7 @@ $isAdminUser = isAdmin();
             </tr>
         </thead>
         <tbody id="sitesBody">
-            <tr><td colspan="10" class="text-center text-muted">Ladowanie...</td></tr>
+            <tr><td colspan="11" class="text-center text-muted">Ladowanie...</td></tr>
         </tbody>
     </table>
 </div>
