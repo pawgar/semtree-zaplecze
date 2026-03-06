@@ -45,7 +45,10 @@ function renderSites(sites) {
             <td class="status-loading" id="status-${s.id}">-</td>
             <td class="status-loading" id="api-${s.id}">-</td>
             ${IS_ADMIN ? `
-            <td>
+            <td class="text-nowrap">
+                <button class="btn btn-sm btn-outline-secondary me-1" id="refresh-btn-${s.id}" onclick="refreshSiteStatus(${s.id})" title="Odswiez status">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
                 <button class="btn btn-sm btn-outline-primary me-1" onclick="editSite(${s.id})" title="Edytuj">
                     <i class="bi bi-pencil"></i>
                 </button>
@@ -166,34 +169,41 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Status Refresh ───────────────────────────────────────────
-function refreshAllStatuses() {
-    sitesData.forEach(site => {
-        const postsCell = document.getElementById('posts-' + site.id);
-        const statusCell = document.getElementById('status-' + site.id);
-        const apiCell = document.getElementById('api-' + site.id);
-        if (postsCell) postsCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
-        if (statusCell) statusCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
-        if (apiCell) apiCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+function refreshSiteStatus(siteId) {
+    const postsCell = document.getElementById('posts-' + siteId);
+    const statusCell = document.getElementById('status-' + siteId);
+    const apiCell = document.getElementById('api-' + siteId);
+    const btn = document.getElementById('refresh-btn-' + siteId);
 
-        api('POST', 'api/status.php', {id: site.id}).then(r => {
-            if (postsCell) {
-                postsCell.textContent = r.post_count !== null ? r.post_count : '?';
-                postsCell.className = r.post_count !== null ? 'status-ok' : 'status-error';
-            }
-            if (statusCell) {
-                statusCell.textContent = r.http_status || 'ERR';
-                statusCell.className = (r.http_status >= 200 && r.http_status < 400) ? 'status-ok' : 'status-error';
-            }
-            if (apiCell) {
-                apiCell.textContent = r.api_ok ? 'OK' : 'FAILED';
-                apiCell.className = r.api_ok ? 'status-ok' : 'status-error';
-            }
-        }).catch(() => {
-            if (postsCell) { postsCell.textContent = 'ERR'; postsCell.className = 'status-error'; }
-            if (statusCell) { statusCell.textContent = 'ERR'; statusCell.className = 'status-error'; }
-            if (apiCell) { apiCell.textContent = 'ERR'; apiCell.className = 'status-error'; }
-        });
+    if (postsCell) postsCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+    if (statusCell) statusCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+    if (apiCell) apiCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+    if (btn) { btn.disabled = true; btn.querySelector('i').classList.add('spin'); }
+
+    api('POST', 'api/status.php', {id: siteId}).then(r => {
+        if (postsCell) {
+            postsCell.textContent = r.post_count !== null ? r.post_count : '?';
+            postsCell.className = r.post_count !== null ? 'status-ok' : 'status-error';
+        }
+        if (statusCell) {
+            statusCell.textContent = r.http_status || 'ERR';
+            statusCell.className = (r.http_status >= 200 && r.http_status < 400) ? 'status-ok' : 'status-error';
+        }
+        if (apiCell) {
+            apiCell.textContent = r.api_ok ? 'OK' : 'FAILED';
+            apiCell.className = r.api_ok ? 'status-ok' : 'status-error';
+        }
+    }).catch(() => {
+        if (postsCell) { postsCell.textContent = 'ERR'; postsCell.className = 'status-error'; }
+        if (statusCell) { statusCell.textContent = 'ERR'; statusCell.className = 'status-error'; }
+        if (apiCell) { apiCell.textContent = 'ERR'; apiCell.className = 'status-error'; }
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.querySelector('i').classList.remove('spin'); }
     });
+}
+
+function refreshAllStatuses() {
+    sitesData.forEach(site => refreshSiteStatus(site.id));
 }
 
 // ── Change Password (all sites) ──────────────────────────────
