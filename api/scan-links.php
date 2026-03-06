@@ -102,10 +102,14 @@ foreach ($posts as $post) {
     }
 }
 
+// Re-match any unmatched links (e.g. clients added after initial scan)
+$rematched = rematchClientLinks($db);
+
 echo json_encode([
     'success' => true,
     'posts_scanned' => $postsScanned,
     'links_inserted' => $totalInserted,
     'links_skipped' => $totalSkipped,
+    'links_rematched' => $rematched,
     'site_name' => $site['name'],
 ]);

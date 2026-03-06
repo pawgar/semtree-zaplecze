@@ -118,7 +118,10 @@ if ($method === 'POST') {
         $stmt->reset();
     }
 
-    echo json_encode(['success' => true, 'inserted' => $inserted, 'skipped' => $skipped]);
+    // Re-match any unmatched links against current client domains
+    $rematched = rematchClientLinks($db);
+
+    echo json_encode(['success' => true, 'inserted' => $inserted, 'skipped' => $skipped, 'rematched' => $rematched]);
     exit;
 }
 

@@ -83,6 +83,40 @@ function matchClientDomain(string $targetUrl, array $clientDomains): ?int {
 }
 
 /**
+ * Re-match all links with client_id IS NULL against current client domains.
+ * Call after adding/editing clients or after scanning.
+ * @return int Number of links that were matched to a client
+ */
+function rematchClientLinks(SQLite3 $db): int {
+    $clientDomains = [];
+    $clientResult = $db->query('SELECT id, domain FROM clients');
+    while ($row = $clientResult->fetchArray(SQLITE3_ASSOC)) {
+        $clientDomains[strtolower($row['domain'])] = (int) $row['id'];
+    }
+
+    if (empty($clientDomains)) return 0;
+
+    // Get all unmatched links
+    $result = $db->query('SELECT id, target_url FROM links WHERE client_id IS NULL');
+    $updated = 0;
+
+    $updateStmt = $db->prepare('UPDATE links SET client_id = :client_id WHERE id = :id');
+
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+        $clientId = matchClientDomain($row['target_url'], $clientDomains);
+        if ($clientId) {
+            $updateStmt->bindValue(':client_id', $clientId, SQLITE3_INTEGER);
+            $updateStmt->bindValue(':id', (int) $row['id'], SQLITE3_INTEGER);
+            $updateStmt->execute();
+            $updateStmt->reset();
+            $updated++;
+        }
+    }
+
+    return $updated;
+}
+
+/**
  * Clean/normalize a domain string for storage.
  * Strips protocol, www, trailing slash.
  */

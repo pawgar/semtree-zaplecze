@@ -47,7 +47,12 @@ if ($method === 'POST') {
     $stmt->bindValue(':color', $color, SQLITE3_TEXT);
     $stmt->execute();
 
-    echo json_encode(['id' => $db->lastInsertRowID(), 'success' => true]);
+    $newId = $db->lastInsertRowID();
+
+    // Re-match existing unmatched links against all client domains (including the new one)
+    $rematched = rematchClientLinks($db);
+
+    echo json_encode(['id' => $newId, 'success' => true, 'rematched' => $rematched]);
     exit;
 }
 
@@ -64,6 +69,12 @@ if ($method === 'PUT') {
         exit;
     }
 
+    // If domain changed, unlink old matches so they can be re-evaluated
+    $oldStmt = $db->prepare('SELECT domain FROM clients WHERE id = :id');
+    $oldStmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $oldClient = $oldStmt->execute()->fetchArray(SQLITE3_ASSOC);
+    $oldDomain = $oldClient ? $oldClient['domain'] : '';
+
     $stmt = $db->prepare('UPDATE clients SET name=:name, domain=:domain, color=:color WHERE id=:id');
     $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
     $stmt->bindValue(':name', $name, SQLITE3_TEXT);
@@ -71,7 +82,17 @@ if ($method === 'PUT') {
     $stmt->bindValue(':color', $color, SQLITE3_TEXT);
     $stmt->execute();
 
-    echo json_encode(['success' => true]);
+    // If domain changed, reset client_id for links that were matched to the old domain
+    if ($oldDomain && strtolower($oldDomain) !== strtolower($domain)) {
+        $resetStmt = $db->prepare('UPDATE links SET client_id = NULL WHERE client_id = :cid');
+        $resetStmt->bindValue(':cid', $id, SQLITE3_INTEGER);
+        $resetStmt->execute();
+    }
+
+    // Re-match all unmatched links
+    $rematched = rematchClientLinks($db);
+
+    echo json_encode(['success' => true, 'rematched' => $rematched]);
     exit;
 }
 
