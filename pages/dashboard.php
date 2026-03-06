@@ -38,6 +38,7 @@ $isAdminUser = isAdmin();
                 <th>Nazwa</th>
                 <th>URL</th>
                 <th>Login WP</th>
+                <th>App Password</th>
                 <th>Kategorie</th>
                 <th>Wpisy</th>
                 <th>Status HTTP</th>
@@ -48,7 +49,7 @@ $isAdminUser = isAdmin();
             </tr>
         </thead>
         <tbody id="sitesBody">
-            <tr><td colspan="9" class="text-center text-muted">Ladowanie...</td></tr>
+            <tr><td colspan="10" class="text-center text-muted">Ladowanie...</td></tr>
         </tbody>
     </table>
 </div>
@@ -82,7 +83,12 @@ $isAdminUser = isAdmin();
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Application Password</label>
-                    <input type="text" class="form-control" id="siteAppPassword" required>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="siteAppPassword" required>
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('siteAppPassword', this)">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

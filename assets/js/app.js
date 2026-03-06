@@ -28,12 +28,17 @@ function renderSites(sites) {
     tbody.innerHTML = sites.map((s, i) => {
         const cats = (s.categories || '').split(',').map(c => c.trim()).filter(c => c);
         const badges = cats.map(c => `<span class="badge bg-secondary category-badge">${esc(c)}</span>`).join(' ');
+        const pwdId = 'pwd-' + s.id;
         return `
         <tr data-id="${s.id}">
             <td>${i + 1}</td>
             <td>${esc(s.name)}</td>
             <td><a href="${esc(s.url)}" target="_blank">${esc(s.url)}</a></td>
             <td>${esc(s.username)}</td>
+            <td class="text-nowrap">
+                <span id="${pwdId}" class="small" data-pw="${esc(s.app_password)}" data-visible="0">${'•'.repeat(8)}</span>
+                <button class="btn btn-sm btn-link p-0 ms-1" onclick="toggleTablePwd('${pwdId}')" title="Pokaz/ukryj"><i class="bi bi-eye small"></i></button>
+            </td>
             <td>${badges}</td>
             <td class="status-loading" id="posts-${s.id}">-</td>
             <td class="status-loading" id="status-${s.id}">-</td>
@@ -236,6 +241,21 @@ function togglePasswordField(inputId, btn) {
     } else {
         input.type = 'password';
         btn.innerHTML = '<i class="bi bi-eye"></i>';
+    }
+}
+
+function toggleTablePwd(spanId) {
+    const span = document.getElementById(spanId);
+    if (!span) return;
+    const btn = span.nextElementSibling;
+    if (span.dataset.visible === '0') {
+        span.textContent = span.dataset.pw;
+        span.dataset.visible = '1';
+        btn.innerHTML = '<i class="bi bi-eye-slash small"></i>';
+    } else {
+        span.textContent = '••••••••';
+        span.dataset.visible = '0';
+        btn.innerHTML = '<i class="bi bi-eye small"></i>';
     }
 }
 

@@ -172,7 +172,12 @@
                 <p class="text-muted small">Klucz API do generowania obrazkow przez Google Gemini. Pobierz z <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>.</p>
                 <div class="mb-3">
                     <label class="form-label">API Key</label>
-                    <input type="password" class="form-control" id="geminiApiKey">
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="geminiApiKey">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('geminiApiKey', this)">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

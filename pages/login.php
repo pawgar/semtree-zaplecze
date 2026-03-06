@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Logowanie - <?= APP_NAME ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="assets/css/style.css" rel="stylesheet">
 </head>
 <body class="login-body">
@@ -29,7 +30,12 @@
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Haslo</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="const i=this.previousElementSibling;if(i.type==='password'){i.type='text';this.innerHTML='<i class=\'bi bi-eye-slash\'></i>'}else{i.type='password';this.innerHTML='<i class=\'bi bi-eye\'></i>'}">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Zaloguj sie</button>
                 </form>
