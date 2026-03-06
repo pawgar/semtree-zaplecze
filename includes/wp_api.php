@@ -1,14 +1,45 @@
 <?php
 
 class WpApi {
-    private string $apiBase;
+    private string $siteUrl;
     private string $authHeader;
     private int $timeout = 15;
+    private bool $usePlainPermalinks = false;
 
     public function __construct(string $siteUrl, string $username, string $appPassword) {
-        $this->apiBase = rtrim($siteUrl, '/') . '/wp-json/wp/v2';
+        $this->siteUrl = rtrim($siteUrl, '/');
         $token = base64_encode($username . ':' . $appPassword);
         $this->authHeader = 'Authorization: Basic ' . $token;
+
+        // Auto-detect API URL format: try /wp-json/ first, fall back to ?rest_route=
+        $ch = curl_init($this->siteUrl . '/wp-json/wp/v2');
+        curl_setopt_array($ch, [
+            CURLOPT_NOBODY => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_USERAGENT => 'SemtreeZaplecze/1.0',
+        ]);
+        curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($code === 0 || $code === 404) {
+            $this->usePlainPermalinks = true;
+        }
+    }
+
+    /**
+     * Build the full API URL for an endpoint.
+     * Handles both pretty (/wp-json/wp/v2/...) and plain (?rest_route=/wp/v2/...) permalinks.
+     */
+    private function buildUrl(string $endpoint): string {
+        if ($this->usePlainPermalinks) {
+            // Replace first ? in endpoint with & since ?rest_route= already uses ?
+            $endpoint = preg_replace('/\?/', '&', $endpoint, 1);
+            return $this->siteUrl . '/?rest_route=/wp/v2' . $endpoint;
+        }
+        return $this->siteUrl . '/wp-json/wp/v2' . $endpoint;
     }
 
     /**
@@ -45,7 +76,7 @@ class WpApi {
      * Get total number of published posts.
      */
     public function getPostCount(): int {
-        $ch = curl_init($this->apiBase . '/posts?per_page=1&status=publish&_fields=id');
+        $ch = curl_init($this->buildUrl('/posts?per_page=1&status=publish&_fields=id'));
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => [$this->authHeader],
@@ -104,7 +135,7 @@ class WpApi {
      * Upload media file to WordPress. Returns media ID.
      */
     public function uploadMedia(string $filename, string $binaryData, string $mimeType): int {
-        $url = $this->apiBase . '/media';
+        $url = $this->buildUrl('/media');
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_POST => true,
@@ -149,8 +180,9 @@ class WpApi {
         $all = [];
         $page = 1;
         do {
-            $sep = str_contains($endpoint, '?') ? '&' : '?';
-            $url = $this->apiBase . $endpoint . $sep . 'per_page=100&page=' . $page;
+            $url = $this->buildUrl($endpoint);
+            $sep = str_contains($url, '?') ? '&' : '?';
+            $url .= $sep . 'per_page=100&page=' . $page;
 
             $ch = curl_init($url);
             curl_setopt_array($ch, [
@@ -201,7 +233,7 @@ class WpApi {
     }
 
     private function request(string $method, string $endpoint, ?array $body = null): array {
-        $ch = curl_init($this->apiBase . $endpoint);
+        $ch = curl_init($this->buildUrl($endpoint));
         $headers = [
             $this->authHeader,
             'Content-Type: application/json',
