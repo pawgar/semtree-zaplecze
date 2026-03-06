@@ -972,8 +972,8 @@ async function parseXlsxFile(input) {
         // Show category mapping
         matchCategories();
 
-        // Auto-load DOCX files from disk
-        await loadDocxFromDisk();
+        // Show DOCX upload card
+        document.getElementById('docxLoadCard').classList.remove('d-none');
     } catch (e) {
         status.innerHTML = `<i class="bi bi-x-circle text-danger"></i> Blad: ${esc(e.message)}`;
     }
@@ -1058,104 +1058,6 @@ function setCategoryMapping(xlsxCat, wpCatId) {
 }
 
 // ── Load DOCX files from local disk paths ───────────────────
-async function loadDocxFromDisk() {
-    if (!importPlan.length) return;
-
-    // Filter rows that have docx_path
-    const rowsWithPath = importPlan.filter(row => row.docx_path);
-    if (!rowsWithPath.length) {
-        // No paths in XLSX — go straight to manual upload
-        showDocxManualUpload('XLSX nie zawiera sciezek do plikow DOCX.');
-        return;
-    }
-
-    const loadCard = document.getElementById('docxLoadCard');
-    const status = document.getElementById('docxMatchStatus');
-    const progressWrap = document.getElementById('docxProgress');
-    const progressBar = document.getElementById('docxProgressBar');
-
-    loadCard.classList.remove('d-none');
-    progressWrap.classList.remove('d-none');
-    status.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Wczytuje pliki DOCX z dysku...';
-
-    const total = rowsWithPath.length;
-    let done = 0;
-    let success = 0;
-    const errors = [];
-
-    // Process in batches of 5
-    const BATCH_SIZE = 5;
-
-    // Try first batch to detect if server has access to files
-    const firstBatch = rowsWithPath.slice(0, BATCH_SIZE);
-    let firstBatchErrors = 0;
-
-    await Promise.all(firstBatch.map(async (plan) => {
-        try {
-            const r = await api('POST', 'api/read-docx.php', { path: plan.docx_path });
-            if (r.error) {
-                errors.push(plan.docx_filename + ': ' + r.error);
-                firstBatchErrors++;
-            } else {
-                addArticleFromDocx(plan, r.html_body);
-                success++;
-            }
-        } catch (e) {
-            errors.push(plan.docx_filename + ': ' + e.message);
-            firstBatchErrors++;
-        } finally {
-            done++;
-            const pct = Math.round(done / total * 100);
-            progressBar.style.width = pct + '%';
-            progressBar.textContent = `${done} / ${total}`;
-        }
-    }));
-
-    // If ALL files in first batch failed, server can't access local paths — show manual upload
-    if (firstBatchErrors === firstBatch.length) {
-        progressWrap.classList.add('d-none');
-        showDocxManualUpload('Serwer nie ma dostepu do plikow DOCX na dysku lokalnym. Wgraj je recznie.');
-        return;
-    }
-
-    // Continue with remaining batches
-    for (let i = BATCH_SIZE; i < rowsWithPath.length; i += BATCH_SIZE) {
-        const batch = rowsWithPath.slice(i, i + BATCH_SIZE);
-
-        await Promise.all(batch.map(async (plan) => {
-            try {
-                const r = await api('POST', 'api/read-docx.php', { path: plan.docx_path });
-                if (r.error) {
-                    errors.push(plan.docx_filename + ': ' + r.error);
-                } else {
-                    addArticleFromDocx(plan, r.html_body);
-                    success++;
-                }
-            } catch (e) {
-                errors.push(plan.docx_filename + ': ' + e.message);
-            } finally {
-                done++;
-                const pct = Math.round(done / total * 100);
-                progressBar.style.width = pct + '%';
-                progressBar.textContent = `${done} / ${total}`;
-            }
-        }));
-    }
-
-    // Show results
-    let statusText = `<i class="bi bi-check-circle text-success"></i> Wczytano ${success}/${total} plikow DOCX.`;
-    if (errors.length > 0) {
-        statusText += ` <span class="text-danger">${errors.length} bledow:</span> <span class="text-muted small">${errors.slice(0, 5).map(e => esc(e)).join('; ')}${errors.length > 5 ? '...' : ''}</span>`;
-    }
-    status.innerHTML = statusText;
-
-    // Show articles card and publish card
-    document.getElementById('importArticlesCard').classList.remove('d-none');
-    document.getElementById('importPublishCard').classList.remove('d-none');
-
-    renderArticles();
-}
-
 function addArticleFromDocx(plan, htmlBody) {
     const catId = categoryMap[plan.category_name] || '';
     articles.push({
@@ -1172,16 +1074,6 @@ function addArticleFromDocx(plan, htmlBody) {
         _xlsx_category: plan.category_name,
         _docx_filename: plan.docx_filename,
     });
-}
-
-function showDocxManualUpload(msg) {
-    const loadCard = document.getElementById('docxLoadCard');
-    const status = document.getElementById('docxMatchStatus');
-    const manualDiv = document.getElementById('docxManualUpload');
-
-    loadCard.classList.remove('d-none');
-    status.innerHTML = `<i class="bi bi-exclamation-triangle text-warning"></i> ${esc(msg)}`;
-    manualDiv.classList.remove('d-none');
 }
 
 async function uploadImportDocxFiles(input) {
