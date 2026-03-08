@@ -1138,6 +1138,15 @@ async function uploadImportDocxFiles(input) {
         }
     }
 
+    // Build lookup: normalized title -> importPlan row (for fuzzy matching)
+    const normalizeTitle = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    const planByTitle = {};
+    for (const plan of importPlan) {
+        const key = normalizeTitle(plan.title || '');
+        if (key) planByTitle[key] = plan;
+    }
+
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
         const batch = files.slice(i, i + BATCH_SIZE);
 
@@ -1154,7 +1163,7 @@ async function uploadImportDocxFiles(input) {
                 if (r.error) {
                     unmatched.push(file.name + ': ' + r.error);
                 } else {
-                    // Match by filename (case-insensitive)
+                    // 1. Match by filename (case-insensitive)
                     const key = file.name.toLowerCase();
                     const plans = planByFilename[key];
                     if (plans && plans.length > 0) {
@@ -1162,23 +1171,34 @@ async function uploadImportDocxFiles(input) {
                             addArticleFromDocx(plan, r.html_body);
                             matched++;
                         }
-                    } else {
-                        // No match in plan — add with title from DOCX
-                        articles.push({
-                            id: Date.now() + Math.random(),
-                            title: r.title || file.name.replace(/\.docx$/i, ''),
-                            content: r.html_body,
-                            slug: titleToSlug(r.title || file.name.replace(/\.docx$/i, '')),
-                            category_id: '',
-                            author_id: '',
-                            image_data: '',
-                            image_filename: '',
-                            publish_date: '',
-                            status: 'draft',
-                            _xlsx_category: '',
-                            _docx_filename: file.name,
-                        });
-                        unmatched.push(file.name + ': brak w planie XLSX (dodano bez kategorii)');
+                    }
+                    // 2. Fallback: match by title from DOCX H1 vs XLSX title
+                    else {
+                        const docxTitle = r.title || '';
+                        const titleKey = normalizeTitle(docxTitle);
+                        const titlePlan = titleKey ? planByTitle[titleKey] : null;
+
+                        if (titlePlan) {
+                            addArticleFromDocx(titlePlan, r.html_body);
+                            matched++;
+                        } else {
+                            // No match — add without category
+                            articles.push({
+                                id: Date.now() + Math.random(),
+                                title: docxTitle || file.name.replace(/\.docx$/i, ''),
+                                content: r.html_body,
+                                slug: titleToSlug(docxTitle || file.name.replace(/\.docx$/i, '')),
+                                category_id: '',
+                                author_id: '',
+                                image_data: '',
+                                image_filename: '',
+                                publish_date: '',
+                                status: 'draft',
+                                _xlsx_category: '',
+                                _docx_filename: file.name,
+                            });
+                            unmatched.push(file.name + ': brak w planie XLSX (dodano bez kategorii)');
+                        }
                     }
                 }
             } catch (e) {
