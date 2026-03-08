@@ -79,18 +79,76 @@ function parseXlsx(string $path): array {
         throw new RuntimeException('Plik XLSX jest pusty lub ma tylko naglowek');
     }
 
-    // 4. Skip header, extract articles
-    $articles = [];
-    for ($i = 1; $i < count($rows); $i++) {
+    // 4. Auto-detect header row and column mapping
+    $headerRowIdx = null;
+    $colMap = ['title' => null, 'category' => null, 'docx' => null];
+
+    // Known header patterns (case-insensitive)
+    $titlePatterns = ['tytuł', 'tytul', 'title', 'temat', 'nazwa'];
+    $categoryPatterns = ['kategoria', 'category', 'cat', 'dział', 'dzial'];
+    $docxPatterns = ['docx', 'plik', 'file', 'ścieżka', 'sciezka', 'path'];
+
+    for ($i = 0; $i < count($rows); $i++) {
         $r = $rows[$i];
-        $title = trim($r['A'] ?? '');
-        $category = trim($r['B'] ?? '');
-        $docxPath = trim($r['C'] ?? '');
+        $matched = 0;
+
+        foreach ($r as $col => $val) {
+            $lower = mb_strtolower(trim($val));
+            foreach ($titlePatterns as $p) {
+                if (str_contains($lower, $p)) {
+                    $colMap['title'] = $col;
+                    $matched++;
+                    break;
+                }
+            }
+            foreach ($categoryPatterns as $p) {
+                if (str_contains($lower, $p)) {
+                    $colMap['category'] = $col;
+                    $matched++;
+                    break;
+                }
+            }
+            foreach ($docxPatterns as $p) {
+                if (str_contains($lower, $p)) {
+                    $colMap['docx'] = $col;
+                    $matched++;
+                    break;
+                }
+            }
+        }
+
+        // Need at least title column to consider this the header row
+        if ($colMap['title'] !== null) {
+            $headerRowIdx = $i;
+            break;
+        }
+
+        // Reset for next row
+        $colMap = ['title' => null, 'category' => null, 'docx' => null];
+    }
+
+    // Fallback: if no header detected, assume row 0 is header with A=title, B=category, C=docx
+    if ($headerRowIdx === null) {
+        $headerRowIdx = 0;
+        $colMap = ['title' => 'A', 'category' => 'B', 'docx' => 'C'];
+    }
+
+    // 5. Extract articles from rows after header
+    $articles = [];
+    for ($i = $headerRowIdx + 1; $i < count($rows); $i++) {
+        $r = $rows[$i];
+
+        $title = trim($r[$colMap['title']] ?? '');
+        $category = $colMap['category'] ? trim($r[$colMap['category']] ?? '') : '';
+        $docxPath = $colMap['docx'] ? trim($r[$colMap['docx']] ?? '') : '';
 
         if (empty($title)) continue;
 
+        // Skip rows where "title" is a number only (likely Lp./row number column)
+        if (is_numeric($title) && $colMap['title'] !== null) continue;
+
         // Extract filename and keep full path for local reading
-        $docxFilename = basename(str_replace('\\', '/', $docxPath));
+        $docxFilename = $docxPath ? basename(str_replace('\\', '/', $docxPath)) : '';
 
         $articles[] = [
             'title' => $title,
