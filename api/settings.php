@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../auth.php';
 header('Content-Type: application/json');
-requireAdminApi();
+requireLoginApi();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $db = getDb();

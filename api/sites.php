@@ -23,8 +23,8 @@ if ($method === 'GET') {
     exit;
 }
 
-// All write operations require admin
-requireAdminApi();
+// All write operations require login
+requireLoginApi();
 
 if ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);

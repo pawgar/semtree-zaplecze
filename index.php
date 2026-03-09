@@ -31,15 +31,15 @@ if (!isLoggedIn()) {
 // Logged in → route to page
 switch ($page) {
     case 'publish':
-        requireAdmin();
+        requireLogin();
         require __DIR__ . '/pages/publish.php';
         break;
     case 'import':
-        requireAdmin();
+        requireLogin();
         require __DIR__ . '/pages/import.php';
         break;
     case 'links':
-        requireAdmin();
+        requireLogin();
         require __DIR__ . '/pages/links.php';
         break;
     case 'users':

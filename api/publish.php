@@ -4,7 +4,7 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../includes/wp_api.php';
 require_once __DIR__ . '/../includes/image_utils.php';
 header('Content-Type: application/json');
-requireAdminApi();
+requireLoginApi();
 
 $input = json_decode(file_get_contents('php://input'), true);
 

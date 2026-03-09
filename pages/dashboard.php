@@ -12,7 +12,6 @@ $isAdminUser = isAdmin();
         <button class="btn btn-outline-primary btn-sm" onclick="refreshAllStatuses()">
             <i class="bi bi-arrow-clockwise"></i> Odswiez statusy
         </button>
-        <?php if ($isAdminUser): ?>
         <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#addSiteModal">
             <i class="bi bi-plus-lg"></i> Dodaj strone
         </button>
@@ -23,6 +22,7 @@ $isAdminUser = isAdmin();
         <button class="btn btn-outline-secondary btn-sm" onclick="exportCsv()">
             <i class="bi bi-download"></i> Eksportuj CSV
         </button>
+        <?php if ($isAdminUser): ?>
         <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
             <i class="bi bi-key"></i> Zmien haslo na wszystkich
         </button>
@@ -44,9 +44,7 @@ $isAdminUser = isAdmin();
                 <th>Linki</th>
                 <th>Status HTTP</th>
                 <th>API</th>
-                <?php if ($isAdminUser): ?>
                 <th>Akcje</th>
-                <?php endif; ?>
             </tr>
         </thead>
         <tbody id="sitesBody">
@@ -55,7 +53,6 @@ $isAdminUser = isAdmin();
     </table>
 </div>
 
-<?php if ($isAdminUser): ?>
 <!-- Add Site Modal -->
 <div class="modal fade" id="addSiteModal" tabindex="-1">
     <div class="modal-dialog">
@@ -100,6 +97,7 @@ $isAdminUser = isAdmin();
     </div>
 </div>
 
+<?php if ($isAdminUser): ?>
 <!-- Change Password Modal -->
 <div class="modal fade" id="changePasswordModal" tabindex="-1">
     <div class="modal-dialog">
@@ -135,9 +133,5 @@ $isAdminUser = isAdmin();
     </div>
 </div>
 <?php endif; ?>
-
-<script>
-    const IS_ADMIN = <?= $isAdminUser ? 'true' : 'false' ?>;
-</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

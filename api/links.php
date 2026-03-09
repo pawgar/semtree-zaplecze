@@ -4,7 +4,7 @@ require_once __DIR__ . '/../includes/link_extractor.php';
 header('Content-Type: application/json');
 
 $method = $_SERVER['REQUEST_METHOD'];
-requireAdminApi();
+requireLoginApi();
 
 $db = getDb();
 

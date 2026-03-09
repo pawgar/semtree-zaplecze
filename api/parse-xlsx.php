@@ -5,7 +5,7 @@
  */
 require_once __DIR__ . '/../auth.php';
 header('Content-Type: application/json');
-requireAdminApi();
+requireLoginApi();
 
 if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
     http_response_code(400);

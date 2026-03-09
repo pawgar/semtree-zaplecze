@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../includes/wp_api.php';
 header('Content-Type: application/json');
-requireAdminApi();
+requireLoginApi();
 
 $siteId = (int) ($_GET['site_id'] ?? 0);
 $type = $_GET['type'] ?? '';

@@ -44,7 +44,6 @@ function renderSites(sites) {
             <td>${s.link_count || 0}</td>
             <td class="status-loading" id="status-${s.id}">-</td>
             <td class="status-loading" id="api-${s.id}">-</td>
-            ${IS_ADMIN ? `
             <td class="text-nowrap">
                 <button class="btn btn-sm btn-outline-secondary me-1" id="refresh-btn-${s.id}" onclick="refreshSiteStatus(${s.id})" title="Odswiez status">
                     <i class="bi bi-arrow-clockwise"></i>
@@ -55,7 +54,7 @@ function renderSites(sites) {
                 <button class="btn btn-sm btn-outline-danger" onclick="deleteSite(${s.id}, '${esc(s.name)}')" title="Usun">
                     <i class="bi bi-trash"></i>
                 </button>
-            </td>` : ''}
+            </td>
         </tr>`;
     }).join('');
 }

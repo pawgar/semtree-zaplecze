@@ -10,7 +10,7 @@ header('Content-Type: application/json');
 
 set_time_limit(600);
 
-requireAdminApi();
+requireLoginApi();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

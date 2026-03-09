@@ -20,7 +20,6 @@
             <a class="nav-link <?= ($page ?? '') === '' ? 'active' : '' ?>" href="index.php">
                 <i class="bi bi-grid"></i> Dashboard
             </a>
-            <?php if (isAdmin()): ?>
             <a class="nav-link <?= ($page ?? '') === 'publish' ? 'active' : '' ?>" href="index.php?page=publish">
                 <i class="bi bi-pencil-square"></i> Publikuj artykuly
             </a>
@@ -30,6 +29,7 @@
             <a class="nav-link <?= ($page ?? '') === 'links' ? 'active' : '' ?>" href="index.php?page=links">
                 <i class="bi bi-link-45deg"></i> Linki
             </a>
+            <?php if (isAdmin()): ?>
             <a class="nav-link <?= ($page ?? '') === 'users' ? 'active' : '' ?>" href="index.php?page=users">
                 <i class="bi bi-people"></i> Uzytkownicy
             </a>

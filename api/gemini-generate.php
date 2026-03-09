@@ -5,7 +5,7 @@
  */
 require_once __DIR__ . '/../auth.php';
 header('Content-Type: application/json');
-requireAdminApi();
+requireLoginApi();
 
 $input = json_decode(file_get_contents('php://input'), true);
 $title = trim($input['title'] ?? '');

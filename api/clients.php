@@ -6,7 +6,7 @@ header('Content-Type: application/json');
 $method = $_SERVER['REQUEST_METHOD'];
 
 // All operations require admin
-requireAdminApi();
+requireLoginApi();
 
 $db = getDb();
 
