@@ -284,11 +284,16 @@ function importCsv(input) {
 
         const header = lines[0].split(';');
         const required = ['name', 'url', 'username', 'app_password'];
+        const optional = ['categories'];
         const indices = {};
         for (const col of required) {
             const idx = header.indexOf(col);
             if (idx === -1) return alert(`Brak kolumny: ${col}\nWymagane: ${required.join(';')}`);
             indices[col] = idx;
+        }
+        for (const col of optional) {
+            const idx = header.indexOf(col);
+            if (idx !== -1) indices[col] = idx;
         }
 
         let imported = 0, skipped = 0;
@@ -302,6 +307,9 @@ function importCsv(input) {
                 username: (cols[indices.username] || '').trim(),
                 app_password: (cols[indices.app_password] || '').trim(),
             };
+            if (indices.categories !== undefined) {
+                data.categories = (cols[indices.categories] || '').trim();
+            }
 
             if (!data.name || !data.url || !data.username || !data.app_password) {
                 skipped++;
@@ -326,9 +334,9 @@ function importCsv(input) {
 function exportCsv() {
     if (sitesData.length === 0) return alert('Brak stron do eksportu');
 
-    let csv = 'name;url;username;app_password\n';
+    let csv = 'name;url;username;app_password;categories\n';
     sitesData.forEach(s => {
-        csv += `${s.name};${s.url};${s.username};${s.app_password}\n`;
+        csv += `${s.name};${s.url};${s.username};${s.app_password};${s.categories || ''}\n`;
     });
 
     const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
