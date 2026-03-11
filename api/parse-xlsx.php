@@ -62,12 +62,22 @@ function parseXlsx(string $path): array {
         foreach ($row->getElementsByTagNameNS($ns, 'c') as $cell) {
             $ref = $cell->getAttribute('r');               // e.g. "A1", "B2"
             $col = preg_replace('/\d+/', '', $ref);        // column letter(s)
-            $type = $cell->getAttribute('t');               // 's' = shared string
+            $type = $cell->getAttribute('t');               // 's' = shared string, 'inlineStr' = inline string
             $vNodes = $cell->getElementsByTagNameNS($ns, 'v');
             $value = $vNodes->length > 0 ? $vNodes->item(0)->textContent : '';
 
             if ($type === 's') {
                 $value = $sharedStrings[(int) $value] ?? '';
+            } elseif ($type === 'inlineStr') {
+                // Inline string: value is in <is><t>...</t></is>
+                $isNodes = $cell->getElementsByTagNameNS($ns, 'is');
+                if ($isNodes->length > 0) {
+                    $tNodes = $isNodes->item(0)->getElementsByTagNameNS($ns, 't');
+                    $value = '';
+                    foreach ($tNodes as $tNode) {
+                        $value .= $tNode->textContent;
+                    }
+                }
             }
 
             $cells[$col] = $value;
