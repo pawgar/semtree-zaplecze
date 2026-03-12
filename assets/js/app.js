@@ -1367,6 +1367,75 @@ function deleteClient(id, name) {
     });
 }
 
+function exportClientsCsv() {
+    if (!linksClients || linksClients.length === 0) return alert('Brak klientow do eksportu');
+    let csv = 'name;domain;color\n';
+    linksClients.forEach(c => {
+        csv += `${c.name};${c.domain};${c.color || '#6c757d'}\n`;
+    });
+    const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'klienci.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function importClientsCsv(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const lines = e.target.result.split('\n').map(l => l.trim()).filter(l => l);
+        if (lines.length < 2) return alert('Plik CSV jest pusty');
+
+        const header = lines[0].split(';').map(h => h.trim().toLowerCase());
+        const required = ['name', 'domain'];
+        const optional = ['color'];
+        const indices = {};
+
+        for (const col of required) {
+            const idx = header.indexOf(col);
+            if (idx === -1) return alert(`Brak kolumny: ${col}\nWymagane: ${required.join(';')}`);
+            indices[col] = idx;
+        }
+        for (const col of optional) {
+            const idx = header.indexOf(col);
+            if (idx !== -1) indices[col] = idx;
+        }
+
+        let imported = 0, skipped = 0;
+        const promises = [];
+
+        for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(';');
+            const data = {
+                name: (cols[indices.name] || '').trim(),
+                domain: (cols[indices.domain] || '').trim(),
+            };
+            if (indices.color !== undefined) {
+                data.color = (cols[indices.color] || '').trim() || '#6c757d';
+            }
+            if (!data.name || !data.domain) { skipped++; continue; }
+
+            promises.push(
+                api('POST', 'api/clients.php', data).then(r => {
+                    if (r.error) skipped++; else imported++;
+                })
+            );
+        }
+
+        Promise.all(promises).then(() => {
+            alert(`Zaimportowano: ${imported}\nPominieto: ${skipped}`);
+            loadClients();
+        });
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
 function loadLinksForClient(clientId, clientName) {
     const panel = document.getElementById('clientLinksPanel');
     const title = document.getElementById('clientLinksTitle');

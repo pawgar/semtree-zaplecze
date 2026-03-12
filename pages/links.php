@@ -64,6 +64,13 @@ require_once __DIR__ . '/../includes/header.php';
             <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#clientModal" onclick="resetClientModal()">
                 <i class="bi bi-plus-lg"></i> Dodaj klienta
             </button>
+            <button class="btn btn-outline-info btn-sm" onclick="document.getElementById('clientsCsvFile').click()">
+                <i class="bi bi-upload"></i> Importuj CSV
+            </button>
+            <input type="file" id="clientsCsvFile" accept=".csv" style="display:none" onchange="importClientsCsv(this)">
+            <button class="btn btn-outline-secondary btn-sm" onclick="exportClientsCsv()">
+                <i class="bi bi-download"></i> Eksportuj CSV
+            </button>
         </div>
         <div class="row">
             <div class="col-md-5">
