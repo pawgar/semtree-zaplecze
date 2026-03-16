@@ -1148,11 +1148,33 @@ async function uploadImportDocxFiles(input) {
     // Build lookup: normalized title -> importPlan row (for fuzzy matching)
     const normalizeTitle = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-    const planByTitle = {};
+    const planTitles = [];
     for (const plan of importPlan) {
-        const key = normalizeTitle(plan.title || '');
-        if (key) planByTitle[key] = plan;
+        const norm = normalizeTitle(plan.title || '');
+        if (norm) planTitles.push({ norm, words: new Set(norm.split(' ')), plan });
     }
+    const planByTitle = {};
+    for (const pt of planTitles) planByTitle[pt.norm] = pt.plan;
+
+    // Fuzzy match: Jaccard + subset check
+    const fuzzyMatchPlan = (docxTitleNorm) => {
+        if (!docxTitleNorm) return null;
+        const docxWords = new Set(docxTitleNorm.split(' '));
+        let bestPlan = null, bestScore = 0;
+        for (const pt of planTitles) {
+            let common = 0;
+            for (const w of pt.words) { if (docxWords.has(w)) common++; }
+            const union = new Set([...pt.words, ...docxWords]).size;
+            // 1. Jaccard similarity
+            const jaccard = union > 0 ? common / union : 0;
+            // 2. Subset: shorter title words contained in longer (AI expands titles)
+            const smaller = Math.min(pt.words.size, docxWords.size);
+            const subsetRatio = smaller > 0 ? common / smaller : 0;
+            const score = Math.max(jaccard, subsetRatio);
+            if (score > bestScore) { bestScore = score; bestPlan = pt.plan; }
+        }
+        return bestScore >= 0.5 ? bestPlan : null;
+    };
 
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
         const batch = files.slice(i, i + BATCH_SIZE);
@@ -1183,7 +1205,9 @@ async function uploadImportDocxFiles(input) {
                     else {
                         const docxTitle = r.title || '';
                         const titleKey = normalizeTitle(docxTitle);
-                        const titlePlan = titleKey ? planByTitle[titleKey] : null;
+                        // Try exact match first, then fuzzy (Jaccard + subset)
+                        const titlePlan = (titleKey ? planByTitle[titleKey] : null)
+                            || fuzzyMatchPlan(titleKey);
 
                         if (titlePlan) {
                             addArticleFromDocx(titlePlan, r.html_body);
