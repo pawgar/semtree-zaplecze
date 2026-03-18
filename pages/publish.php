@@ -158,7 +158,13 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Obrazek wyrozniajacy</label>
-                    <input type="file" class="form-control" id="manualImage" accept="image/*">
+                    <div class="d-flex gap-2 align-items-start">
+                        <input type="file" class="form-control" id="manualImage" accept="image/*">
+                        <button class="btn btn-outline-info btn-sm text-nowrap" onclick="generateManualImage()" type="button">
+                            <i class="bi bi-stars"></i> Generuj AI
+                        </button>
+                    </div>
+                    <div id="manualImagePreview" class="mt-2"></div>
                 </div>
             </div>
             <div class="modal-footer">

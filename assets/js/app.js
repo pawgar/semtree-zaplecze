@@ -12,6 +12,7 @@ function loadSites() {
     api('GET', 'api/sites.php').then(sites => {
         sitesData = sites;
         buildCategoryFilter();
+        buildClientFilter();
         filterSites();
     });
 }
@@ -45,6 +46,9 @@ function renderSites(sites) {
             <td class="status-loading" id="status-${s.id}">-</td>
             <td class="status-loading" id="api-${s.id}">-</td>
             <td class="text-nowrap">
+                <button class="btn btn-sm btn-outline-success me-1" onclick="goToPublish(${s.id})" title="Publikuj">
+                    <i class="bi bi-send"></i>
+                </button>
                 <button class="btn btn-sm btn-outline-secondary me-1" id="refresh-btn-${s.id}" onclick="refreshSiteStatus(${s.id})" title="Odswiez status">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
@@ -113,6 +117,11 @@ function deleteSite(id, name) {
     });
 }
 
+function goToPublish(siteId) {
+    sessionStorage.setItem('publishSiteId', siteId);
+    window.location.href = 'index.php?page=publish';
+}
+
 // ── Category Filter ──────────────────────────────────────────
 function buildCategoryFilter() {
     const sel = document.getElementById('categoryFilter');
@@ -127,17 +136,36 @@ function buildCategoryFilter() {
     sel.value = current;
 }
 
-function filterSites(category) {
-    const cat = category || (document.getElementById('categoryFilter') ? document.getElementById('categoryFilter').value : '');
-    if (!cat) {
-        renderSites(sitesData);
-    } else {
-        const filtered = sitesData.filter(s => {
+function buildClientFilter() {
+    const sel = document.getElementById('clientFilter');
+    if (!sel) return;
+    api('GET', 'api/clients.php').then(clients => {
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Wszyscy klienci</option>' +
+            clients.map(c => `<option value="${c.id}">Bez linka do: ${esc(c.name)}</option>`).join('');
+        sel.value = current;
+    });
+}
+
+function filterSites() {
+    const catSel = document.getElementById('categoryFilter');
+    const clientSel = document.getElementById('clientFilter');
+    const cat = catSel ? catSel.value : '';
+    const clientId = clientSel ? clientSel.value : '';
+    let filtered = sitesData;
+    if (cat) {
+        filtered = filtered.filter(s => {
             const cats = (s.categories || '').split(',').map(c => c.trim());
             return cats.includes(cat);
         });
-        renderSites(filtered);
     }
+    if (clientId) {
+        filtered = filtered.filter(s => {
+            const linked = (s.linked_client_ids || '').split(',').filter(id => id);
+            return !linked.includes(clientId);
+        });
+    }
+    renderSites(filtered);
 }
 
 // Reset modal on close
@@ -413,6 +441,13 @@ function initPublishPage() {
         sites.forEach(s => {
             sel.innerHTML += `<option value="${s.id}">${esc(s.name)} (${esc(s.url)})</option>`;
         });
+        // Auto-select site if navigated from dashboard
+        const preselected = sessionStorage.getItem('publishSiteId');
+        if (preselected) {
+            sel.value = preselected;
+            sessionStorage.removeItem('publishSiteId');
+            sel.dispatchEvent(new Event('change'));
+        }
     });
 
     // Auto-load WP data when site changes, reset selections
@@ -436,6 +471,9 @@ function initPublishPage() {
             document.getElementById('manualTitle').value = '';
             document.getElementById('manualContent').value = '';
             document.getElementById('manualImage').value = '';
+            document.getElementById('manualImagePreview').innerHTML = '';
+            manualImageData = '';
+            manualImageFilename = '';
         });
     }
 }
@@ -500,6 +538,25 @@ function fillAuthorSelect(id, auths) {
 }
 
 // ── Add articles ─────────────────────────────────────────────
+let manualImageData = '';
+let manualImageFilename = '';
+
+async function generateManualImage() {
+    const title = document.getElementById('manualTitle').value.trim();
+    if (!title) return alert('Wpisz najpierw tytul');
+    const preview = document.getElementById('manualImagePreview');
+    preview.innerHTML = '<i class="bi bi-arrow-clockwise spin text-primary"></i> <span class="small">Generuje obrazek...</span>';
+    try {
+        const r = await api('POST', 'api/gemini-generate.php', { title });
+        if (r.error) { preview.innerHTML = `<span class="text-danger small">${esc(r.error)}</span>`; return; }
+        manualImageData = r.image_data;
+        manualImageFilename = r.image_filename;
+        preview.innerHTML = `<img src="data:image/jpeg;base64,${r.image_data}" class="img-thumbnail" style="max-height:120px"> <button class="btn btn-sm btn-outline-danger ms-2" onclick="manualImageData='';manualImageFilename='';this.parentElement.innerHTML=''"><i class="bi bi-x"></i></button>`;
+    } catch (e) {
+        preview.innerHTML = `<span class="text-danger small">Blad: ${esc(e.message)}</span>`;
+    }
+}
+
 function addManualArticle() {
     const title = document.getElementById('manualTitle').value.trim();
     const content = document.getElementById('manualContent').value;
@@ -520,7 +577,13 @@ function addManualArticle() {
         status: 'draft',
     };
 
-    if (imageInput.files[0]) {
+    if (manualImageData) {
+        article.image_data = manualImageData;
+        article.image_filename = manualImageFilename;
+        articles.push(article);
+        renderArticles();
+        bootstrap.Modal.getInstance(document.getElementById('manualArticleModal')).hide();
+    } else if (imageInput.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
             article.image_data = e.target.result.split(',')[1]; // strip data:... prefix

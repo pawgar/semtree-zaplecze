@@ -6,8 +6,11 @@ $isAdminUser = isAdmin();
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0"><i class="bi bi-grid"></i> Strony zapleczowe</h4>
     <div class="d-flex gap-2 align-items-center">
-        <select class="form-select form-select-sm" id="categoryFilter" style="width:200px" onchange="filterSites(this.value)">
+        <select class="form-select form-select-sm" id="categoryFilter" style="width:200px" onchange="filterSites()">
             <option value="">Wszystkie kategorie</option>
+        </select>
+        <select class="form-select form-select-sm" id="clientFilter" style="width:220px" onchange="filterSites()">
+            <option value="">Wszyscy klienci</option>
         </select>
         <button class="btn btn-outline-primary btn-sm" onclick="refreshAllStatuses()">
             <i class="bi bi-arrow-clockwise"></i> Odswiez statusy
