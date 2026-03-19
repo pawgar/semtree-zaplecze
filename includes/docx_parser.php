@@ -11,13 +11,26 @@ function parseDocx(string $path, string $filename): array {
     }
 
     $xml = $zip->getFromName('word/document.xml');
+    $relsXml = $zip->getFromName('word/_rels/document.xml.rels');
     $zip->close();
 
     if ($xml === false) {
         throw new RuntimeException('Nie znaleziono word/document.xml');
     }
 
-    $html = convertDocxXmlToHtml($xml);
+    // Build rId -> URL map from relationships
+    $hyperlinkMap = [];
+    if ($relsXml) {
+        $relsDoc = new DOMDocument();
+        $relsDoc->loadXML($relsXml, LIBXML_NOERROR | LIBXML_NOWARNING);
+        foreach ($relsDoc->getElementsByTagName('Relationship') as $rel) {
+            if (str_contains($rel->getAttribute('Type'), 'hyperlink')) {
+                $hyperlinkMap[$rel->getAttribute('Id')] = $rel->getAttribute('Target');
+            }
+        }
+    }
+
+    $html = convertDocxXmlToHtml($xml, $hyperlinkMap);
     $html = cleanHtml($html);
     $html = stripBoldFromHeadings($html);
 
@@ -42,7 +55,7 @@ function parseDocx(string $path, string $filename): array {
     ];
 }
 
-function convertDocxXmlToHtml(string $xml): string {
+function convertDocxXmlToHtml(string $xml, array $hyperlinkMap = []): string {
     $doc = new DOMDocument();
     $doc->loadXML($xml, LIBXML_NOERROR | LIBXML_NOWARNING);
 
@@ -54,7 +67,7 @@ function convertDocxXmlToHtml(string $xml): string {
 
     foreach ($body->childNodes as $node) {
         if ($node->localName === 'p') {
-            $html .= convertParagraph($node, $ns);
+            $html .= convertParagraph($node, $ns, $hyperlinkMap);
         } elseif ($node->localName === 'tbl') {
             $html .= convertTable($node, $ns);
         }
@@ -63,7 +76,7 @@ function convertDocxXmlToHtml(string $xml): string {
     return $html;
 }
 
-function convertParagraph(DOMNode $p, string $ns): string {
+function convertParagraph(DOMNode $p, string $ns, array $hyperlinkMap = []): string {
     // Check paragraph style for headings
     $tag = 'p';
     $pPr = null;
@@ -99,10 +112,18 @@ function convertParagraph(DOMNode $p, string $ns): string {
         if ($child->localName === 'r') {
             $content .= convertRun($child, $ns);
         } elseif ($child->localName === 'hyperlink') {
+            $linkText = '';
             foreach ($child->childNodes as $hChild) {
                 if ($hChild->localName === 'r') {
-                    $content .= convertRun($hChild, $ns);
+                    $linkText .= convertRun($hChild, $ns);
                 }
+            }
+            $rId = $child->getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+            $href = $rId ? ($hyperlinkMap[$rId] ?? '') : '';
+            if ($href && $linkText) {
+                $content .= '<a href="' . htmlspecialchars($href) . '">' . $linkText . '</a>';
+            } else {
+                $content .= $linkText;
             }
         }
     }
