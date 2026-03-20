@@ -239,7 +239,9 @@ function refreshSiteStatus(siteId) {
     });
 }
 
-function refreshAllStatuses() {
+async function refreshAllStatuses() {
+    const BATCH = 10;
+
     // Show spinners on all sites
     sitesData.forEach(s => {
         const postsCell = document.getElementById('posts-' + s.id);
@@ -252,34 +254,37 @@ function refreshAllStatuses() {
         if (btn) { btn.disabled = true; btn.querySelector('i').classList.add('spin'); }
     });
 
-    // Single batch request instead of 50 individual ones
-    api('GET', 'api/status-batch.php').then(results => {
-        (results || []).forEach(r => {
-            const postsCell = document.getElementById('posts-' + r.id);
-            const statusCell = document.getElementById('status-' + r.id);
-            const apiCell = document.getElementById('api-' + r.id);
-            const btn = document.getElementById('refresh-btn-' + r.id);
+    // Process in batches of BATCH concurrent single-site requests
+    for (let i = 0; i < sitesData.length; i += BATCH) {
+        const batch = sitesData.slice(i, i + BATCH);
+        const promises = batch.map(s =>
+            api('POST', 'api/status.php', { id: s.id })
+                .then(r => applyStatusResult(r))
+                .catch(() => applyStatusResult({ id: s.id, http_status: 0, api_ok: false, post_count: null }))
+        );
+        await Promise.all(promises);
+    }
+}
 
-            if (postsCell) {
-                postsCell.textContent = r.post_count !== null ? r.post_count : '?';
-                postsCell.className = r.post_count !== null ? 'status-ok' : 'status-error';
-            }
-            if (statusCell) {
-                statusCell.textContent = r.http_status || 'ERR';
-                statusCell.className = (r.http_status >= 200 && r.http_status < 400) ? 'status-ok' : 'status-error';
-            }
-            if (apiCell) {
-                apiCell.textContent = r.api_ok ? 'OK' : 'FAILED';
-                apiCell.className = r.api_ok ? 'status-ok' : 'status-error';
-            }
-            if (btn) { btn.disabled = false; btn.querySelector('i').classList.remove('spin'); }
-        });
-    }).catch(() => {
-        sitesData.forEach(s => {
-            const btn = document.getElementById('refresh-btn-' + s.id);
-            if (btn) { btn.disabled = false; btn.querySelector('i').classList.remove('spin'); }
-        });
-    });
+function applyStatusResult(r) {
+    const postsCell = document.getElementById('posts-' + r.id);
+    const statusCell = document.getElementById('status-' + r.id);
+    const apiCell = document.getElementById('api-' + r.id);
+    const btn = document.getElementById('refresh-btn-' + r.id);
+
+    if (postsCell) {
+        postsCell.textContent = r.post_count !== null ? r.post_count : '?';
+        postsCell.className = r.post_count !== null ? 'status-ok' : 'status-error';
+    }
+    if (statusCell) {
+        statusCell.textContent = r.http_status || 'ERR';
+        statusCell.className = (r.http_status >= 200 && r.http_status < 400) ? 'status-ok' : 'status-error';
+    }
+    if (apiCell) {
+        apiCell.textContent = r.api_ok ? 'OK' : 'FAILED';
+        apiCell.className = r.api_ok ? 'status-ok' : 'status-error';
+    }
+    if (btn) { btn.disabled = false; btn.querySelector('i').classList.remove('spin'); }
 }
 
 // ── Change Password (all sites) ──────────────────────────────
