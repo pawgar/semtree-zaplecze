@@ -176,6 +176,35 @@ class WpApi {
         return $this->request('POST', '/posts', $postData);
     }
 
+    /**
+     * Update an existing post on WordPress.
+     */
+    public function updatePost(int $postId, array $postData): array {
+        return $this->request('POST', '/posts/' . $postId, $postData);
+    }
+
+    /**
+     * Get a single post by ID.
+     */
+    public function getPost(int $postId): array {
+        return $this->request('GET', '/posts/' . $postId . '?context=edit');
+    }
+
+    /**
+     * Find a post by its slug. Returns post data or null.
+     */
+    public function findPostBySlug(string $slug): ?array {
+        $endpoint = '/posts?slug=' . urlencode($slug) . '&status=publish,draft,private,pending&_fields=id,slug,content&context=edit';
+        $results = $this->request('GET', $endpoint);
+        // WP returns an array of matching posts
+        if (is_array($results) && !empty($results) && !isset($results['id'])) {
+            return $results[0] ?? null;
+        }
+        // If single result returned directly
+        if (isset($results['id'])) return $results;
+        return null;
+    }
+
     private function requestPaginated(string $endpoint): array {
         $all = [];
         $page = 1;

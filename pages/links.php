@@ -28,6 +28,11 @@ require_once __DIR__ . '/../includes/header.php';
             <i class="bi bi-file-earmark-bar-graph"></i> Raport
         </button>
     </li>
+    <li class="nav-item">
+        <button class="nav-link" id="tab-removelinks" data-bs-toggle="tab" data-bs-target="#pane-removelinks" type="button">
+            <i class="bi bi-link-45deg text-danger"></i> Usun linki
+        </button>
+    </li>
 </ul>
 
 <div class="tab-content">
@@ -183,6 +188,42 @@ require_once __DIR__ . '/../includes/header.php';
             </button>
         </div>
         <div id="reportContent"></div>
+    </div>
+
+    <!-- ═══ TAB 5: Remove Links ═══ -->
+    <div class="tab-pane fade" id="pane-removelinks">
+        <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+            <select class="form-select form-select-sm" id="removeLinkClientSelect" style="width:250px" onchange="loadRemoveLinks()">
+                <option value="">-- wybierz klienta --</option>
+            </select>
+            <button class="btn btn-outline-danger btn-sm" id="btnRemoveSelected" onclick="removeSelectedLinks()" disabled>
+                <i class="bi bi-trash"></i> Usun zaznaczone linki z wpisow
+            </button>
+            <span id="removeLinksStatus" class="text-muted small"></span>
+        </div>
+        <div class="alert alert-info small">
+            <i class="bi bi-info-circle"></i>
+            Usuwanie linku oznacza: tekst anchora pozostaje we wpisie, ale tag <code>&lt;a&gt;</code> zostaje usuniety.
+            Wpis blogowy NIE jest kasowany.
+        </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th><input type="checkbox" id="removeLinksCheckAll" onchange="toggleRemoveCheckAll(this)"></th>
+                        <th>Strona</th>
+                        <th>Post</th>
+                        <th>Anchor</th>
+                        <th>URL docelowy</th>
+                        <th>Typ</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody id="removeLinksBody">
+                    <tr><td colspan="7" class="text-center text-muted">Wybierz klienta</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

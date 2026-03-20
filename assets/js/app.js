@@ -1525,6 +1525,7 @@ function initLinksPage() {
             if (target === '#pane-overview') loadLinksOverview();
             if (target === '#pane-clients') loadClients();
             if (target === '#pane-history') loadLinksHistory();
+            if (target === '#pane-removelinks') initSearchableSelects();
         });
     });
 }
@@ -1570,6 +1571,13 @@ function loadClients() {
             rSel.innerHTML = '<option value="">-- wybierz klienta --</option>' +
                 clients.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.domain)})</option>`).join('');
             rSel.value = val;
+        }
+        const rlSel = document.getElementById('removeLinkClientSelect');
+        if (rlSel) {
+            const val = rlSel.value;
+            rlSel.innerHTML = '<option value="">-- wybierz klienta --</option>' +
+                clients.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.domain)})</option>`).join('');
+            rlSel.value = val;
         }
     });
 }
@@ -2073,6 +2081,98 @@ function exportReportCsv() {
     a.download = 'raport-linki.csv';
     a.click();
     URL.revokeObjectURL(url);
+}
+
+// ── Remove Links ─────────────────────────────────────────────
+let removeLinksData = [];
+
+function loadRemoveLinks() {
+    const clientId = document.getElementById('removeLinkClientSelect')?.value;
+    const tbody = document.getElementById('removeLinksBody');
+    const btn = document.getElementById('btnRemoveSelected');
+    if (!tbody) return;
+
+    if (!clientId) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Wybierz klienta</td></tr>';
+        if (btn) btn.disabled = true;
+        removeLinksData = [];
+        return;
+    }
+
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center"><i class="bi bi-arrow-clockwise spin"></i></td></tr>';
+
+    api('GET', `api/links.php?client_id=${clientId}&limit=2000`).then(r => {
+        removeLinksData = r.links || [];
+        if (removeLinksData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Brak linkow dla tego klienta</td></tr>';
+            if (btn) btn.disabled = true;
+            return;
+        }
+
+        if (btn) btn.disabled = false;
+        document.getElementById('removeLinksCheckAll').checked = false;
+
+        tbody.innerHTML = removeLinksData.map(l => `
+            <tr id="remove-row-${l.id}">
+                <td><input type="checkbox" class="remove-link-cb" value="${l.id}"></td>
+                <td class="small">${esc(l.site_name)}</td>
+                <td class="small"><a href="${esc(l.post_url)}" target="_blank" title="${esc(l.post_title)}">${esc(truncate(l.post_title || l.post_url, 40))}</a></td>
+                <td class="small">${esc(l.anchor_text)}</td>
+                <td class="small"><a href="${esc(l.target_url)}" target="_blank">${esc(truncate(l.target_url, 35))}</a></td>
+                <td><span class="badge bg-${l.link_type === 'dofollow' ? 'success' : 'secondary'} small">${l.link_type}</span></td>
+                <td class="small text-muted">${formatDate(l.created_at)}</td>
+            </tr>
+        `).join('');
+    });
+}
+
+function toggleRemoveCheckAll(el) {
+    document.querySelectorAll('.remove-link-cb').forEach(cb => { cb.checked = el.checked; });
+}
+
+async function removeSelectedLinks() {
+    const checked = [...document.querySelectorAll('.remove-link-cb:checked')].map(cb => parseInt(cb.value));
+    if (checked.length === 0) return alert('Zaznacz linki do usuniecia');
+    if (!confirm(`Usunac ${checked.length} linkow z wpisow blogowych? Wpisy pozostana, tylko linki zostana usuniete.`)) return;
+
+    const status = document.getElementById('removeLinksStatus');
+    const btn = document.getElementById('btnRemoveSelected');
+    btn.disabled = true;
+    let done = 0, errors = 0;
+
+    for (const linkId of checked) {
+        status.textContent = `Usuwam ${++done}/${checked.length}...`;
+        try {
+            const r = await api('POST', 'api/remove-links.php', { link_id: linkId });
+            if (r.error) {
+                errors++;
+                markRow(linkId, 'danger', r.error);
+            } else {
+                markRow(linkId, 'success', r.warning || 'OK');
+            }
+        } catch (e) {
+            errors++;
+            markRow(linkId, 'danger', e.message);
+        }
+    }
+
+    status.textContent = `Gotowe: ${done - errors} usunieto, ${errors} bledow`;
+    btn.disabled = false;
+
+    // Reload after 1s
+    setTimeout(() => loadRemoveLinks(), 1000);
+}
+
+function markRow(linkId, type, msg) {
+    const row = document.getElementById('remove-row-' + linkId);
+    if (!row) return;
+    if (type === 'success') {
+        row.classList.add('table-success');
+        row.querySelector('.remove-link-cb').disabled = true;
+    } else {
+        row.classList.add('table-danger');
+        row.title = msg;
+    }
 }
 
 // ── Publish hook: extract links client-side ──────────────────
