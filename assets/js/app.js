@@ -1093,7 +1093,9 @@ async function publishAllArticles() {
             if (slResult.error) {
                 log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(slResult.error)}</div>`;
             } else {
-                log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Speed-Links: wyslano ${slResult.submitted} URLi do indeksacji</div>`;
+                let msg = `Speed-Links: wyslano ${slResult.submitted} URLi do indeksacji`;
+                if (slResult.report_url) msg += ` — <a href="${esc(slResult.report_url)}" target="_blank">raport</a>`;
+                log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> ${msg}</div>`;
             }
         } catch (e) {
             log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(e.message)}</div>`;

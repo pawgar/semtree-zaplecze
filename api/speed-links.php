@@ -28,13 +28,18 @@ if (!$apiKey) {
     exit;
 }
 
+// Read method preference from settings (default: vip)
+$methodStmt = $db->prepare('SELECT value FROM settings WHERE key = "speedlinks_method"');
+$methodRow = $methodStmt->execute()->fetchArray(SQLITE3_ASSOC);
+$method = ($methodRow && trim($methodRow['value'])) ? trim($methodRow['value']) : 'vip';
+
 $qstring = 'apikey=' . urlencode($apiKey)
     . '&cmd=submit'
     . '&campaign='
     . '&urls=' . urlencode(implode('|', $urls))
     . '&dripfeed=1'
     . '&reporturl=1'
-    . '&method=regular';
+    . '&method=' . urlencode($method);
 
 $ch = curl_init();
 curl_setopt_array($ch, [
@@ -56,8 +61,22 @@ if ($error) {
     exit;
 }
 
+// Parse response: "OK|report_url" or "ERROR: ..."
+$parts = explode('|', $result, 2);
+$isOk = (strtoupper(trim($parts[0])) === 'OK');
+
+if (!$isOk) {
+    echo json_encode([
+        'success' => false,
+        'error' => 'Speed-Links: ' . trim($result),
+        'submitted' => 0,
+    ]);
+    exit;
+}
+
 echo json_encode([
     'success' => true,
     'submitted' => count($urls),
+    'report_url' => $parts[1] ?? '',
     'response' => $result,
 ]);
