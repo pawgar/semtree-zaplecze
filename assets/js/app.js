@@ -42,7 +42,7 @@ function renderSites(sites) {
             </td>
             <td>${badges}</td>
             <td class="status-loading" id="posts-${s.id}">-</td>
-            <td>${s.link_count || 0}</td>
+            <td><a href="#" onclick="goToLinks(${s.id}); return false;" title="Pokaz linki">${s.link_count || 0}</a></td>
             <td class="status-loading" id="status-${s.id}">-</td>
             <td class="status-loading" id="api-${s.id}">-</td>
             <td class="text-nowrap">
@@ -122,6 +122,11 @@ function goToPublish(siteId) {
     window.location.href = 'index.php?page=publish';
 }
 
+function goToLinks(siteId) {
+    sessionStorage.setItem('linksSiteId', siteId);
+    window.location.href = 'index.php?page=links';
+}
+
 // ── Category Filter ──────────────────────────────────────────
 function buildCategoryFilter() {
     const sel = document.getElementById('categoryFilter');
@@ -144,6 +149,7 @@ function buildClientFilter() {
         sel.innerHTML = '<option value="">Wszyscy klienci</option>' +
             clients.map(c => `<option value="${c.id}">Bez linka do: ${esc(c.name)}</option>`).join('');
         sel.value = current;
+        initSearchableSelects();
     });
 }
 
@@ -194,6 +200,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (document.getElementById('publishSiteSelect')) {
         initPublishPage();
     }
+
+    // Init searchable selects after a short delay to let options populate
+    setTimeout(initSearchableSelects, 300);
 });
 
 // ── Status Refresh ───────────────────────────────────────────
@@ -1437,6 +1446,9 @@ let linksSites = [];
 let reportLinks = []; // for CSV export of current report
 
 function initLinksPage() {
+    const preselectedSiteId = sessionStorage.getItem('linksSiteId');
+    if (preselectedSiteId) sessionStorage.removeItem('linksSiteId');
+
     // Load sites for filter dropdowns
     api('GET', 'api/sites.php').then(sites => {
         linksSites = sites;
@@ -1444,7 +1456,16 @@ function initLinksPage() {
         const hSel = document.getElementById('historySiteFilter');
         if (hSel) {
             sites.forEach(s => { hSel.innerHTML += `<option value="${s.id}">${esc(s.name)}</option>`; });
+
+            // Auto-navigate to History tab filtered by site
+            if (preselectedSiteId) {
+                hSel.value = preselectedSiteId;
+                const historyTab = document.getElementById('tab-history');
+                if (historyTab) new bootstrap.Tab(historyTab).show();
+                loadLinksHistory();
+            }
         }
+        initSearchableSelects();
     });
 
     // Load clients
@@ -2055,6 +2076,93 @@ function extractAndSaveLinks(siteId, postUrl, postTitle, html) {
 
     // Fire and forget
     api('POST', 'api/links.php', { site_id: siteId, links }).catch(() => {});
+}
+
+// ── Searchable Select ────────────────────────────────────────
+function makeSearchable(selectEl) {
+    if (!selectEl || selectEl.dataset.ssInit) return;
+    selectEl.dataset.ssInit = '1';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'searchable-select';
+    wrapper.style.width = selectEl.style.width || selectEl.offsetWidth + 'px';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = selectEl.className.replace('form-select', 'form-control');
+    input.placeholder = selectEl.options[0]?.text || 'Wybierz...';
+    input.style.width = '100%';
+    input.classList.add('ss-input');
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'ss-dropdown';
+
+    selectEl.style.display = 'none';
+    selectEl.parentNode.insertBefore(wrapper, selectEl);
+    wrapper.appendChild(input);
+    wrapper.appendChild(dropdown);
+    wrapper.appendChild(selectEl);
+
+    // Sync display from select value
+    function syncDisplay() {
+        const opt = selectEl.options[selectEl.selectedIndex];
+        input.value = (opt && selectEl.value) ? opt.text : '';
+        input.placeholder = selectEl.options[0]?.text || 'Wybierz...';
+    }
+
+    function buildOptions(filter) {
+        const f = (filter || '').toLowerCase();
+        dropdown.innerHTML = '';
+        for (let i = 0; i < selectEl.options.length; i++) {
+            const opt = selectEl.options[i];
+            if (f && !opt.text.toLowerCase().includes(f)) continue;
+            const div = document.createElement('div');
+            div.className = 'ss-option' + (opt.value === selectEl.value ? ' active' : '');
+            div.textContent = opt.text;
+            div.dataset.value = opt.value;
+            div.addEventListener('mousedown', e => {
+                e.preventDefault();
+                selectEl.value = opt.value;
+                selectEl.dispatchEvent(new Event('change'));
+                syncDisplay();
+                close();
+            });
+            dropdown.appendChild(div);
+        }
+    }
+
+    function open() {
+        wrapper.classList.add('open');
+        input.value = '';
+        buildOptions('');
+        input.focus();
+    }
+
+    function close() {
+        wrapper.classList.remove('open');
+        syncDisplay();
+    }
+
+    input.addEventListener('focus', () => open());
+    input.addEventListener('input', () => buildOptions(input.value));
+    input.addEventListener('blur', () => setTimeout(close, 150));
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { close(); input.blur(); }
+    });
+
+    // Watch for external option changes (JS-rebuilt options)
+    const observer = new MutationObserver(() => syncDisplay());
+    observer.observe(selectEl, { childList: true, subtree: true });
+
+    syncDisplay();
+}
+
+function initSearchableSelects() {
+    document.querySelectorAll('select.form-select, select.form-select-sm').forEach(sel => {
+        // Skip tiny selects (status, link_type etc.) with ≤5 static options
+        if (sel.options.length <= 5 && !sel.id?.includes('Filter') && !sel.id?.includes('filter') && !sel.id?.includes('Select') && !sel.id?.includes('select')) return;
+        makeSearchable(sel);
+    });
 }
 
 // ── Utility ──────────────────────────────────────────────────
