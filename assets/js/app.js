@@ -240,7 +240,46 @@ function refreshSiteStatus(siteId) {
 }
 
 function refreshAllStatuses() {
-    sitesData.forEach(site => refreshSiteStatus(site.id));
+    // Show spinners on all sites
+    sitesData.forEach(s => {
+        const postsCell = document.getElementById('posts-' + s.id);
+        const statusCell = document.getElementById('status-' + s.id);
+        const apiCell = document.getElementById('api-' + s.id);
+        const btn = document.getElementById('refresh-btn-' + s.id);
+        if (postsCell) postsCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+        if (statusCell) statusCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+        if (apiCell) apiCell.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+        if (btn) { btn.disabled = true; btn.querySelector('i').classList.add('spin'); }
+    });
+
+    // Single batch request instead of 50 individual ones
+    api('GET', 'api/status-batch.php').then(results => {
+        (results || []).forEach(r => {
+            const postsCell = document.getElementById('posts-' + r.id);
+            const statusCell = document.getElementById('status-' + r.id);
+            const apiCell = document.getElementById('api-' + r.id);
+            const btn = document.getElementById('refresh-btn-' + r.id);
+
+            if (postsCell) {
+                postsCell.textContent = r.post_count !== null ? r.post_count : '?';
+                postsCell.className = r.post_count !== null ? 'status-ok' : 'status-error';
+            }
+            if (statusCell) {
+                statusCell.textContent = r.http_status || 'ERR';
+                statusCell.className = (r.http_status >= 200 && r.http_status < 400) ? 'status-ok' : 'status-error';
+            }
+            if (apiCell) {
+                apiCell.textContent = r.api_ok ? 'OK' : 'FAILED';
+                apiCell.className = r.api_ok ? 'status-ok' : 'status-error';
+            }
+            if (btn) { btn.disabled = false; btn.querySelector('i').classList.remove('spin'); }
+        });
+    }).catch(() => {
+        sitesData.forEach(s => {
+            const btn = document.getElementById('refresh-btn-' + s.id);
+            if (btn) { btn.disabled = false; btn.querySelector('i').classList.remove('spin'); }
+        });
+    });
 }
 
 // ── Change Password (all sites) ──────────────────────────────
