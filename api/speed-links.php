@@ -1,0 +1,63 @@
+<?php
+/**
+ * Submit URLs to Speed-Links.net for indexing.
+ * POST: { urls: ["url1", "url2", ...] }
+ */
+set_time_limit(60);
+require_once __DIR__ . '/../auth.php';
+header('Content-Type: application/json');
+requireLoginApi();
+
+$input = json_decode(file_get_contents('php://input'), true);
+$urls = $input['urls'] ?? [];
+
+if (empty($urls) || !is_array($urls)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Brak URLi do indeksacji']);
+    exit;
+}
+
+$db = getDb();
+$stmt = $db->prepare('SELECT value FROM settings WHERE key = "speedlinks_api_key"');
+$row = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
+$apiKey = $row ? trim($row['value']) : '';
+
+if (!$apiKey) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Brak klucza API Speed-Links. Ustaw go w ustawieniach.']);
+    exit;
+}
+
+$qstring = 'apikey=' . urlencode($apiKey)
+    . '&cmd=submit'
+    . '&campaign='
+    . '&urls=' . urlencode(implode('|', $urls))
+    . '&dripfeed=1'
+    . '&reporturl=1'
+    . '&method=regular';
+
+$ch = curl_init();
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_URL => 'http://speed-links.net/api.php',
+    CURLOPT_HEADER => false,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 40,
+    CURLOPT_POSTFIELDS => $qstring,
+]);
+$result = curl_exec($ch);
+$httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$error = curl_error($ch);
+curl_close($ch);
+
+if ($error) {
+    http_response_code(500);
+    echo json_encode(['error' => 'cURL error: ' . $error]);
+    exit;
+}
+
+echo json_encode([
+    'success' => true,
+    'submitted' => count($urls),
+    'response' => $result,
+]);

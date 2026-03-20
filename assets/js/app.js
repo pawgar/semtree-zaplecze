@@ -1084,6 +1084,22 @@ async function publishAllArticles() {
         }
     }
 
+    // Speed-Links indexing
+    const speedLinksCheck = document.getElementById('speedLinksCheck');
+    if (speedLinksCheck && speedLinksCheck.checked && publishedUrls.length > 0) {
+        log.innerHTML += '<hr><div class="text-info"><i class="bi bi-arrow-clockwise spin"></i> Wysylam do indeksacji Speed-Links...</div>';
+        try {
+            const slResult = await submitToSpeedLinks(publishedUrls);
+            if (slResult.error) {
+                log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(slResult.error)}</div>`;
+            } else {
+                log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Speed-Links: wyslano ${slResult.submitted} URLi do indeksacji</div>`;
+            }
+        } catch (e) {
+            log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(e.message)}</div>`;
+        }
+    }
+
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-send"></i> Publikuj wszystkie';
 }
@@ -1156,6 +1172,37 @@ async function saveGeminiKey() {
         alert('Klucz API zapisany');
     } catch (e) {
         alert('Blad zapisu: ' + e.message);
+    }
+}
+
+// ── Speed-Links Indexing ─────────────────────────────────────
+async function loadSpeedLinksKey() {
+    try {
+        const r = await api('GET', 'api/settings.php?key=speedlinks_api_key');
+        document.getElementById('speedLinksApiKey').value = r.value || '';
+    } catch (e) {
+        // ignore
+    }
+}
+
+async function saveSpeedLinksKey() {
+    const key = document.getElementById('speedLinksApiKey').value.trim();
+    try {
+        await api('POST', 'api/settings.php', { key: 'speedlinks_api_key', value: key });
+        bootstrap.Modal.getInstance(document.getElementById('speedLinksKeyModal')).hide();
+        alert('Klucz API zapisany');
+    } catch (e) {
+        alert('Blad zapisu: ' + e.message);
+    }
+}
+
+async function submitToSpeedLinks(urls) {
+    if (!urls || urls.length === 0) return;
+    try {
+        const r = await api('POST', 'api/speed-links.php', { urls });
+        return r;
+    } catch (e) {
+        return { error: e.message };
     }
 }
 

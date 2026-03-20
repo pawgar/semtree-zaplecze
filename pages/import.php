@@ -2,9 +2,14 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0"><i class="bi bi-cloud-upload"></i> Import masowy</h4>
-    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#geminiKeyModal" onclick="loadGeminiKey()">
-        <i class="bi bi-key"></i> Gemini API Key
-    </button>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#geminiKeyModal" onclick="loadGeminiKey()">
+            <i class="bi bi-key"></i> Gemini API Key
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#speedLinksKeyModal" onclick="loadSpeedLinksKey()">
+            <i class="bi bi-key"></i> Speed-Links API Key
+        </button>
+    </div>
 </div>
 
 <!-- Step 1: Select site -->
@@ -132,6 +137,10 @@
             <button class="btn btn-success" id="btnPublishAll" onclick="publishAllArticles()">
                 <i class="bi bi-send"></i> Publikuj wszystkie
             </button>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="speedLinksCheck">
+                <label class="form-check-label small" for="speedLinksCheck">Wyslij do indeksacji (Speed-Links)</label>
+            </div>
             <button class="btn btn-outline-info btn-sm" onclick="exportArticlesJson()">
                 <i class="bi bi-download"></i> Zapisz stan (JSON)
             </button>
@@ -183,6 +192,34 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
                 <button type="button" class="btn btn-primary" onclick="saveGeminiKey()">Zapisz</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Speed-Links API Key Modal -->
+<div class="modal fade" id="speedLinksKeyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-key"></i> Speed-Links API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Klucz API do automatycznej indeksacji opublikowanych artykulow przez <a href="https://speed-links.net/" target="_blank">Speed-Links.net</a>.</p>
+                <div class="mb-3">
+                    <label class="form-label">API Key</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="speedLinksApiKey">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('speedLinksApiKey', this)">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-primary" onclick="saveSpeedLinksKey()">Zapisz</button>
             </div>
         </div>
     </div>
