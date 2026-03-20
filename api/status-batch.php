@@ -1,5 +1,5 @@
 <?php
-set_time_limit(120);
+set_time_limit(180);
 require_once __DIR__ . '/../auth.php';
 header('Content-Type: application/json');
 requireLoginApi();
@@ -16,142 +16,149 @@ if (empty($sites)) {
     exit;
 }
 
-// Phase 1: HTTP status + API detection via curl_multi (HEAD requests)
-$mh = curl_multi_init();
-$handles = [];
-
-foreach ($sites as $s) {
-    // HEAD request to site URL (HTTP status)
-    $ch = curl_init($s['url']);
-    curl_setopt_array($ch, [
-        CURLOPT_NOBODY => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT => 10,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_USERAGENT => 'SemtreeZaplecze/1.0',
-    ]);
-    $handles[$s['id']]['http'] = $ch;
-    curl_multi_add_handle($mh, $ch);
-
-    // HEAD request to detect permalink format
-    $ch2 = curl_init(rtrim($s['url'], '/') . '/wp-json/wp/v2');
-    curl_setopt_array($ch2, [
-        CURLOPT_NOBODY => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT => 5,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_USERAGENT => 'SemtreeZaplecze/1.0',
-    ]);
-    $handles[$s['id']]['detect'] = $ch2;
-    curl_multi_add_handle($mh, $ch2);
-}
-
-execMulti($mh);
-
-// Collect Phase 1 results
-$siteInfo = [];
-foreach ($sites as $s) {
-    $httpCode = (int) curl_getinfo($handles[$s['id']]['http'], CURLINFO_HTTP_CODE);
-    $detectCode = (int) curl_getinfo($handles[$s['id']]['detect'], CURLINFO_HTTP_CODE);
-    $usePlain = ($detectCode === 0 || $detectCode === 404);
-
-    curl_multi_remove_handle($mh, $handles[$s['id']]['http']);
-    curl_multi_remove_handle($mh, $handles[$s['id']]['detect']);
-    curl_close($handles[$s['id']]['http']);
-    curl_close($handles[$s['id']]['detect']);
-
-    $siteInfo[$s['id']] = [
-        'http_status' => $httpCode,
-        'use_plain' => $usePlain,
-        'url' => rtrim($s['url'], '/'),
-        'username' => $s['username'],
-        'app_password' => $s['app_password'],
-    ];
-}
-
-// Phase 2: API test (/users/me) + post count in parallel
-$handles2 = [];
-foreach ($sites as $s) {
-    $info = $siteInfo[$s['id']];
-    $token = base64_encode($info['username'] . ':' . $info['app_password']);
-    $auth = 'Authorization: Basic ' . $token;
-
-    // users/me
-    $meUrl = $info['use_plain']
-        ? $info['url'] . '/?rest_route=/wp/v2/users/me&context=edit'
-        : $info['url'] . '/wp-json/wp/v2/users/me?context=edit';
-
-    $ch = curl_init($meUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [$auth],
-        CURLOPT_TIMEOUT => 10,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_USERAGENT => 'SemtreeZaplecze/1.0',
-    ]);
-    $handles2[$s['id']]['api'] = $ch;
-    curl_multi_add_handle($mh, $ch);
-
-    // post count
-    $postsUrl = $info['use_plain']
-        ? $info['url'] . '/?rest_route=/wp/v2/posts&per_page=1&status=publish&_fields=id'
-        : $info['url'] . '/wp-json/wp/v2/posts?per_page=1&status=publish&_fields=id';
-
-    $ch2 = curl_init($postsUrl);
-    curl_setopt_array($ch2, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [$auth],
-        CURLOPT_TIMEOUT => 10,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_HEADER => true,
-        CURLOPT_USERAGENT => 'SemtreeZaplecze/1.0',
-    ]);
-    $handles2[$s['id']]['posts'] = $ch2;
-    curl_multi_add_handle($mh, $ch2);
-}
-
-execMulti($mh);
-
-// Collect Phase 2 results and build response
+$BATCH_SIZE = 10;
 $response = [];
-foreach ($sites as $s) {
-    $id = $s['id'];
 
-    // API check
-    $apiBody = curl_exec_result($handles2[$id]['api']);
-    $apiCode = (int) curl_getinfo($handles2[$id]['api'], CURLINFO_HTTP_CODE);
-    $apiOk = ($apiCode >= 200 && $apiCode < 300);
-
-    // Post count
-    $postsRaw = curl_exec_result($handles2[$id]['posts']);
-    $headerSize = curl_getinfo($handles2[$id]['posts'], CURLINFO_HEADER_SIZE);
-    $postsHeaders = substr($postsRaw, 0, $headerSize);
-    $postCount = null;
-    if (preg_match('/X-WP-Total:\s*(\d+)/i', $postsHeaders, $m)) {
-        $postCount = (int) $m[1];
-    }
-
-    curl_multi_remove_handle($mh, $handles2[$id]['api']);
-    curl_multi_remove_handle($mh, $handles2[$id]['posts']);
-    curl_close($handles2[$id]['api']);
-    curl_close($handles2[$id]['posts']);
-
-    $response[] = [
-        'id' => $id,
-        'http_status' => $siteInfo[$id]['http_status'],
-        'api_ok' => $apiOk,
-        'post_count' => $postCount,
-    ];
+for ($offset = 0; $offset < count($sites); $offset += $BATCH_SIZE) {
+    $batch = array_slice($sites, $offset, $BATCH_SIZE);
+    $batchResults = processBatch($batch);
+    $response = array_merge($response, $batchResults);
 }
 
-curl_multi_close($mh);
 echo json_encode($response);
 
-// ─── Helpers ───
+function processBatch(array $batch): array {
+    $mh = curl_multi_init();
+    // Limit max concurrent connections in the multi handle
+    curl_multi_setopt($mh, CURLMOPT_MAXCONNECTS, 20);
+
+    $handles = [];
+
+    foreach ($batch as $s) {
+        $id = $s['id'];
+        $baseUrl = rtrim($s['url'], '/');
+        $token = base64_encode($s['username'] . ':' . $s['app_password']);
+        $auth = 'Authorization: Basic ' . $token;
+
+        // 1. HTTP HEAD — check site status
+        $handles[$id]['http'] = createCurl($s['url'], [
+            CURLOPT_NOBODY => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 10,
+        ]);
+        curl_multi_add_handle($mh, $handles[$id]['http']);
+
+        // 2. HEAD — detect permalink format (/wp-json/ vs ?rest_route=)
+        $handles[$id]['detect'] = createCurl($baseUrl . '/wp-json/wp/v2', [
+            CURLOPT_NOBODY => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 8,
+        ]);
+        curl_multi_add_handle($mh, $handles[$id]['detect']);
+    }
+
+    execMulti($mh);
+
+    // Collect permalink detection results, remove phase 1 handles
+    $siteUrls = [];
+    foreach ($batch as $s) {
+        $id = $s['id'];
+        $baseUrl = rtrim($s['url'], '/');
+        $detectCode = (int) curl_getinfo($handles[$id]['detect'], CURLINFO_HTTP_CODE);
+        $usePlain = ($detectCode === 0 || $detectCode === 404);
+        $siteUrls[$id] = ['base' => $baseUrl, 'plain' => $usePlain];
+
+        curl_multi_remove_handle($mh, $handles[$id]['detect']);
+        curl_close($handles[$id]['detect']);
+        // Keep 'http' handle — we'll read it later but it's already done
+    }
+
+    // Phase 2: API test + post count (add to same multi handle)
+    foreach ($batch as $s) {
+        $id = $s['id'];
+        $info = $siteUrls[$id];
+        $token = base64_encode($s['username'] . ':' . $s['app_password']);
+        $auth = 'Authorization: Basic ' . $token;
+
+        // users/me — API connectivity test
+        $meUrl = $info['plain']
+            ? $info['base'] . '/?rest_route=/wp/v2/users/me&context=edit'
+            : $info['base'] . '/wp-json/wp/v2/users/me?context=edit';
+
+        $handles[$id]['api'] = createCurl($meUrl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [$auth],
+            CURLOPT_TIMEOUT => 15,
+        ]);
+        curl_multi_add_handle($mh, $handles[$id]['api']);
+
+        // posts — get X-WP-Total header for post count
+        $postsUrl = $info['plain']
+            ? $info['base'] . '/?rest_route=/wp/v2/posts&per_page=1&status=publish&_fields=id'
+            : $info['base'] . '/wp-json/wp/v2/posts?per_page=1&status=publish&_fields=id';
+
+        $handles[$id]['posts'] = createCurl($postsUrl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [$auth],
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_HEADER => true,
+        ]);
+        curl_multi_add_handle($mh, $handles[$id]['posts']);
+    }
+
+    execMulti($mh);
+
+    // Collect all results
+    $results = [];
+    foreach ($batch as $s) {
+        $id = $s['id'];
+
+        // HTTP status (from phase 1, already completed)
+        $httpCode = (int) curl_getinfo($handles[$id]['http'], CURLINFO_HTTP_CODE);
+
+        // API check
+        $apiCode = (int) curl_getinfo($handles[$id]['api'], CURLINFO_HTTP_CODE);
+        $apiOk = ($apiCode >= 200 && $apiCode < 300);
+
+        // Post count from X-WP-Total header
+        $postsRaw = curl_multi_getcontent($handles[$id]['posts']) ?: '';
+        $headerSize = curl_getinfo($handles[$id]['posts'], CURLINFO_HEADER_SIZE);
+        $postsHeaders = substr($postsRaw, 0, $headerSize);
+        $postCount = null;
+        if (preg_match('/X-WP-Total:\s*(\d+)/i', $postsHeaders, $m)) {
+            $postCount = (int) $m[1];
+        }
+
+        $results[] = [
+            'id' => $id,
+            'http_status' => $httpCode,
+            'api_ok' => $apiOk,
+            'post_count' => $postCount,
+        ];
+
+        // Cleanup
+        foreach (['http', 'api', 'posts'] as $key) {
+            if (isset($handles[$id][$key])) {
+                curl_multi_remove_handle($mh, $handles[$id][$key]);
+                curl_close($handles[$id][$key]);
+            }
+        }
+    }
+
+    curl_multi_close($mh);
+    return $results;
+}
+
+function createCurl(string $url, array $opts): CurlHandle {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, $opts + [
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_USERAGENT => 'SemtreeZaplecze/1.0',
+        CURLOPT_RETURNTRANSFER => true,
+    ]);
+    return $ch;
+}
 
 function execMulti($mh): void {
     $running = null;
@@ -161,9 +168,4 @@ function execMulti($mh): void {
             curl_multi_select($mh, 1);
         }
     } while ($running > 0 && $status === CURLM_OK);
-}
-
-function curl_exec_result($ch): string {
-    $content = curl_multi_getcontent($ch);
-    return $content ?: '';
 }
