@@ -1,0 +1,79 @@
+<?php
+require_once __DIR__ . '/../includes/header.php';
+$viewUserId = (int) ($_GET['user_id'] ?? 0);
+$isOwnProfile = !$viewUserId || $viewUserId === (int) $_SESSION['user_id'];
+?>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-person-circle"></i> <span id="profileTitle">Profil</span></h4>
+</div>
+
+<?php if ($isOwnProfile): ?>
+<!-- Password change -->
+<div class="card mb-4" style="max-width:500px">
+    <div class="card-header"><i class="bi bi-key"></i> Zmiana hasla</div>
+    <div class="card-body">
+        <div class="mb-3">
+            <label class="form-label">Aktualne haslo</label>
+            <input type="password" class="form-control" id="currentPassword">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Nowe haslo</label>
+            <input type="password" class="form-control" id="newPassword">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Powtorz nowe haslo</label>
+            <input type="password" class="form-control" id="confirmPassword">
+        </div>
+        <button class="btn btn-primary" onclick="changeOwnPassword()">Zmien haslo</button>
+        <div id="passwordMsg" class="mt-2"></div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Monthly stats -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-bar-chart"></i> Statystyki miesieczne</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Miesiac</th>
+                        <th>Opublikowane artykuly</th>
+                        <th>Artykuly z linkiem</th>
+                    </tr>
+                </thead>
+                <tbody id="monthlyStatsBody">
+                    <tr><td colspan="3" class="text-center text-muted">Ladowanie...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed publications list -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-list-ul"></i> Historia publikacji</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Blog</th>
+                        <th>Linkowana domena</th>
+                        <th>Artykul</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody id="publicationsBody">
+                    <tr><td colspan="4" class="text-center text-muted">Ladowanie...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" id="profileUserId" value="<?= $viewUserId ?: $_SESSION['user_id'] ?>">
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

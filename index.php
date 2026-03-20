@@ -46,6 +46,16 @@ switch ($page) {
         requireAdmin();
         require __DIR__ . '/pages/users.php';
         break;
+    case 'profile':
+        requireLogin();
+        // Non-admin can only view own profile
+        if (isset($_GET['user_id']) && (int)$_GET['user_id'] !== (int)$_SESSION['user_id'] && !isAdmin()) {
+            http_response_code(403);
+            echo 'Brak uprawnien';
+            exit;
+        }
+        require __DIR__ . '/pages/profile.php';
+        break;
     default:
         require __DIR__ . '/pages/dashboard.php';
         break;

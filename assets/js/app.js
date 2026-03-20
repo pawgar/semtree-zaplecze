@@ -186,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-load data based on page
     if (document.getElementById('sitesBody')) loadSites();
     if (document.getElementById('usersBody')) loadUsers();
+    if (document.getElementById('profileUserId')) loadProfileStats();
     if (document.getElementById('linksOverviewBody')) {
         initLinksPage();
     } else if (document.getElementById('xlsxFile')) {
@@ -386,13 +387,24 @@ function loadUsers() {
             <tr>
                 <td>${i + 1}</td>
                 <td>${esc(u.username)}</td>
-                <td><span class="badge bg-${u.role === 'admin' ? 'danger' : 'secondary'}">${u.role}</span></td>
+                <td>
+                    <select class="form-select form-select-sm d-inline-block" style="width:110px"
+                        onchange="changeRole(${u.id}, this.value)" ${users.filter(x => x.role === 'admin').length <= 1 && u.role === 'admin' ? 'disabled' : ''}>
+                        <option value="worker" ${u.role === 'worker' ? 'selected' : ''}>worker</option>
+                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+                    </select>
+                </td>
                 <td>${u.created_at}</td>
                 <td>
-                    ${u.role !== 'admin' ? `
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id}, '${esc(u.username)}')">
-                        <i class="bi bi-trash"></i> Usun
-                    </button>` : '<span class="text-muted">-</span>'}
+                    <button class="btn btn-sm btn-outline-info me-1" onclick="viewUserStats(${u.id})" title="Statystyki">
+                        <i class="bi bi-bar-chart"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning me-1" onclick="showResetPassword(${u.id}, '${esc(u.username)}')" title="Ustaw haslo">
+                        <i class="bi bi-key"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id}, '${esc(u.username)}')" title="Usun">
+                        <i class="bi bi-trash"></i>
+                    </button>
                 </td>
             </tr>
         `).join('');
@@ -419,6 +431,99 @@ function deleteUser(id, name) {
     api('DELETE', 'api/users.php', {id}).then(r => {
         if (r.error) return alert(r.error);
         loadUsers();
+    });
+}
+
+function changeRole(id, role) {
+    api('PATCH', 'api/users.php', {id, action: 'change_role', role}).then(r => {
+        if (r.error) { alert(r.error); loadUsers(); return; }
+        loadUsers();
+    });
+}
+
+function showResetPassword(id, username) {
+    document.getElementById('resetPasswordUserId').value = id;
+    document.getElementById('resetPasswordUser').textContent = username;
+    document.getElementById('resetPasswordInput').value = '';
+    new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
+}
+
+function confirmResetPassword() {
+    const id = parseInt(document.getElementById('resetPasswordUserId').value);
+    const password = document.getElementById('resetPasswordInput').value;
+    if (!password) return alert('Wpisz nowe haslo');
+    api('PATCH', 'api/users.php', {id, action: 'reset_password', password}).then(r => {
+        if (r.error) return alert(r.error);
+        bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
+        alert('Haslo zostalo zmienione');
+    });
+}
+
+function viewUserStats(userId) {
+    window.location.href = 'index.php?page=profile&user_id=' + userId;
+}
+
+// ── Profile ─────────────────────────────────────────────────
+
+function changeOwnPassword() {
+    const current = document.getElementById('currentPassword').value;
+    const newPw = document.getElementById('newPassword').value;
+    const confirm = document.getElementById('confirmPassword').value;
+    const msg = document.getElementById('passwordMsg');
+
+    if (!current || !newPw) { msg.innerHTML = '<span class="text-danger">Wypelnij wszystkie pola</span>'; return; }
+    if (newPw !== confirm) { msg.innerHTML = '<span class="text-danger">Hasla nie sa identyczne</span>'; return; }
+    if (newPw.length < 4) { msg.innerHTML = '<span class="text-danger">Haslo musi miec co najmniej 4 znaki</span>'; return; }
+
+    api('POST', 'api/profile.php', {action: 'change_password', current_password: current, new_password: newPw}).then(r => {
+        if (r.error) { msg.innerHTML = `<span class="text-danger">${esc(r.error)}</span>`; return; }
+        msg.innerHTML = '<span class="text-success">Haslo zmienione pomyslnie</span>';
+        document.getElementById('currentPassword').value = '';
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmPassword').value = '';
+    });
+}
+
+function loadProfileStats() {
+    const userId = document.getElementById('profileUserId')?.value;
+    if (!userId) return;
+
+    api('GET', `api/profile.php?user_id=${userId}`).then(data => {
+        if (data.error) return;
+
+        // Set title
+        document.getElementById('profileTitle').textContent = `Profil: ${data.user.username}`;
+
+        // Monthly stats
+        const monthlyBody = document.getElementById('monthlyStatsBody');
+        if (data.monthly.length === 0) {
+            monthlyBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Brak danych</td></tr>';
+        } else {
+            monthlyBody.innerHTML = data.monthly.map(m => `
+                <tr>
+                    <td>${esc(m.month)}</td>
+                    <td>${m.total_articles}</td>
+                    <td>${m.articles_with_links}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Publications list
+        const pubBody = document.getElementById('publicationsBody');
+        if (data.publications.length === 0) {
+            pubBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Brak publikacji</td></tr>';
+        } else {
+            pubBody.innerHTML = data.publications.map(p => `
+                <tr>
+                    <td>${esc(p.site_name)}</td>
+                    <td>${p.client_domain ? esc(p.client_domain) : '<span class="text-muted">-</span>'}</td>
+                    <td>
+                        ${p.post_url ? `<a href="${esc(p.post_url)}" target="_blank" title="${esc(p.post_title)}">${esc(truncate(p.post_title || p.post_url, 60))}</a>` : esc(p.post_title)}
+                    </td>
+                    <td>${formatDate(p.created_at)}</td>
+                </tr>
+            `).join('');
+        }
     });
 }
 

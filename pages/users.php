@@ -50,4 +50,27 @@
     </div>
 </div>
 
+<!-- Reset Password Modal -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ustaw haslo dla: <span id="resetPasswordUser"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Nowe haslo</label>
+                    <input type="password" class="form-control" id="resetPasswordInput" required>
+                </div>
+                <input type="hidden" id="resetPasswordUserId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-warning" onclick="confirmResetPassword()">Ustaw haslo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

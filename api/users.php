@@ -52,6 +52,79 @@ if ($method === 'POST') {
     exit;
 }
 
+if ($method === 'PATCH') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $id = (int) ($input['id'] ?? 0);
+    $action = $input['action'] ?? '';
+
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Brak ID']);
+        exit;
+    }
+
+    // Change role
+    if ($action === 'change_role') {
+        $newRole = $input['role'] ?? '';
+        if (!in_array($newRole, ['admin', 'worker'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Nieprawidlowa rola']);
+            exit;
+        }
+
+        // Prevent removing last admin
+        if ($newRole === 'worker') {
+            $stmt = $db->prepare('SELECT role FROM users WHERE id = :id');
+            $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+            $user = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
+            if ($user && $user['role'] === 'admin') {
+                $adminCount = $db->querySingle('SELECT COUNT(*) FROM users WHERE role = "admin"');
+                if ($adminCount <= 1) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Nie mozna usunac ostatniego admina']);
+                    exit;
+                }
+            }
+        }
+
+        $stmt = $db->prepare('UPDATE users SET role = :role WHERE id = :id');
+        $stmt->bindValue(':role', $newRole, SQLITE3_TEXT);
+        $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+        $stmt->execute();
+
+        // Update session if changing own role
+        if ($id === (int) $_SESSION['user_id']) {
+            $_SESSION['role'] = $newRole;
+        }
+
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
+    // Reset password (admin sets password for worker)
+    if ($action === 'reset_password') {
+        $newPassword = $input['password'] ?? '';
+        if (strlen($newPassword) < 4) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Haslo musi miec co najmniej 4 znaki']);
+            exit;
+        }
+
+        $hash = password_hash($newPassword, PASSWORD_BCRYPT);
+        $stmt = $db->prepare('UPDATE users SET password = :p WHERE id = :id');
+        $stmt->bindValue(':p', $hash, SQLITE3_TEXT);
+        $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+        $stmt->execute();
+
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
+    http_response_code(400);
+    echo json_encode(['error' => 'Nieznana akcja']);
+    exit;
+}
+
 if ($method === 'DELETE') {
     $input = json_decode(file_get_contents('php://input'), true);
     $id = (int) ($input['id'] ?? 0);

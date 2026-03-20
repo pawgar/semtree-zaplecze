@@ -34,11 +34,11 @@
                 <i class="bi bi-people"></i> Uzytkownicy
             </a>
             <?php endif; ?>
-            <span class="navbar-text text-light">
+            <a class="nav-link <?= ($page ?? '') === 'profile' ? 'active' : '' ?>" href="index.php?page=profile">
                 <i class="bi bi-person-circle"></i>
                 <?= htmlspecialchars($_SESSION['username']) ?>
                 <span class="badge bg-<?= isAdmin() ? 'danger' : 'secondary' ?>"><?= $_SESSION['role'] ?></span>
-            </span>
+            </a>
             <a class="nav-link" href="index.php?page=logout">
                 <i class="bi bi-box-arrow-right"></i> Wyloguj
             </a>

@@ -114,4 +114,18 @@ function migrateSchema(SQLite3 $db): void {
     ');
 
     $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_links_unique ON links(site_id, post_url, target_url)');
+
+    // Create publications table — tracks who published which article
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS publications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            site_id INTEGER NOT NULL,
+            post_url TEXT NOT NULL DEFAULT "",
+            post_title TEXT NOT NULL DEFAULT "",
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+        )
+    ');
 }

@@ -78,10 +78,21 @@ try {
 
     $result = $api->createPost($postData);
 
+    // Record publication for user stats
+    $postUrl = $result['link'] ?? '';
+    if ($postUrl) {
+        $pubStmt = $db->prepare('INSERT INTO publications (user_id, site_id, post_url, post_title) VALUES (:uid, :sid, :url, :title)');
+        $pubStmt->bindValue(':uid', (int) $_SESSION['user_id'], SQLITE3_INTEGER);
+        $pubStmt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
+        $pubStmt->bindValue(':url', $postUrl, SQLITE3_TEXT);
+        $pubStmt->bindValue(':title', $title, SQLITE3_TEXT);
+        $pubStmt->execute();
+    }
+
     echo json_encode([
         'success' => true,
         'post_id' => $result['id'] ?? 0,
-        'post_url' => $result['link'] ?? '',
+        'post_url' => $postUrl,
         'title' => $title,
     ]);
 } catch (Exception $e) {
