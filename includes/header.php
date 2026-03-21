@@ -20,6 +20,9 @@
             <a class="nav-link <?= ($page ?? '') === '' ? 'active' : '' ?>" href="index.php">
                 <i class="bi bi-grid"></i> Dashboard
             </a>
+            <a class="nav-link <?= ($page ?? '') === 'order' ? 'active' : '' ?>" href="index.php?page=order">
+                <i class="bi bi-magic"></i> Zamow i opublikuj
+            </a>
             <a class="nav-link <?= ($page ?? '') === 'publish' ? 'active' : '' ?>" href="index.php?page=publish">
                 <i class="bi bi-pencil-square"></i> Publikuj artykuly
             </a>

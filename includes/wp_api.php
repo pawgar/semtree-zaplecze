@@ -132,6 +132,13 @@ class WpApi {
     }
 
     /**
+     * Get media details by ID.
+     */
+    public function getMedia(int $mediaId): array {
+        return $this->request('GET', '/media/' . $mediaId);
+    }
+
+    /**
      * Upload media file to WordPress. Returns media ID.
      */
     public function uploadMedia(string $filename, string $binaryData, string $mimeType): int {

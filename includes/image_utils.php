@@ -4,16 +4,17 @@
  * Converts images to JPEG, strips metadata, generates random filenames.
  */
 
-function optimizeImage(string $binary, string $filename): array {
+function optimizeImage(string $binary, string $filename, bool $keepFilename = false): array {
     // Try to create GD image from binary data
     $img = @imagecreatefromstring($binary);
     if (!$img) {
         // GD can't process - return with random filename only
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION)) ?: 'jpg';
         $mimeMap = ['png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg'];
+        $outFilename = $keepFilename ? pathinfo($filename, PATHINFO_FILENAME) . '.' . $ext : bin2hex(random_bytes(8)) . '.' . $ext;
         return [
             'data' => $binary,
-            'filename' => bin2hex(random_bytes(8)) . '.' . $ext,
+            'filename' => $outFilename,
             'mime' => $mimeMap[$ext] ?? 'image/jpeg',
         ];
     }
@@ -32,9 +33,10 @@ function optimizeImage(string $binary, string $filename): array {
     $jpegData = ob_get_clean();
     imagedestroy($canvas);
 
+    $outFilename = $keepFilename ? pathinfo($filename, PATHINFO_FILENAME) . '.jpg' : bin2hex(random_bytes(8)) . '.jpg';
     return [
         'data' => $jpegData,
-        'filename' => bin2hex(random_bytes(8)) . '.jpg',
+        'filename' => $outFilename,
         'mime' => 'image/jpeg',
     ];
 }

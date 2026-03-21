@@ -30,6 +30,10 @@ if (!isLoggedIn()) {
 
 // Logged in → route to page
 switch ($page) {
+    case 'order':
+        requireLogin();
+        require __DIR__ . '/pages/order.php';
+        break;
     case 'publish':
         requireLogin();
         require __DIR__ . '/pages/publish.php';

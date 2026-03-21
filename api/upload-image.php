@@ -14,6 +14,7 @@ $input = json_decode(file_get_contents('php://input'), true);
 $siteId = (int) ($input['site_id'] ?? 0);
 $imageData = $input['image_data'] ?? '';
 $imageFilename = $input['image_filename'] ?? 'image.jpg';
+$keepFilename = (bool) ($input['keep_filename'] ?? false);
 
 if (!$siteId || !$imageData) {
     http_response_code(400);
@@ -38,16 +39,26 @@ try {
         throw new RuntimeException('Nieprawidlowe dane obrazka');
     }
 
-    // Optimize: convert to JPEG, strip metadata, random filename
-    $optimized = optimizeImage($binary, $imageFilename);
+    // Optimize: convert to JPEG, strip metadata
+    $optimized = optimizeImage($binary, $imageFilename, $keepFilename);
 
     $api = new WpApi($site['url'], $site['username'], $site['app_password']);
     $mediaId = $api->uploadMedia($optimized['filename'], $optimized['data'], $optimized['mime']);
+
+    // Try to get the source URL from WP media endpoint
+    $sourceUrl = '';
+    try {
+        $media = $api->getMedia($mediaId);
+        $sourceUrl = $media['source_url'] ?? '';
+    } catch (Exception $e) {
+        // Not critical — media_id is enough for featured images
+    }
 
     echo json_encode([
         'success' => true,
         'media_id' => $mediaId,
         'filename' => $optimized['filename'],
+        'url' => $sourceUrl,
     ]);
 } catch (Exception $e) {
     echo json_encode([

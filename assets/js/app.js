@@ -195,6 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('profileUserId')) loadProfileStats();
     if (document.getElementById('linksOverviewBody')) {
         initLinksPage();
+    } else if (document.getElementById('orderSiteSearch')) {
+        initOrderPage();
     } else if (document.getElementById('xlsxFile')) {
         initImportPage();
     } else if (document.getElementById('publishSiteSelect')) {
@@ -2374,4 +2376,820 @@ function esc(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+// ── Order Page (Zamów i opublikuj) ──────────────────────────
+let orderSites = [];
+let orderCategories = [];
+let orderGeneratedData = null; // {html_content, featured_image_data, featured_image_filename, inline_images: []}
+let orderWpPosts = []; // existing posts for internal linking
+let bulkOrderItems = [];
+let bulkOrderPublishedUrls = [];
+
+function initOrderPage() {
+    api('GET', 'api/sites.php').then(sites => {
+        orderSites = sites;
+    });
+}
+
+// ── Anthropic API Key ───────────────────────────────────────
+async function loadAnthropicKey() {
+    try {
+        const r = await api('GET', 'api/settings.php?key=anthropic_api_key');
+        document.getElementById('anthropicApiKeyInput').value = r.value || '';
+    } catch (e) {}
+}
+
+async function saveAnthropicKey() {
+    const key = document.getElementById('anthropicApiKeyInput').value.trim();
+    try {
+        await api('POST', 'api/settings.php', { key: 'anthropic_api_key', value: key });
+        bootstrap.Modal.getInstance(document.getElementById('anthropicKeyModal')).hide();
+        alert('Klucz API zapisany');
+    } catch (e) {
+        alert('Blad zapisu: ' + e.message);
+    }
+}
+
+// ── Site Searchable Dropdown (Single mode) ──────────────────
+function orderShowSiteDropdown() {
+    const dd = document.getElementById('orderSiteDropdown');
+    orderRenderSiteOptions(dd, orderSites, 'orderSelectSite');
+    dd.classList.add('show');
+    document.addEventListener('click', function close(e) {
+        if (!e.target.closest('#orderSiteSearch') && !e.target.closest('#orderSiteDropdown')) {
+            dd.classList.remove('show');
+            document.removeEventListener('click', close);
+        }
+    });
+}
+
+function orderFilterSites() {
+    const q = document.getElementById('orderSiteSearch').value.toLowerCase();
+    const dd = document.getElementById('orderSiteDropdown');
+    const filtered = orderSites.filter(s => s.name.toLowerCase().includes(q) || s.url.toLowerCase().includes(q));
+    orderRenderSiteOptions(dd, filtered, 'orderSelectSite');
+}
+
+function orderRenderSiteOptions(dd, sites, fnName) {
+    dd.innerHTML = sites.map(s =>
+        `<a class="dropdown-item" href="#" onclick="${fnName}(${s.id}, '${esc(s.name)}'); return false;">${esc(s.name)} <small class="text-muted">${esc(s.url)}</small></a>`
+    ).join('') || '<span class="dropdown-item text-muted">Brak wynikow</span>';
+}
+
+async function orderSelectSite(id, name) {
+    document.getElementById('orderSiteId').value = id;
+    document.getElementById('orderSiteSearch').value = name;
+    document.getElementById('orderSiteDropdown').classList.remove('show');
+    document.getElementById('orderSiteLabel').textContent = 'Ladowanie kategorii...';
+    document.getElementById('orderFormCard').style.display = '';
+
+    // Load categories
+    try {
+        const r = await api('GET', `api/wp-data.php?site_id=${id}&type=categories`);
+        orderCategories = r;
+        const catDD = document.getElementById('orderCategoryDropdown');
+        catDD.innerHTML = r.map(c =>
+            `<a class="dropdown-item" href="#" onclick="orderSelectCategory(${c.id}, '${esc(c.name)}'); return false;">${esc(c.name)}</a>`
+        ).join('');
+        // Also fill publish category select
+        const pubCat = document.getElementById('orderPublishCategory');
+        if (pubCat) {
+            pubCat.innerHTML = '<option value="">-- brak --</option>' + r.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+        }
+        document.getElementById('orderSiteLabel').textContent = `${r.length} kategorii`;
+    } catch (e) {
+        document.getElementById('orderSiteLabel').textContent = 'Blad ladowania kategorii';
+    }
+}
+
+function orderShowCategoryDropdown() {
+    const dd = document.getElementById('orderCategoryDropdown');
+    dd.classList.add('show');
+    document.addEventListener('click', function close(e) {
+        if (!e.target.closest('#orderCategorySearch') && !e.target.closest('#orderCategoryDropdown')) {
+            dd.classList.remove('show');
+            document.removeEventListener('click', close);
+        }
+    });
+}
+
+function orderFilterCategories() {
+    const q = document.getElementById('orderCategorySearch').value.toLowerCase();
+    const dd = document.getElementById('orderCategoryDropdown');
+    const filtered = orderCategories.filter(c => c.name.toLowerCase().includes(q));
+    dd.innerHTML = filtered.map(c =>
+        `<a class="dropdown-item" href="#" onclick="orderSelectCategory(${c.id}, '${esc(c.name)}'); return false;">${esc(c.name)}</a>`
+    ).join('') || '<span class="dropdown-item text-muted">Brak wynikow</span>';
+}
+
+function orderSelectCategory(id, name) {
+    document.getElementById('orderCategoryId').value = id;
+    document.getElementById('orderCategorySearch').value = name;
+    document.getElementById('orderCategoryDropdown').classList.remove('show');
+}
+
+// ── Generate Article (Single Mode) ──────────────────────────
+async function orderGenerate() {
+    const title = document.getElementById('orderTitle').value.trim();
+    const mainKw = document.getElementById('orderMainKeyword').value.trim();
+    if (!title) { alert('Wpisz tytul artykulu'); return; }
+    if (!mainKw) { alert('Wpisz glowne slowo kluczowe'); return; }
+    const siteId = document.getElementById('orderSiteId').value;
+    if (!siteId) { alert('Wybierz strone zapleczowa'); return; }
+
+    const secondaryKw = document.getElementById('orderSecondaryKeywords').value.trim();
+    const notes = document.getElementById('orderNotes').value.trim();
+    const wantInlineImages = document.getElementById('orderInlineImages').checked;
+
+    const btn = document.getElementById('orderGenerateBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generowanie...';
+
+    document.getElementById('orderProgressCard').style.display = '';
+    document.getElementById('orderEditCard').style.display = 'none';
+    document.getElementById('orderResultCard').style.display = 'none';
+
+    const bar = document.getElementById('orderProgressBar');
+    const log = document.getElementById('orderProgressLog');
+    log.innerHTML = '';
+
+    orderGeneratedData = { html_content: '', featured_image_data: '', featured_image_filename: '', inline_images: [] };
+
+    // Phase 1: Generate article text (0-40%)
+    orderProgress(bar, 5, 'Generowanie tresci artykulu (Claude API)...');
+    log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Generowanie tresci...</div>';
+
+    try {
+        const article = await api('POST', 'api/generate-article.php', {
+            title, main_keyword: mainKw, secondary_keywords: secondaryKw, notes
+        });
+        if (article.error) throw new Error(article.error);
+
+        orderGeneratedData.html_content = article.html_content;
+        log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Tresc wygenerowana (${article.char_count} znakow)</div>`;
+        orderProgress(bar, 40, 'Tresc gotowa');
+    } catch (e) {
+        log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Blad: ${esc(e.message)}</div>`;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars"></i> Generuj artykul';
+        return;
+    }
+
+    // Phase 2: Generate featured image (40-60%)
+    orderProgress(bar, 45, 'Generowanie grafiki wyrozniajacej...');
+    log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Generowanie grafiki wyrozniajacej...</div>';
+
+    try {
+        const img = await api('POST', 'api/gemini-generate.php', { title });
+        if (img.error) throw new Error(img.error);
+        orderGeneratedData.featured_image_data = img.image_data;
+        orderGeneratedData.featured_image_filename = slugifyText(title) + '.jpg';
+        log.innerHTML += '<div class="text-success"><i class="bi bi-check-circle"></i> Grafika wyroznajaca wygenerowana</div>';
+    } catch (e) {
+        log.innerHTML += `<div class="text-warning"><i class="bi bi-exclamation-triangle"></i> Grafika: ${esc(e.message)}</div>`;
+    }
+    orderProgress(bar, 60, 'Grafika gotowa');
+
+    // Phase 3: Generate inline images (60-85%)
+    if (wantInlineImages && orderGeneratedData.html_content) {
+        const h2Titles = extractH2Titles(orderGeneratedData.html_content);
+        const toGenerate = h2Titles.slice(0, 3); // max 3 inline images
+
+        for (let i = 0; i < toGenerate.length; i++) {
+            const pct = 60 + Math.round((i + 1) / toGenerate.length * 25);
+            orderProgress(bar, pct, `Grafika w tekscie ${i + 1}/${toGenerate.length}...`);
+            log.innerHTML += `<div><i class="bi bi-hourglass-split text-primary"></i> Grafika: ${esc(toGenerate[i])}...</div>`;
+
+            try {
+                const img = await api('POST', 'api/generate-inline-image.php', {
+                    section_title: toGenerate[i], article_title: title
+                });
+                if (img.error) throw new Error(img.error);
+                orderGeneratedData.inline_images.push({
+                    section_title: toGenerate[i],
+                    image_data: img.image_data,
+                    image_filename: img.image_filename,
+                    alt_text: img.alt_text,
+                });
+                log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Grafika: ${esc(toGenerate[i])}</div>`;
+            } catch (e) {
+                log.innerHTML += `<div class="text-warning"><i class="bi bi-exclamation-triangle"></i> ${esc(e.message)}</div>`;
+            }
+
+            if (i < toGenerate.length - 1) await sleep(1000);
+        }
+    }
+
+    // Phase 4: Internal linking (85-100%)
+    orderProgress(bar, 88, 'Pobieranie postow do linkowania...');
+    log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Linkowanie wewnetrzne...</div>';
+
+    try {
+        const postsResult = await api('GET', `api/internal-links.php?site_id=${siteId}`);
+        if (postsResult.posts && postsResult.posts.length > 0) {
+            orderWpPosts = postsResult.posts;
+            orderGeneratedData.html_content = insertInternalLinks(orderGeneratedData.html_content, postsResult.posts);
+            log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Dodano linki wewnetrzne (${Math.min(3, postsResult.posts.length)} linkow)</div>`;
+        } else {
+            log.innerHTML += '<div class="text-muted"><i class="bi bi-info-circle"></i> Brak istniejacych postow do linkowania</div>';
+        }
+    } catch (e) {
+        log.innerHTML += `<div class="text-warning"><i class="bi bi-exclamation-triangle"></i> Linkowanie: ${esc(e.message)}</div>`;
+    }
+
+    // Insert inline images into content
+    if (orderGeneratedData.inline_images.length > 0) {
+        orderGeneratedData.html_content = insertInlineImages(
+            orderGeneratedData.html_content, orderGeneratedData.inline_images
+        );
+    }
+
+    orderProgress(bar, 100, 'Gotowe!');
+    log.innerHTML += '<div class="text-success fw-bold mt-2"><i class="bi bi-check-circle-fill"></i> Artykul gotowy do edycji i publikacji</div>';
+
+    // Show edit card
+    document.getElementById('orderEditCard').style.display = '';
+    document.getElementById('orderEditTitle').value = title;
+    document.getElementById('orderEditContent').innerHTML = orderGeneratedData.html_content;
+    updateOrderCharCount();
+
+    // Featured image preview
+    if (orderGeneratedData.featured_image_data) {
+        document.getElementById('orderFeaturedPreview').innerHTML =
+            `<img src="data:image/jpeg;base64,${orderGeneratedData.featured_image_data}" class="img-fluid rounded">`;
+    }
+
+    // Set category if selected
+    const catId = document.getElementById('orderCategoryId').value;
+    if (catId) document.getElementById('orderPublishCategory').value = catId;
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-stars"></i> Generuj artykul';
+}
+
+function orderProgress(bar, pct, text) {
+    bar.style.width = pct + '%';
+    bar.textContent = text || (pct + '%');
+}
+
+function updateOrderCharCount() {
+    const el = document.getElementById('orderEditContent');
+    if (!el) return;
+    const text = el.innerText || el.textContent || '';
+    document.getElementById('orderCharCount').textContent = `${text.length} znakow`;
+}
+
+// Watch for content changes
+document.addEventListener('input', function(e) {
+    if (e.target.id === 'orderEditContent') updateOrderCharCount();
+});
+
+async function orderRegenerateFeatured() {
+    const title = document.getElementById('orderEditTitle').value.trim();
+    if (!title) return;
+    const preview = document.getElementById('orderFeaturedPreview');
+    preview.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generowanie...';
+    try {
+        const img = await api('POST', 'api/gemini-generate.php', { title });
+        if (img.error) throw new Error(img.error);
+        orderGeneratedData.featured_image_data = img.image_data;
+        orderGeneratedData.featured_image_filename = slugifyText(title) + '.jpg';
+        preview.innerHTML = `<img src="data:image/jpeg;base64,${img.image_data}" class="img-fluid rounded">`;
+    } catch (e) {
+        preview.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
+    }
+}
+
+// ── Publish (Single Mode) ───────────────────────────────────
+async function orderPublish() {
+    const siteId = document.getElementById('orderSiteId').value;
+    const title = document.getElementById('orderEditTitle').value.trim();
+    const content = sanitizeArticleHtml(document.getElementById('orderEditContent').innerHTML);
+    const categoryId = document.getElementById('orderPublishCategory').value;
+    const status = document.getElementById('orderPublishStatus').value;
+    const publishDate = document.getElementById('orderPublishDate').value;
+    const speedLinks = document.getElementById('orderSpeedLinks').checked;
+
+    if (!title || !content) { alert('Brak tytulu lub tresci'); return; }
+
+    const btn = document.getElementById('orderPublishBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Publikowanie...';
+
+    document.getElementById('orderResultCard').style.display = '';
+    const log = document.getElementById('orderResultLog');
+    log.innerHTML = '<div><i class="bi bi-hourglass-split text-primary"></i> Publikowanie artykulu...</div>';
+
+    try {
+        // Upload featured image first if exists
+        let mediaId = 0;
+        if (orderGeneratedData.featured_image_data) {
+            log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Przesylanie grafiki wyrozniajacej...</div>';
+            const uploadResult = await api('POST', 'api/upload-image.php', {
+                site_id: parseInt(siteId),
+                image_data: orderGeneratedData.featured_image_data,
+                image_filename: orderGeneratedData.featured_image_filename,
+                keep_filename: true,
+            });
+            if (uploadResult.media_id) mediaId = uploadResult.media_id;
+        }
+
+        // Upload inline images and replace src in content
+        let finalContent = content;
+        if (orderGeneratedData.inline_images.length > 0) {
+            log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Przesylanie grafik w tekscie...</div>';
+            for (let idx = 0; idx < orderGeneratedData.inline_images.length; idx++) {
+                const img = orderGeneratedData.inline_images[idx];
+                try {
+                    const uploadResult = await api('POST', 'api/upload-image.php', {
+                        site_id: parseInt(siteId),
+                        image_data: img.image_data,
+                        image_filename: img.image_filename,
+                        keep_filename: true,
+                    });
+                    if (uploadResult.url) {
+                        finalContent = replaceInlineImageSrc(finalContent, idx, uploadResult.url);
+                    }
+                } catch (e) {
+                    // Continue with base64 if upload fails
+                }
+                await sleep(500);
+            }
+        }
+
+        // Create post
+        const postData = {
+            site_id: parseInt(siteId),
+            title,
+            content: finalContent,
+            status,
+            category_id: parseInt(categoryId) || 0,
+            publish_date: publishDate,
+        };
+        if (mediaId) postData.media_id = mediaId;
+
+        const result = await api('POST', 'api/publish.php', postData);
+
+        if (result.error) throw new Error(result.error);
+
+        log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Artykul opublikowany: <a href="${esc(result.post_url)}" target="_blank">${esc(result.post_url)}</a></div>`;
+
+        // Speed-Links
+        if (speedLinks && result.post_url) {
+            log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Wysylanie do Speed-Links...</div>';
+            const slResult = await submitToSpeedLinks([result.post_url]);
+            if (slResult && slResult.error) {
+                log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(slResult.error)}</div>`;
+            } else if (slResult) {
+                let msg = `Speed-Links: wyslano do indeksacji`;
+                if (slResult.report_url) msg += ` — <a href="${esc(slResult.report_url)}" target="_blank">raport</a>`;
+                log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> ${msg}</div>`;
+            }
+        }
+
+        // Extract and save links
+        if (result.post_url) {
+            try {
+                await extractAndSaveLinks(parseInt(siteId), result.post_url, title, finalContent);
+            } catch (e) {}
+        }
+
+    } catch (e) {
+        log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Blad: ${esc(e.message)}</div>`;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send"></i> Opublikuj artykul';
+}
+
+// ── Bulk Mode ───────────────────────────────────────────────
+function bulkOrderShowSiteDropdown() {
+    const dd = document.getElementById('bulkOrderSiteDropdown');
+    orderRenderSiteOptions(dd, orderSites, 'bulkOrderSelectSite');
+    dd.classList.add('show');
+    document.addEventListener('click', function close(e) {
+        if (!e.target.closest('#bulkOrderSiteSearch') && !e.target.closest('#bulkOrderSiteDropdown')) {
+            dd.classList.remove('show');
+            document.removeEventListener('click', close);
+        }
+    });
+}
+
+function bulkOrderFilterSites() {
+    const q = document.getElementById('bulkOrderSiteSearch').value.toLowerCase();
+    const dd = document.getElementById('bulkOrderSiteDropdown');
+    const filtered = orderSites.filter(s => s.name.toLowerCase().includes(q) || s.url.toLowerCase().includes(q));
+    orderRenderSiteOptions(dd, filtered, 'bulkOrderSelectSite');
+}
+
+async function bulkOrderSelectSite(id, name) {
+    document.getElementById('bulkOrderSiteId').value = id;
+    document.getElementById('bulkOrderSiteSearch').value = name;
+    document.getElementById('bulkOrderSiteDropdown').classList.remove('show');
+    document.getElementById('bulkOrderUploadCard').style.display = '';
+
+    // Load categories for bulk
+    try {
+        const r = await api('GET', `api/wp-data.php?site_id=${id}&type=categories`);
+        const sel = document.getElementById('bulkOrderCategory');
+        sel.innerHTML = '<option value="">-- brak --</option>' + r.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    } catch (e) {}
+}
+
+function bulkOrderParseCsv(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result.replace(/^\uFEFF/, ''); // strip BOM
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        bulkOrderItems = [];
+
+        for (const line of lines) {
+            const parts = line.split(';').map(p => p.trim());
+            const title = parts[0] || '';
+            if (!title) continue;
+            // Skip header row
+            if (['tytuł', 'tytul', 'title'].includes(title.toLowerCase())) continue;
+
+            bulkOrderItems.push({
+                title,
+                main_keyword: parts[1] || '',
+                secondary_keywords: parts[2] || '',
+                notes: parts[3] || '',
+                status: 'pending',
+            });
+        }
+
+        if (bulkOrderItems.length === 0) {
+            alert('Plik CSV nie zawiera artykulow');
+            return;
+        }
+
+        renderBulkOrderTable();
+        document.getElementById('bulkOrderTableCard').style.display = '';
+    };
+    reader.readAsText(file, 'UTF-8');
+    input.value = '';
+}
+
+function renderBulkOrderTable() {
+    const tbody = document.querySelector('#bulkOrderTable tbody');
+    tbody.innerHTML = bulkOrderItems.map((item, i) => {
+        const statusBadge = {
+            pending: '<span class="badge bg-secondary">Oczekuje</span>',
+            generating: '<span class="badge bg-primary">Generowanie...</span>',
+            publishing: '<span class="badge bg-info">Publikowanie...</span>',
+            done: '<span class="badge bg-success">Gotowe</span>',
+            error: `<span class="badge bg-danger">Blad</span>`,
+        }[item.status] || '';
+        return `<tr>
+            <td>${i + 1}</td>
+            <td>${esc(item.title)}</td>
+            <td>${esc(item.main_keyword)}</td>
+            <td>${esc(item.secondary_keywords)}</td>
+            <td>${item.notes ? `<small>${esc(truncate(item.notes, 50))}</small>` : '<span class="text-muted">-</span>'}</td>
+            <td>${statusBadge}${item.url ? ` <a href="${esc(item.url)}" target="_blank" class="small">link</a>` : ''}${item.errorMsg ? ` <small class="text-danger">${esc(item.errorMsg)}</small>` : ''}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function bulkOrderStart() {
+    const siteId = document.getElementById('bulkOrderSiteId').value;
+    if (!siteId) { alert('Wybierz strone'); return; }
+    if (bulkOrderItems.length === 0) { alert('Brak artykulow'); return; }
+
+    const categoryId = document.getElementById('bulkOrderCategory').value;
+    const wantInlineImages = document.getElementById('bulkOrderInlineImages').checked;
+    const wantSpeedLinks = document.getElementById('bulkOrderSpeedLinks').checked;
+    const globalNotes = (document.getElementById('bulkOrderGlobalNotes').value || '').trim();
+
+    const btn = document.getElementById('bulkOrderStartBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generowanie...';
+
+    document.getElementById('bulkOrderProgressCard').style.display = '';
+    const bar = document.getElementById('bulkOrderProgressBar');
+    const log = document.getElementById('bulkOrderLog');
+    log.innerHTML = '';
+    bulkOrderPublishedUrls = [];
+
+    // Fetch existing posts for internal linking
+    let wpPosts = [];
+    try {
+        const postsResult = await api('GET', `api/internal-links.php?site_id=${siteId}`);
+        if (postsResult.posts) wpPosts = postsResult.posts;
+    } catch (e) {}
+
+    const total = bulkOrderItems.length;
+
+    for (let i = 0; i < total; i++) {
+        const item = bulkOrderItems[i];
+        const pctBase = Math.round(i / total * 100);
+        bar.style.width = pctBase + '%';
+        bar.textContent = `Artykul ${i + 1}/${total}`;
+
+        item.status = 'generating';
+        renderBulkOrderTable();
+        log.innerHTML += `<div class="mt-1"><strong>${i + 1}/${total}: ${esc(item.title)}</strong></div>`;
+
+        try {
+            // 1. Generate article
+            log.innerHTML += `<div class="text-muted small">  Generowanie tresci...</div>`;
+            // Combine per-item notes with global notes
+            const itemNotes = [item.notes, globalNotes].filter(n => n).join('\n');
+            const article = await api('POST', 'api/generate-article.php', {
+                title: item.title,
+                main_keyword: item.main_keyword,
+                secondary_keywords: item.secondary_keywords,
+                notes: itemNotes,
+            });
+            if (article.error) throw new Error(article.error);
+
+            let htmlContent = article.html_content;
+
+            // 2. Generate featured image
+            log.innerHTML += `<div class="text-muted small">  Grafika wyroznajaca...</div>`;
+            let featuredImageData = '', featuredImageFilename = '';
+            try {
+                const img = await api('POST', 'api/gemini-generate.php', { title: item.title });
+                if (!img.error) {
+                    featuredImageData = img.image_data;
+                    featuredImageFilename = slugifyText(item.title) + '.jpg';
+                }
+            } catch (e) {}
+
+            // 3. Inline images
+            let inlineImgs = [];
+            if (wantInlineImages) {
+                const h2s = extractH2Titles(htmlContent).slice(0, 3);
+                for (const h2 of h2s) {
+                    try {
+                        const img = await api('POST', 'api/generate-inline-image.php', {
+                            section_title: h2, article_title: item.title
+                        });
+                        if (!img.error) {
+                            inlineImgs.push({ section_title: h2, image_data: img.image_data, image_filename: img.image_filename, alt_text: img.alt_text });
+                        }
+                    } catch (e) {}
+                    await sleep(1000);
+                }
+            }
+
+            // 4. Internal linking
+            if (wpPosts.length > 0) {
+                htmlContent = insertInternalLinks(htmlContent, wpPosts);
+            }
+
+            // 5. Insert inline images
+            if (inlineImgs.length > 0) {
+                htmlContent = insertInlineImages(htmlContent, inlineImgs);
+            }
+
+            // 6. Sanitize and publish
+            htmlContent = sanitizeArticleHtml(htmlContent);
+            item.status = 'publishing';
+            renderBulkOrderTable();
+            log.innerHTML += `<div class="text-muted small">  Publikowanie...</div>`;
+
+            // Upload featured image
+            let mediaId = 0;
+            if (featuredImageData) {
+                try {
+                    const upResult = await api('POST', 'api/upload-image.php', {
+                        site_id: parseInt(siteId), image_data: featuredImageData, image_filename: featuredImageFilename, keep_filename: true,
+                    });
+                    if (upResult.media_id) mediaId = upResult.media_id;
+                } catch (e) {}
+            }
+
+            // Upload inline images and replace base64 with WP URLs
+            for (let idx = 0; idx < inlineImgs.length; idx++) {
+                const img = inlineImgs[idx];
+                try {
+                    const upResult = await api('POST', 'api/upload-image.php', {
+                        site_id: parseInt(siteId), image_data: img.image_data, image_filename: img.image_filename, keep_filename: true,
+                    });
+                    if (upResult.url) {
+                        htmlContent = replaceInlineImageSrc(htmlContent, idx, upResult.url);
+                    }
+                } catch (e) {}
+                await sleep(300);
+            }
+
+            const postData = {
+                site_id: parseInt(siteId), title: item.title, content: htmlContent,
+                status: 'publish', category_id: parseInt(categoryId) || 0,
+            };
+            if (mediaId) postData.media_id = mediaId;
+
+            const result = await api('POST', 'api/publish.php', postData);
+            if (result.error) throw new Error(result.error);
+
+            item.status = 'done';
+            item.url = result.post_url;
+            if (result.post_url) {
+                bulkOrderPublishedUrls.push(result.post_url);
+                // Add new post to wpPosts for next articles' internal linking
+                wpPosts.push({ id: result.post_id, title: item.title, link: result.post_url });
+            }
+            log.innerHTML += `<div class="text-success small">  <i class="bi bi-check-circle"></i> <a href="${esc(result.post_url)}" target="_blank">${esc(result.post_url)}</a></div>`;
+
+            // Extract links
+            if (result.post_url) {
+                try { await extractAndSaveLinks(parseInt(siteId), result.post_url, item.title, htmlContent); } catch (e) {}
+            }
+
+        } catch (e) {
+            item.status = 'error';
+            item.errorMsg = e.message;
+            log.innerHTML += `<div class="text-danger small">  <i class="bi bi-x-circle"></i> ${esc(e.message)}</div>`;
+        }
+
+        renderBulkOrderTable();
+
+        // Delay between articles
+        if (i < total - 1) await sleep(5000);
+    }
+
+    // Speed-Links
+    if (wantSpeedLinks && bulkOrderPublishedUrls.length > 0) {
+        log.innerHTML += '<div class="mt-2"><i class="bi bi-hourglass-split text-primary"></i> Wysylanie do Speed-Links...</div>';
+        const slResult = await submitToSpeedLinks(bulkOrderPublishedUrls);
+        if (slResult && slResult.error) {
+            log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(slResult.error)}</div>`;
+        } else if (slResult) {
+            let msg = `Speed-Links: wyslano ${slResult.submitted || bulkOrderPublishedUrls.length} URLi`;
+            if (slResult.report_url) msg += ` — <a href="${esc(slResult.report_url)}" target="_blank">raport</a>`;
+            log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> ${msg}</div>`;
+        }
+    }
+
+    bar.style.width = '100%';
+    bar.textContent = 'Gotowe!';
+    bar.classList.remove('progress-bar-animated');
+
+    // Show result card
+    document.getElementById('bulkOrderResultCard').style.display = '';
+    const resultLog = document.getElementById('bulkOrderResultLog');
+    const successCount = bulkOrderItems.filter(i => i.status === 'done').length;
+    const errorCount = bulkOrderItems.filter(i => i.status === 'error').length;
+    resultLog.innerHTML = `<div class="mb-2">Opublikowano: <strong>${successCount}/${total}</strong>${errorCount ? ` | Bledy: <strong class="text-danger">${errorCount}</strong>` : ''}</div>`;
+    resultLog.innerHTML += bulkOrderPublishedUrls.map(u => `<div><a href="${esc(u)}" target="_blank">${esc(u)}</a></div>`).join('');
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-play-fill"></i> Generuj i publikuj wszystko';
+}
+
+function bulkOrderCopyUrls() {
+    const text = bulkOrderPublishedUrls.join('\n');
+    navigator.clipboard.writeText(text).then(() => alert('Skopiowano ' + bulkOrderPublishedUrls.length + ' linkow'));
+}
+
+// ── Helper: Extract H2 titles from HTML ─────────────────────
+function extractH2Titles(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+    return Array.from(doc.querySelectorAll('h2')).map(h => h.textContent.trim());
+}
+
+// ── Helper: Insert internal links into HTML content ─────────
+function insertInternalLinks(html, posts) {
+    if (!posts || posts.length === 0) return html;
+
+    // Pick 2-3 random posts
+    const shuffled = [...posts].sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, Math.min(3, shuffled.length));
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+    const paragraphs = doc.querySelectorAll('p');
+
+    if (paragraphs.length < 3) return html;
+
+    // Insert links after random paragraphs (not the first or last)
+    const availableIndices = [];
+    for (let i = 1; i < paragraphs.length - 1; i++) availableIndices.push(i);
+
+    for (let i = 0; i < selected.length && availableIndices.length > 0; i++) {
+        const randIdx = Math.floor(Math.random() * availableIndices.length);
+        const pIdx = availableIndices.splice(randIdx, 1)[0];
+        const p = paragraphs[pIdx];
+
+        // Append link sentence at the end of paragraph
+        const link = doc.createElement('a');
+        link.href = selected[i].link;
+        link.textContent = selected[i].title;
+
+        // Add a natural-sounding sentence with the link
+        const prefixes = [
+            'Wiecej na ten temat przeczytasz w artykule ',
+            'Sprawdz rowniez: ',
+            'Polecamy takze lekture: ',
+            'Warto przeczytac takze ',
+            'Zapoznaj sie rowniez z wpisem ',
+        ];
+        const prefix = prefixes[i % prefixes.length];
+        const span = doc.createElement('span');
+        span.textContent = ' ' + prefix;
+        span.appendChild(link);
+        span.appendChild(doc.createTextNode('.'));
+        p.appendChild(span);
+    }
+
+    return doc.querySelector('div').innerHTML;
+}
+
+// ── Helper: Insert inline images into HTML after H2 sections
+function insertInlineImages(html, images) {
+    if (!images || images.length === 0) return html;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+    const h2s = doc.querySelectorAll('h2');
+
+    let imgIdx = 0;
+    for (const h2 of h2s) {
+        if (imgIdx >= images.length) break;
+
+        const img = images[imgIdx];
+
+        // Find first <p> after this h2
+        let nextEl = h2.nextElementSibling;
+        if (nextEl && nextEl.tagName === 'P') {
+            const imgEl = doc.createElement('img');
+            imgEl.src = `data:image/jpeg;base64,${img.image_data}`;
+            imgEl.alt = img.alt_text || img.section_title;
+            imgEl.setAttribute('data-inline-idx', imgIdx);
+
+            const figure = doc.createElement('figure');
+            figure.appendChild(imgEl);
+
+            // Insert after the first paragraph
+            nextEl.after(figure);
+        }
+        imgIdx++;
+    }
+
+    return doc.querySelector('div').innerHTML;
+}
+
+// Replace base64 inline images with uploaded WP URLs in content
+function replaceInlineImageSrc(html, idx, wpUrl) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+    const img = doc.querySelector(`img[data-inline-idx="${idx}"]`);
+    if (img) {
+        img.src = wpUrl;
+        img.removeAttribute('data-inline-idx');
+        img.removeAttribute('data-filename');
+    }
+    return doc.querySelector('div').innerHTML;
+}
+
+// ── Helper: Slugify text (Polish chars) ─────────────────────
+function slugifyText(text) {
+    const pl = {'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z',
+                'Ą':'a','Ć':'c','Ę':'e','Ł':'l','Ń':'n','Ó':'o','Ś':'s','Ź':'z','Ż':'z'};
+    let s = text.replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, c => pl[c] || c);
+    s = s.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/[\s-]+/g, '-').replace(/^-|-$/g, '');
+    return s.substring(0, 60) || 'artykul';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Sanitize HTML: strip styles, classes, IDs, spans, data-* ─
+function sanitizeArticleHtml(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+    const root = doc.querySelector('div');
+
+    root.querySelectorAll('*').forEach(el => {
+        // Remove style, class, id attributes
+        el.removeAttribute('style');
+        el.removeAttribute('class');
+        el.removeAttribute('id');
+        // Remove data-* attributes (except data-inline-idx which is needed before upload)
+        Array.from(el.attributes).forEach(attr => {
+            if (attr.name.startsWith('data-') && attr.name !== 'data-inline-idx') {
+                el.removeAttribute(attr.name);
+            }
+        });
+    });
+
+    // Unwrap <span> tags
+    root.querySelectorAll('span').forEach(span => {
+        while (span.firstChild) span.parentNode.insertBefore(span.firstChild, span);
+        span.parentNode.removeChild(span);
+    });
+
+    // Unwrap <div> tags inside content
+    root.querySelectorAll('div').forEach(div => {
+        while (div.firstChild) div.parentNode.insertBefore(div.firstChild, div);
+        div.parentNode.removeChild(div);
+    });
+
+    return root.innerHTML;
 }
