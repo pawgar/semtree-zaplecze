@@ -15,6 +15,7 @@ $title = trim($input['title'] ?? '');
 $mainKeyword = trim($input['main_keyword'] ?? '');
 $secondaryKeywords = trim($input['secondary_keywords'] ?? '');
 $notes = trim($input['notes'] ?? '');
+$lang = trim($input['lang'] ?? 'pl');
 
 if (!$title) {
     http_response_code(400);
@@ -33,8 +34,8 @@ if (!$apiKey) {
     exit;
 }
 
-$systemPrompt = getArticleSystemPrompt();
-$userPrompt = buildArticleUserPrompt($title, $mainKeyword, $secondaryKeywords, $notes);
+$systemPrompt = getArticleSystemPrompt($lang);
+$userPrompt = buildArticleUserPrompt($title, $mainKeyword, $secondaryKeywords, $notes, $lang);
 
 // Call Anthropic Claude API
 $url = 'https://api.anthropic.com/v1/messages';

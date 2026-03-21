@@ -2500,6 +2500,7 @@ async function orderGenerate() {
 
     const secondaryKw = document.getElementById('orderSecondaryKeywords').value.trim();
     const notes = document.getElementById('orderNotes').value.trim();
+    const lang = document.getElementById('orderLang').value;
     const wantInlineImages = document.getElementById('orderInlineImages').checked;
 
     const btn = document.getElementById('orderGenerateBtn');
@@ -2522,7 +2523,7 @@ async function orderGenerate() {
 
     try {
         const article = await api('POST', 'api/generate-article.php', {
-            title, main_keyword: mainKw, secondary_keywords: secondaryKw, notes
+            title, main_keyword: mainKw, secondary_keywords: secondaryKw, notes, lang
         });
         if (article.error) throw new Error(article.error);
 
@@ -2772,6 +2773,7 @@ function orderReset() {
     document.getElementById('orderMainKeyword').value = '';
     document.getElementById('orderSecondaryKeywords').value = '';
     document.getElementById('orderNotes').value = '';
+    document.getElementById('orderLang').value = 'pl';
     document.getElementById('orderInlineImages').checked = false;
     document.getElementById('orderProgressCard').style.display = 'none';
     document.getElementById('orderEditCard').style.display = 'none';
@@ -2860,6 +2862,7 @@ function bulkOrderParseCsv(input) {
                 category_id: matched.id,
                 category_matched: matched.id > 0,
                 notes: parts[4] || '',
+                lang: parts[5] || '',
                 status: 'pending',
             });
         }
@@ -2898,6 +2901,7 @@ function renderBulkOrderTable() {
             <td>${esc(item.main_keyword)}</td>
             <td>${esc(item.secondary_keywords)}</td>
             <td>${catCell}</td>
+            <td>${item.lang ? `<small>${esc(item.lang.toUpperCase())}</small>` : '<span class="text-muted">dom.</span>'}</td>
             <td>${item.notes ? `<small>${esc(truncate(item.notes, 50))}</small>` : '<span class="text-muted">-</span>'}</td>
             <td>${statusBadge}${item.url ? ` <a href="${esc(item.url)}" target="_blank" class="small">link</a>` : ''}${item.errorMsg ? ` <small class="text-danger">${esc(item.errorMsg)}</small>` : ''}</td>
         </tr>`;
@@ -2910,6 +2914,7 @@ async function bulkOrderStart() {
     if (bulkOrderItems.length === 0) { alert('Brak artykulow'); return; }
 
     const fallbackCategoryId = document.getElementById('bulkOrderFallbackCategory').value;
+    const fallbackLang = document.getElementById('bulkOrderLang').value || 'pl';
     const wantInlineImages = document.getElementById('bulkOrderInlineImages').checked;
     const wantSpeedLinks = document.getElementById('bulkOrderSpeedLinks').checked;
     const globalNotes = (document.getElementById('bulkOrderGlobalNotes').value || '').trim();
@@ -2946,13 +2951,15 @@ async function bulkOrderStart() {
         try {
             // 1. Generate article
             log.innerHTML += `<div class="text-muted small">  Generowanie tresci...</div>`;
-            // Combine per-item notes with global notes
+            // Combine per-item notes with global notes; use per-item or fallback lang
             const itemNotes = [item.notes, globalNotes].filter(n => n).join('\n');
+            const itemLang = item.lang || fallbackLang;
             const article = await api('POST', 'api/generate-article.php', {
                 title: item.title,
                 main_keyword: item.main_keyword,
                 secondary_keywords: item.secondary_keywords,
                 notes: itemNotes,
+                lang: itemLang,
             });
             if (article.error) throw new Error(article.error);
 

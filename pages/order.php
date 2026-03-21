@@ -67,9 +67,21 @@
                     <input type="hidden" id="orderCategoryId">
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label">Glowne slowo kluczowe <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="orderMainKeyword" placeholder="np. fotowoltaika" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Jezyk</label>
+                <select class="form-select" id="orderLang">
+                    <?php
+                    require_once __DIR__ . '/../includes/article_prompt.php';
+                    foreach (getLanguageList() as $code => $info) {
+                        $selected = ($code === 'pl') ? ' selected' : '';
+                        echo "<option value=\"{$code}\"{$selected}>" . htmlspecialchars($info['name']) . "</option>\n";
+                    }
+                    ?>
+                </select>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Slowa kluczowe pomocnicze <span class="text-muted">(opcjonalnie)</span></label>
@@ -197,7 +209,7 @@
 <div class="card mb-3" id="bulkOrderUploadCard" style="display:none">
     <div class="card-body">
         <h6 class="card-title"><i class="bi bi-2-circle"></i> Wgraj CSV</h6>
-        <p class="text-muted small mb-2">Format CSV (separator: <code>;</code>): tytul; glowne slowo kluczowe; pomocnicze slowa kluczowe; kategoria; dodatkowe informacje (opcjonalnie)</p>
+        <p class="text-muted small mb-2">Format CSV (separator: <code>;</code>): tytul; glowne slowo kluczowe; pomocnicze slowa kluczowe; kategoria; dodatkowe informacje; jezyk (opcjonalnie, domyslnie wg ustawienia ponizej)</p>
         <div class="d-flex gap-2 align-items-center flex-wrap">
             <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('bulkOrderCsvFile').click()">
                 <i class="bi bi-upload"></i> Wgraj plik CSV
@@ -222,13 +234,26 @@
 <div class="card mb-3" id="bulkOrderTableCard" style="display:none">
     <div class="card-body">
         <h6 class="card-title"><i class="bi bi-3-circle"></i> Artykuly do wygenerowania</h6>
-        <div class="d-flex gap-2 mb-2 align-items-center">
-            <label class="small text-muted">Kategoria domyslna (gdy brak w CSV):</label>
-            <select class="form-select form-select-sm" id="bulkOrderFallbackCategory" style="width:200px"></select>
+        <div class="d-flex gap-2 mb-2 align-items-center flex-wrap">
+            <div class="d-flex align-items-center gap-1">
+                <label class="small text-muted text-nowrap">Kategoria domyslna:</label>
+                <select class="form-select form-select-sm" id="bulkOrderFallbackCategory" style="width:200px"></select>
+            </div>
+            <div class="d-flex align-items-center gap-1 ms-3">
+                <label class="small text-muted text-nowrap">Jezyk domyslny:</label>
+                <select class="form-select form-select-sm" id="bulkOrderLang" style="width:200px">
+                    <?php
+                    foreach (getLanguageList() as $code => $info) {
+                        $selected = ($code === 'pl') ? ' selected' : '';
+                        echo "<option value=\"{$code}\"{$selected}>" . htmlspecialchars($info['name']) . "</option>\n";
+                    }
+                    ?>
+                </select>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table table-sm table-hover" id="bulkOrderTable">
-                <thead><tr><th>#</th><th>Tytul</th><th>Glowne KW</th><th>Pomocnicze KW</th><th>Kategoria</th><th>Informacje</th><th>Status</th></tr></thead>
+                <thead><tr><th>#</th><th>Tytul</th><th>Glowne KW</th><th>Pomocnicze KW</th><th>Kategoria</th><th>Jezyk</th><th>Informacje</th><th>Status</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
