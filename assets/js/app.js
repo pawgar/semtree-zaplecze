@@ -2807,6 +2807,8 @@ function bulkOrderFilterSites() {
     orderRenderSiteOptions(dd, filtered, 'bulkOrderSelectSite');
 }
 
+let bulkOrderCategories = []; // WP categories for matching
+
 async function bulkOrderSelectSite(id, name) {
     document.getElementById('bulkOrderSiteId').value = id;
     document.getElementById('bulkOrderSiteSearch').value = name;
@@ -2816,9 +2818,19 @@ async function bulkOrderSelectSite(id, name) {
     // Load categories for bulk
     try {
         const r = await api('GET', `api/wp-data.php?site_id=${id}&type=categories`);
-        const sel = document.getElementById('bulkOrderCategory');
+        bulkOrderCategories = r;
+        const sel = document.getElementById('bulkOrderFallbackCategory');
         sel.innerHTML = '<option value="">-- brak --</option>' + r.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     } catch (e) {}
+}
+
+function matchBulkCategory(csvCategoryName) {
+    if (!csvCategoryName) return { id: 0, name: '' };
+    const lower = csvCategoryName.toLowerCase().trim();
+    for (const cat of bulkOrderCategories) {
+        if (cat.name.toLowerCase().trim() === lower) return cat;
+    }
+    return { id: 0, name: csvCategoryName + ' (?)' };
 }
 
 function bulkOrderParseCsv(input) {
@@ -2838,11 +2850,16 @@ function bulkOrderParseCsv(input) {
             // Skip header row
             if (['tytuł', 'tytul', 'title'].includes(title.toLowerCase())) continue;
 
+            const csvCategory = parts[3] || '';
+            const matched = matchBulkCategory(csvCategory);
             bulkOrderItems.push({
                 title,
                 main_keyword: parts[1] || '',
                 secondary_keywords: parts[2] || '',
-                notes: parts[3] || '',
+                category_name: csvCategory,
+                category_id: matched.id,
+                category_matched: matched.id > 0,
+                notes: parts[4] || '',
                 status: 'pending',
             });
         }
@@ -2869,11 +2886,18 @@ function renderBulkOrderTable() {
             done: '<span class="badge bg-success">Gotowe</span>',
             error: `<span class="badge bg-danger">Blad</span>`,
         }[item.status] || '';
+        let catCell = '<span class="text-muted">-</span>';
+        if (item.category_name) {
+            catCell = item.category_matched
+                ? `<span class="text-success">${esc(item.category_name)}</span>`
+                : `<span class="text-danger" title="Nie znaleziono w WP">${esc(item.category_name)} <i class="bi bi-exclamation-triangle"></i></span>`;
+        }
         return `<tr>
             <td>${i + 1}</td>
             <td>${esc(item.title)}</td>
             <td>${esc(item.main_keyword)}</td>
             <td>${esc(item.secondary_keywords)}</td>
+            <td>${catCell}</td>
             <td>${item.notes ? `<small>${esc(truncate(item.notes, 50))}</small>` : '<span class="text-muted">-</span>'}</td>
             <td>${statusBadge}${item.url ? ` <a href="${esc(item.url)}" target="_blank" class="small">link</a>` : ''}${item.errorMsg ? ` <small class="text-danger">${esc(item.errorMsg)}</small>` : ''}</td>
         </tr>`;
@@ -2885,7 +2909,7 @@ async function bulkOrderStart() {
     if (!siteId) { alert('Wybierz strone'); return; }
     if (bulkOrderItems.length === 0) { alert('Brak artykulow'); return; }
 
-    const categoryId = document.getElementById('bulkOrderCategory').value;
+    const fallbackCategoryId = document.getElementById('bulkOrderFallbackCategory').value;
     const wantInlineImages = document.getElementById('bulkOrderInlineImages').checked;
     const wantSpeedLinks = document.getElementById('bulkOrderSpeedLinks').checked;
     const globalNotes = (document.getElementById('bulkOrderGlobalNotes').value || '').trim();
@@ -3003,9 +3027,11 @@ async function bulkOrderStart() {
                 await sleep(300);
             }
 
+            // Use per-item category if matched, otherwise fallback to global dropdown
+            const itemCatId = item.category_id || parseInt(fallbackCategoryId) || 0;
             const postData = {
                 site_id: parseInt(siteId), title: item.title, content: htmlContent,
-                status: 'publish', category_id: parseInt(categoryId) || 0,
+                status: 'publish', category_id: itemCatId,
             };
             if (mediaId) postData.media_id = mediaId;
 

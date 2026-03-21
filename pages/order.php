@@ -197,7 +197,7 @@
 <div class="card mb-3" id="bulkOrderUploadCard" style="display:none">
     <div class="card-body">
         <h6 class="card-title"><i class="bi bi-2-circle"></i> Wgraj CSV</h6>
-        <p class="text-muted small mb-2">Format CSV (separator: <code>;</code>): tytul; glowne slowo kluczowe; pomocnicze slowa kluczowe; dodatkowe informacje (opcjonalnie)</p>
+        <p class="text-muted small mb-2">Format CSV (separator: <code>;</code>): tytul; glowne slowo kluczowe; pomocnicze slowa kluczowe; kategoria; dodatkowe informacje (opcjonalnie)</p>
         <div class="d-flex gap-2 align-items-center flex-wrap">
             <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('bulkOrderCsvFile').click()">
                 <i class="bi bi-upload"></i> Wgraj plik CSV
@@ -223,12 +223,12 @@
     <div class="card-body">
         <h6 class="card-title"><i class="bi bi-3-circle"></i> Artykuly do wygenerowania</h6>
         <div class="d-flex gap-2 mb-2 align-items-center">
-            <label class="small text-muted">Kategoria:</label>
-            <select class="form-select form-select-sm" id="bulkOrderCategory" style="width:200px"></select>
+            <label class="small text-muted">Kategoria domyslna (gdy brak w CSV):</label>
+            <select class="form-select form-select-sm" id="bulkOrderFallbackCategory" style="width:200px"></select>
         </div>
         <div class="table-responsive">
             <table class="table table-sm table-hover" id="bulkOrderTable">
-                <thead><tr><th>#</th><th>Tytul</th><th>Glowne KW</th><th>Pomocnicze KW</th><th>Informacje</th><th>Status</th></tr></thead>
+                <thead><tr><th>#</th><th>Tytul</th><th>Glowne KW</th><th>Pomocnicze KW</th><th>Kategoria</th><th>Informacje</th><th>Status</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
