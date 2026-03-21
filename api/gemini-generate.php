@@ -69,7 +69,7 @@ function tryGeminiNative(string $apiKey, string $model, string $prompt): array {
         'contents' => [['parts' => [['text' => $prompt]]]],
         'generationConfig' => [
             'responseModalities' => ['IMAGE'],
-            'imageConfig' => ['aspectRatio' => '3:2'],
+            'imageConfig' => ['aspectRatio' => '16:9'],
         ],
     ];
 
@@ -93,9 +93,9 @@ function tryGeminiNative(string $apiKey, string $model, string $prompt): array {
             $mimeType = $part['inlineData']['mimeType'] ?? 'image/png';
             $ext = str_contains($mimeType, 'png') ? 'png' : 'jpg';
 
-            // Strip AI metadata by re-encoding through GD
+            // Strip AI metadata and resize to 1200x675
             $rawBinary = base64_decode($imageData);
-            $cleanData = stripImageMetadata($rawBinary);
+            $cleanData = stripImageMetadata($rawBinary, 1200, 675);
 
             return [
                 'success' => true,
@@ -117,7 +117,7 @@ function tryImagen(string $apiKey, string $model, string $prompt): array {
         'instances' => [['prompt' => $prompt]],
         'parameters' => [
             'sampleCount' => 1,
-            'aspectRatio' => '3:2',
+            'aspectRatio' => '16:9',
             'outputOptions' => ['mimeType' => 'image/jpeg'],
         ],
     ];
@@ -132,7 +132,7 @@ function tryImagen(string $apiKey, string $model, string $prompt): array {
 
     if (!empty($predictions) && isset($predictions[0]['bytesBase64Encoded'])) {
         $rawBinary = base64_decode($predictions[0]['bytesBase64Encoded']);
-        $cleanData = stripImageMetadata($rawBinary);
+        $cleanData = stripImageMetadata($rawBinary, 1200, 675);
 
         return [
             'success' => true,
@@ -145,17 +145,28 @@ function tryImagen(string $apiKey, string $model, string $prompt): array {
     return ['success' => false, 'error' => "{$model}: Brak obrazkow w odpowiedzi."];
 }
 
-// ── Strip AI metadata ────────────────────────────────────────
-function stripImageMetadata(string $binary): string {
+// ── Strip AI metadata and optionally resize ─────────────────
+function stripImageMetadata(string $binary, int $targetW = 0, int $targetH = 0): string {
     $img = @imagecreatefromstring($binary);
     if (!$img) return $binary;
 
-    $width = imagesx($img);
-    $height = imagesy($img);
-    $canvas = imagecreatetruecolor($width, $height);
+    $srcW = imagesx($img);
+    $srcH = imagesy($img);
+
+    // Determine output dimensions
+    $outW = ($targetW > 0) ? $targetW : $srcW;
+    $outH = ($targetH > 0) ? $targetH : $srcH;
+
+    $canvas = imagecreatetruecolor($outW, $outH);
     $white = imagecolorallocate($canvas, 255, 255, 255);
     imagefill($canvas, 0, 0, $white);
-    imagecopy($canvas, $img, 0, 0, 0, 0, $width, $height);
+
+    if ($outW !== $srcW || $outH !== $srcH) {
+        // Resize with resampling
+        imagecopyresampled($canvas, $img, 0, 0, 0, 0, $outW, $outH, $srcW, $srcH);
+    } else {
+        imagecopy($canvas, $img, 0, 0, 0, 0, $srcW, $srcH);
+    }
     imagedestroy($img);
 
     ob_start();

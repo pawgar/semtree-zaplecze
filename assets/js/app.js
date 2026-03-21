@@ -2755,12 +2755,36 @@ async function orderPublish() {
             } catch (e) {}
         }
 
+        // Show "Publikuj kolejny" button
+        log.innerHTML += `<div class="mt-3"><button class="btn btn-primary" onclick="orderReset()"><i class="bi bi-plus-lg"></i> Publikuj kolejny</button></div>`;
+
     } catch (e) {
         log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Blad: ${esc(e.message)}</div>`;
     }
 
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-send"></i> Opublikuj artykul';
+}
+
+function orderReset() {
+    // Reset form for next article
+    document.getElementById('orderTitle').value = '';
+    document.getElementById('orderMainKeyword').value = '';
+    document.getElementById('orderSecondaryKeywords').value = '';
+    document.getElementById('orderNotes').value = '';
+    document.getElementById('orderInlineImages').checked = false;
+    document.getElementById('orderProgressCard').style.display = 'none';
+    document.getElementById('orderEditCard').style.display = 'none';
+    document.getElementById('orderResultCard').style.display = 'none';
+    document.getElementById('orderProgressLog').innerHTML = '';
+    document.getElementById('orderResultLog').innerHTML = '';
+    document.getElementById('orderProgressBar').style.width = '0%';
+    document.getElementById('orderProgressBar').textContent = '0%';
+    document.getElementById('orderFeaturedPreview').innerHTML = '<span class="text-muted">Brak</span>';
+    document.getElementById('orderEditContent').innerHTML = '';
+    orderGeneratedData = null;
+    // Scroll to form
+    document.getElementById('orderFormCard').scrollIntoView({ behavior: 'smooth' });
 }
 
 // ── Bulk Mode ───────────────────────────────────────────────
@@ -3085,11 +3109,11 @@ function insertInternalLinks(html, posts) {
 
         // Add a natural-sounding sentence with the link
         const prefixes = [
-            'Wiecej na ten temat przeczytasz w artykule ',
-            'Sprawdz rowniez: ',
-            'Polecamy takze lekture: ',
-            'Warto przeczytac takze ',
-            'Zapoznaj sie rowniez z wpisem ',
+            'Więcej na ten temat przeczytasz w artykule ',
+            'Sprawdź również: ',
+            'Polecamy także lekturę: ',
+            'Warto przeczytać także ',
+            'Zapoznaj się również z wpisem ',
         ];
         const prefix = prefixes[i % prefixes.length];
         const span = doc.createElement('span');
