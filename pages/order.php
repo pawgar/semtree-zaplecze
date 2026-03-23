@@ -251,15 +251,46 @@
                 </select>
             </div>
         </div>
+
+        <!-- Date randomization -->
+        <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="bulkOrderRandomDates">
+                <label class="form-check-label small" for="bulkOrderRandomDates">Losowe daty publikacji</label>
+            </div>
+            <div class="d-flex align-items-center gap-1 ms-2" id="bulkOrderDateRange" style="display:none!important">
+                <label class="small text-muted text-nowrap">Od:</label>
+                <input type="date" class="form-control form-control-sm" id="bulkOrderDateFrom" style="width:160px">
+                <label class="small text-muted text-nowrap ms-2">Do:</label>
+                <input type="date" class="form-control form-control-sm" id="bulkOrderDateTo" style="width:160px">
+                <button class="btn btn-outline-secondary btn-sm ms-2" onclick="bulkOrderAssignRandomDates()" title="Wylosuj daty">
+                    <i class="bi bi-shuffle"></i> Losuj
+                </button>
+            </div>
+            <div class="d-flex align-items-center gap-1 ms-3">
+                <label class="small text-muted text-nowrap">Status:</label>
+                <select class="form-select form-select-sm" id="bulkOrderPublishStatus" style="width:140px">
+                    <option value="publish">Publikuj</option>
+                    <option value="draft">Szkic</option>
+                </select>
+            </div>
+        </div>
+
         <div class="table-responsive">
             <table class="table table-sm table-hover" id="bulkOrderTable">
-                <thead><tr><th>#</th><th>Tytul</th><th>Glowne KW</th><th>Pomocnicze KW</th><th>Kategoria</th><th>Jezyk</th><th>Informacje</th><th>Status</th></tr></thead>
+                <thead><tr>
+                    <th><input type="checkbox" class="form-check-input" id="bulkOrderSelectAll" checked onchange="bulkOrderToggleAll(this.checked)"></th>
+                    <th>#</th><th>Tytul</th><th>Glowne KW</th><th>Pomocnicze KW</th><th>Kategoria</th><th>Jezyk</th><th>Data</th><th>Informacje</th><th>Status</th>
+                </tr></thead>
                 <tbody></tbody>
             </table>
         </div>
-        <button class="btn btn-primary" onclick="bulkOrderStart()" id="bulkOrderStartBtn">
-            <i class="bi bi-play-fill"></i> Generuj i publikuj wszystko
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" onclick="bulkOrderStart()" id="bulkOrderStartBtn">
+                <i class="bi bi-play-fill"></i> Generuj i publikuj zaznaczone
+            </button>
+            <span class="text-muted small align-self-center" id="bulkOrderSelectedCount"></span>
+        </div>
     </div>
 </div>
 

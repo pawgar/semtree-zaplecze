@@ -2390,6 +2390,14 @@ function initOrderPage() {
     api('GET', 'api/sites.php').then(sites => {
         orderSites = sites;
     });
+    // Toggle date range visibility
+    const rdCb = document.getElementById('bulkOrderRandomDates');
+    if (rdCb) {
+        rdCb.addEventListener('change', () => {
+            const range = document.getElementById('bulkOrderDateRange');
+            if (range) range.style.cssText = rdCb.checked ? '' : 'display:none!important';
+        });
+    }
 }
 
 // ── Anthropic API Key ───────────────────────────────────────
@@ -2863,6 +2871,8 @@ function bulkOrderParseCsv(input) {
                 category_matched: matched.id > 0,
                 notes: parts[4] || '',
                 lang: parts[5] || '',
+                selected: true,
+                publish_date: '',
                 status: 'pending',
             });
         }
@@ -2884,6 +2894,7 @@ function renderBulkOrderTable() {
     tbody.innerHTML = bulkOrderItems.map((item, i) => {
         const statusBadge = {
             pending: '<span class="badge bg-secondary">Oczekuje</span>',
+            skipped: '<span class="badge bg-light text-dark">Pominieto</span>',
             generating: '<span class="badge bg-primary">Generowanie...</span>',
             publishing: '<span class="badge bg-info">Publikowanie...</span>',
             done: '<span class="badge bg-success">Gotowe</span>',
@@ -2895,29 +2906,84 @@ function renderBulkOrderTable() {
                 ? `<span class="text-success">${esc(item.category_name)}</span>`
                 : `<span class="text-danger" title="Nie znaleziono w WP">${esc(item.category_name)} <i class="bi bi-exclamation-triangle"></i></span>`;
         }
-        return `<tr>
+        const checked = item.selected ? 'checked' : '';
+        const rowClass = item.selected ? '' : 'class="table-light text-muted"';
+        const dateVal = item.publish_date || '';
+        return `<tr ${rowClass}>
+            <td><input type="checkbox" class="form-check-input" ${checked} onchange="bulkOrderToggleItem(${i}, this.checked)"></td>
             <td>${i + 1}</td>
             <td>${esc(item.title)}</td>
             <td>${esc(item.main_keyword)}</td>
             <td>${esc(item.secondary_keywords)}</td>
             <td>${catCell}</td>
             <td>${item.lang ? `<small>${esc(item.lang.toUpperCase())}</small>` : '<span class="text-muted">dom.</span>'}</td>
+            <td>${dateVal ? `<small>${esc(dateVal)}</small>` : '<span class="text-muted">teraz</span>'}</td>
             <td>${item.notes ? `<small>${esc(truncate(item.notes, 50))}</small>` : '<span class="text-muted">-</span>'}</td>
             <td>${statusBadge}${item.url ? ` <a href="${esc(item.url)}" target="_blank" class="small">link</a>` : ''}${item.errorMsg ? ` <small class="text-danger">${esc(item.errorMsg)}</small>` : ''}</td>
         </tr>`;
     }).join('');
+    bulkOrderUpdateSelectedCount();
+}
+
+function bulkOrderToggleItem(index, checked) {
+    bulkOrderItems[index].selected = checked;
+    const allChecked = bulkOrderItems.every(i => i.selected);
+    const selectAllEl = document.getElementById('bulkOrderSelectAll');
+    if (selectAllEl) selectAllEl.checked = allChecked;
+    renderBulkOrderTable();
+}
+
+function bulkOrderToggleAll(checked) {
+    bulkOrderItems.forEach(item => { item.selected = checked; });
+    renderBulkOrderTable();
+}
+
+function bulkOrderUpdateSelectedCount() {
+    const el = document.getElementById('bulkOrderSelectedCount');
+    if (!el) return;
+    const selected = bulkOrderItems.filter(i => i.selected).length;
+    el.textContent = `Zaznaczono: ${selected} / ${bulkOrderItems.length}`;
+}
+
+function bulkOrderAssignRandomDates() {
+    const fromStr = document.getElementById('bulkOrderDateFrom').value;
+    const toStr = document.getElementById('bulkOrderDateTo').value;
+    if (!fromStr || !toStr) { alert('Podaj zakres dat (Od i Do)'); return; }
+    const fromMs = new Date(fromStr + 'T00:00:00').getTime();
+    const toMs = new Date(toStr + 'T23:59:59').getTime();
+    if (fromMs > toMs) { alert('Data "Od" musi byc przed data "Do"'); return; }
+
+    // Generate random timestamps, then sort chronologically
+    const randomDates = bulkOrderItems.map(() => {
+        const ms = fromMs + Math.random() * (toMs - fromMs);
+        const d = new Date(ms);
+        // Random hour 6-22
+        d.setHours(6 + Math.floor(Math.random() * 16), Math.floor(Math.random() * 60));
+        return d;
+    });
+    randomDates.sort((a, b) => a - b);
+
+    const pad = n => String(n).padStart(2, '0');
+    bulkOrderItems.forEach((item, i) => {
+        const d = randomDates[i];
+        item.publish_date = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    });
+    renderBulkOrderTable();
 }
 
 async function bulkOrderStart() {
     const siteId = document.getElementById('bulkOrderSiteId').value;
     if (!siteId) { alert('Wybierz strone'); return; }
-    if (bulkOrderItems.length === 0) { alert('Brak artykulow'); return; }
+
+    const selectedItems = bulkOrderItems.filter(i => i.selected);
+    if (selectedItems.length === 0) { alert('Zaznacz przynajmniej jeden artykul'); return; }
 
     const fallbackCategoryId = document.getElementById('bulkOrderFallbackCategory').value;
     const fallbackLang = document.getElementById('bulkOrderLang').value || 'pl';
     const wantInlineImages = document.getElementById('bulkOrderInlineImages').checked;
     const wantSpeedLinks = document.getElementById('bulkOrderSpeedLinks').checked;
     const globalNotes = (document.getElementById('bulkOrderGlobalNotes').value || '').trim();
+    const publishStatus = (document.getElementById('bulkOrderPublishStatus') || {}).value || 'publish';
 
     const btn = document.getElementById('bulkOrderStartBtn');
     btn.disabled = true;
@@ -2936,13 +3002,22 @@ async function bulkOrderStart() {
         if (postsResult.posts) wpPosts = postsResult.posts;
     } catch (e) {}
 
-    const total = bulkOrderItems.length;
+    // Mark unselected as skipped
+    bulkOrderItems.forEach(item => {
+        if (!item.selected && item.status === 'pending') item.status = 'skipped';
+    });
+    renderBulkOrderTable();
 
-    for (let i = 0; i < total; i++) {
+    const total = selectedItems.length;
+    let processed = 0;
+
+    for (let i = 0; i < bulkOrderItems.length; i++) {
         const item = bulkOrderItems[i];
-        const pctBase = Math.round(i / total * 100);
+        if (!item.selected) continue;
+        processed++;
+        const pctBase = Math.round(processed / total * 100);
         bar.style.width = pctBase + '%';
-        bar.textContent = `Artykul ${i + 1}/${total}`;
+        bar.textContent = `Artykul ${processed}/${total}`;
 
         item.status = 'generating';
         renderBulkOrderTable();
@@ -3036,9 +3111,12 @@ async function bulkOrderStart() {
 
             // Use per-item category if matched, otherwise fallback to global dropdown
             const itemCatId = item.category_id || parseInt(fallbackCategoryId) || 0;
+            // Use future date → schedule status in WP; otherwise use selected status
+            const effectiveStatus = item.publish_date ? 'future' : publishStatus;
             const postData = {
                 site_id: parseInt(siteId), title: item.title, content: htmlContent,
-                status: 'publish', category_id: itemCatId,
+                status: effectiveStatus, category_id: itemCatId,
+                publish_date: item.publish_date || '',
             };
             if (mediaId) postData.media_id = mediaId;
 
@@ -3068,7 +3146,7 @@ async function bulkOrderStart() {
         renderBulkOrderTable();
 
         // Delay between articles
-        if (i < total - 1) await sleep(5000);
+        if (processed < total) await sleep(5000);
     }
 
     // Speed-Links
@@ -3093,7 +3171,8 @@ async function bulkOrderStart() {
     const resultLog = document.getElementById('bulkOrderResultLog');
     const successCount = bulkOrderItems.filter(i => i.status === 'done').length;
     const errorCount = bulkOrderItems.filter(i => i.status === 'error').length;
-    resultLog.innerHTML = `<div class="mb-2">Opublikowano: <strong>${successCount}/${total}</strong>${errorCount ? ` | Bledy: <strong class="text-danger">${errorCount}</strong>` : ''}</div>`;
+    const skippedCount = bulkOrderItems.filter(i => i.status === 'skipped').length;
+    resultLog.innerHTML = `<div class="mb-2">Opublikowano: <strong>${successCount}/${total}</strong>${errorCount ? ` | Bledy: <strong class="text-danger">${errorCount}</strong>` : ''}${skippedCount ? ` | Pominieto: ${skippedCount}` : ''}</div>`;
     resultLog.innerHTML += bulkOrderPublishedUrls.map(u => `<div><a href="${esc(u)}" target="_blank">${esc(u)}</a></div>`).join('');
 
     btn.disabled = false;

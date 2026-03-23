@@ -56,7 +56,7 @@ try {
     $postData = [
         'title' => $title,
         'content' => $content,
-        'status' => in_array($status, ['draft', 'publish']) ? $status : 'draft',
+        'status' => in_array($status, ['draft', 'publish', 'future']) ? $status : 'draft',
     ];
 
     if ($categoryId > 0) {
