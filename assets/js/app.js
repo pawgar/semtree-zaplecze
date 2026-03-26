@@ -2886,12 +2886,11 @@ function renderBulkOrderTable() {
             done: '<span class="badge bg-success">Gotowe</span>',
             error: `<span class="badge bg-danger">Blad</span>`,
         }[item.status] || '';
-        let catCell = '<span class="text-muted">-</span>';
-        if (item.category_name) {
-            catCell = item.category_matched
-                ? `<span class="text-success">${esc(item.category_name)}</span>`
-                : `<span class="text-danger" title="Nie znaleziono w WP">${esc(item.category_name)} <i class="bi bi-exclamation-triangle"></i></span>`;
-        }
+        let catOptions = '<option value="">-- brak --</option>' + bulkOrderCategories.map(c => {
+            const sel = (item.category_id && item.category_id == c.id) ? ' selected' : '';
+            return `<option value="${c.id}"${sel}>${esc(c.name)}</option>`;
+        }).join('');
+        const catCell = `<select class="form-select form-select-sm" style="min-width:120px" onchange="bulkOrderSetCategory(${i}, this.value)">${catOptions}</select>`;
         const checked = item.selected ? 'checked' : '';
         const rowClass = item.selected ? '' : 'class="table-light text-muted"';
         const dateVal = item.publish_date || '';
@@ -2922,6 +2921,10 @@ function bulkOrderToggleItem(index, checked) {
 function bulkOrderToggleAll(checked) {
     bulkOrderItems.forEach(item => { item.selected = checked; });
     renderBulkOrderTable();
+}
+
+function bulkOrderSetCategory(index, catId) {
+    bulkOrderItems[index].category_id = parseInt(catId) || 0;
 }
 
 function bulkOrderUpdateSelectedCount() {
