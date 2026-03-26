@@ -2591,21 +2591,7 @@ async function orderGenerate() {
     }
 
     // Phase 4: Internal linking (85-100%)
-    orderProgress(bar, 88, 'Pobieranie postow do linkowania...');
-    log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Linkowanie wewnetrzne...</div>';
-
-    try {
-        const postsResult = await api('GET', `api/internal-links.php?site_id=${siteId}`);
-        if (postsResult.posts && postsResult.posts.length > 0) {
-            orderWpPosts = postsResult.posts;
-            orderGeneratedData.html_content = insertInternalLinks(orderGeneratedData.html_content, postsResult.posts);
-            log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Dodano linki wewnetrzne (${Math.min(3, postsResult.posts.length)} linkow)</div>`;
-        } else {
-            log.innerHTML += '<div class="text-muted"><i class="bi bi-info-circle"></i> Brak istniejacych postow do linkowania</div>';
-        }
-    } catch (e) {
-        log.innerHTML += `<div class="text-warning"><i class="bi bi-exclamation-triangle"></i> Linkowanie: ${esc(e.message)}</div>`;
-    }
+    orderProgress(bar, 88, 'Finalizacja...');
 
     // Insert inline images into content
     if (orderGeneratedData.inline_images.length > 0) {
@@ -2995,13 +2981,6 @@ async function bulkOrderStart() {
     log.innerHTML = '';
     bulkOrderPublishedUrls = [];
 
-    // Fetch existing posts for internal linking
-    let wpPosts = [];
-    try {
-        const postsResult = await api('GET', `api/internal-links.php?site_id=${siteId}`);
-        if (postsResult.posts) wpPosts = postsResult.posts;
-    } catch (e) {}
-
     // Mark unselected as skipped
     bulkOrderItems.forEach(item => {
         if (!item.selected && item.status === 'pending') item.status = 'skipped';
@@ -3068,12 +3047,7 @@ async function bulkOrderStart() {
                 }
             }
 
-            // 4. Internal linking
-            if (wpPosts.length > 0) {
-                htmlContent = insertInternalLinks(htmlContent, wpPosts);
-            }
-
-            // 5. Insert inline images
+            // 4. Insert inline images
             if (inlineImgs.length > 0) {
                 htmlContent = insertInlineImages(htmlContent, inlineImgs);
             }
@@ -3127,8 +3101,6 @@ async function bulkOrderStart() {
             item.url = result.post_url;
             if (result.post_url) {
                 bulkOrderPublishedUrls.push(result.post_url);
-                // Add new post to wpPosts for next articles' internal linking
-                wpPosts.push({ id: result.post_id, title: item.title, link: result.post_url });
             }
             log.innerHTML += `<div class="text-success small">  <i class="bi bi-check-circle"></i> <a href="${esc(result.post_url)}" target="_blank">${esc(result.post_url)}</a></div>`;
 
