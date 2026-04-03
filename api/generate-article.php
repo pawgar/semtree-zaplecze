@@ -3,7 +3,7 @@
  * Generate an SEO blog article using Anthropic Claude API.
  * Returns HTML content converted from Markdown.
  */
-set_time_limit(180);
+set_time_limit(360);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../includes/article_prompt.php';
 header('Content-Type: application/json');
