@@ -131,8 +131,38 @@
 
         <div class="row mb-3">
             <div class="col-md-9">
-                <label class="form-label fw-bold">Tresc (HTML):</label>
-                <div id="orderEditContent" contenteditable="true" class="form-control" style="min-height:400px;max-height:600px;overflow-y:auto"></div>
+                <label class="form-label fw-bold">Tresc:</label>
+                <!-- Toolbar -->
+                <div class="btn-toolbar border rounded-top bg-light p-1 gap-1" id="orderEditorToolbar">
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorCmd('bold')" title="Pogrubienie (Ctrl+B)"><i class="bi bi-type-bold"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorCmd('italic')" title="Kursywa (Ctrl+I)"><i class="bi bi-type-italic"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorCmd('underline')" title="Podkreslenie (Ctrl+U)"><i class="bi bi-type-underline"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorCmd('strikeThrough')" title="Przekreslenie"><i class="bi bi-type-strikethrough"></i></button>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorHeading('H2')" title="Naglowek H2">H2</button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorHeading('H3')" title="Naglowek H3">H3</button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorHeading('H4')" title="Naglowek H4">H4</button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorCmd('formatBlock', 'P')" title="Akapit">P</button>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorCmd('insertUnorderedList')" title="Lista punktowana"><i class="bi bi-list-ul"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorCmd('insertOrderedList')" title="Lista numerowana"><i class="bi bi-list-ol"></i></button>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorInsertLink()" title="Wstaw / edytuj link"><i class="bi bi-link-45deg"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorRemoveLink()" title="Usun link"><i class="bi bi-link-45deg text-danger"></i><i class="bi bi-x" style="margin-left:-4px"></i></button>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorCmd('removeFormat')" title="Usun formatowanie"><i class="bi bi-eraser"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="editorToggleSource()" title="Widok HTML" id="orderToggleSourceBtn"><i class="bi bi-code-slash"></i></button>
+                    </div>
+                </div>
+                <!-- Editor -->
+                <div id="orderEditContent" contenteditable="true" class="form-control border-top-0 rounded-top-0" style="min-height:400px;max-height:600px;overflow-y:auto"></div>
+                <!-- HTML source (hidden by default) -->
+                <textarea id="orderEditSource" class="form-control font-monospace border-top-0 rounded-top-0" style="min-height:400px;max-height:600px;display:none;font-size:0.8rem"></textarea>
                 <div class="d-flex gap-3 mt-1">
                     <span class="text-muted small" id="orderCharCount"></span>
                 </div>

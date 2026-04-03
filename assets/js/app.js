@@ -2628,6 +2628,135 @@ function orderProgress(bar, pct, text) {
     bar.textContent = text || (pct + '%');
 }
 
+// ── Rich Text Editor Toolbar Functions ───────────────────────
+function editorCmd(command, value) {
+    document.getElementById('orderEditContent').focus();
+    document.execCommand(command, false, value || null);
+    updateOrderCharCount();
+}
+
+function editorHeading(tag) {
+    document.getElementById('orderEditContent').focus();
+    document.execCommand('formatBlock', false, '<' + tag + '>');
+    updateOrderCharCount();
+}
+
+function editorInsertLink() {
+    const editor = document.getElementById('orderEditContent');
+    editor.focus();
+
+    // Check if cursor is inside an existing link
+    const sel = window.getSelection();
+    let existingLink = null;
+    if (sel.rangeCount > 0) {
+        let node = sel.getRangeAt(0).commonAncestorContainer;
+        while (node && node !== editor) {
+            if (node.nodeName === 'A') { existingLink = node; break; }
+            node = node.parentNode;
+        }
+    }
+
+    const currentUrl = existingLink ? existingLink.href : '';
+    const currentTarget = existingLink ? (existingLink.target || '') : '_blank';
+    const selectedText = sel.toString();
+
+    // Build a small modal-like prompt
+    const url = prompt('URL linku:', currentUrl || 'https://');
+    if (url === null) return; // cancelled
+    if (!url.trim()) {
+        // Empty URL = remove link
+        if (existingLink) {
+            const text = existingLink.textContent;
+            existingLink.replaceWith(document.createTextNode(text));
+        }
+        return;
+    }
+
+    const openInNew = confirm('Otworzyc w nowej karcie? (OK = tak, Anuluj = nie)');
+
+    if (existingLink) {
+        // Update existing link
+        existingLink.href = url;
+        existingLink.target = openInNew ? '_blank' : '';
+        if (openInNew) existingLink.rel = 'noopener noreferrer';
+        else existingLink.removeAttribute('rel');
+    } else {
+        // Create new link
+        if (!selectedText) {
+            const linkText = prompt('Tekst linku:', '');
+            if (!linkText) return;
+            const a = document.createElement('a');
+            a.href = url;
+            a.textContent = linkText;
+            if (openInNew) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(a);
+            // Move cursor after link
+            range.setStartAfter(a);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        } else {
+            document.execCommand('createLink', false, url);
+            // Find the newly created link and set target
+            if (openInNew) {
+                const links = editor.querySelectorAll('a[href="' + CSS.escape(url) + '"]');
+                links.forEach(a => {
+                    if (!a.target) {
+                        a.target = '_blank';
+                        a.rel = 'noopener noreferrer';
+                    }
+                });
+            }
+        }
+    }
+    updateOrderCharCount();
+}
+
+function editorRemoveLink() {
+    const editor = document.getElementById('orderEditContent');
+    editor.focus();
+    const sel = window.getSelection();
+    if (sel.rangeCount === 0) return;
+
+    let node = sel.getRangeAt(0).commonAncestorContainer;
+    while (node && node !== editor) {
+        if (node.nodeName === 'A') {
+            const text = node.textContent;
+            node.replaceWith(document.createTextNode(text));
+            return;
+        }
+        node = node.parentNode;
+    }
+    // Fallback: use execCommand
+    document.execCommand('unlink', false, null);
+}
+
+let orderSourceMode = false;
+function editorToggleSource() {
+    const editor = document.getElementById('orderEditContent');
+    const source = document.getElementById('orderEditSource');
+    const btn = document.getElementById('orderToggleSourceBtn');
+
+    if (!orderSourceMode) {
+        // Switch to source view
+        source.value = editor.innerHTML;
+        editor.style.display = 'none';
+        source.style.display = '';
+        btn.classList.add('active');
+        orderSourceMode = true;
+    } else {
+        // Switch back to WYSIWYG
+        editor.innerHTML = source.value;
+        source.style.display = 'none';
+        editor.style.display = '';
+        btn.classList.remove('active');
+        orderSourceMode = false;
+        updateOrderCharCount();
+    }
+}
+
 function updateOrderCharCount() {
     const el = document.getElementById('orderEditContent');
     if (!el) return;
@@ -2658,6 +2787,9 @@ async function orderRegenerateFeatured() {
 
 // ── Publish (Single Mode) ───────────────────────────────────
 async function orderPublish() {
+    // Sync source mode back to editor if active
+    if (orderSourceMode) editorToggleSource();
+
     const siteId = document.getElementById('orderSiteId').value;
     const title = document.getElementById('orderEditTitle').value.trim();
     const content = sanitizeArticleHtml(document.getElementById('orderEditContent').innerHTML);
