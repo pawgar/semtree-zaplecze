@@ -3,7 +3,7 @@
  * Generate an SEO blog article using Anthropic Claude API.
  * Returns HTML content converted from Markdown.
  */
-set_time_limit(360);
+set_time_limit(180);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../includes/article_prompt.php';
 header('Content-Type: application/json');
@@ -109,65 +109,6 @@ if (isset($data['content'])) {
 if (!$markdown) {
     echo json_encode(['error' => 'API nie zwróciło treści artykułu.']);
     exit;
-}
-
-// ── Step 2: Proofreading pass (Sonnet) ──────────────────────
-$langName = getLanguageName($lang);
-$proofSystemPrompt = "Jesteś profesjonalnym korektorem tekstów w języku {$langName}. "
-    . "Twoim JEDYNYM zadaniem jest poprawienie błędów ortograficznych, literówek, "
-    . "błędnych znaków diakrytycznych i drobnych błędów gramatycznych.\n\n"
-    . "ZASADY:\n"
-    . "- Poprawiaj WYŁĄCZNIE błędy językowe (ortografia, literówki, interpunkcja, fleksja)\n"
-    . "- NIE zmieniaj treści merytorycznej, stylu, struktury ani formatowania Markdown\n"
-    . "- NIE dodawaj ani nie usuwaj akapitów, nagłówków, list ani tabel\n"
-    . "- NIE zmieniaj kolejności zdań ani nie przeformułowuj ich\n"
-    . "- NIE dodawaj komentarzy, wyjaśnień ani listy zmian\n"
-    . "- Zwróć WYŁĄCZNIE poprawiony tekst w tym samym formacie Markdown\n"
-    . "- Jeśli tekst nie zawiera błędów — zwróć go bez zmian";
-
-$proofPayload = [
-    'model' => 'claude-sonnet-4-6',
-    'max_tokens' => 16000,
-    'system' => $proofSystemPrompt,
-    'messages' => [
-        ['role' => 'user', 'content' => "Popraw błędy ortograficzne i literówki w poniższym artykule. Zwróć TYLKO poprawiony tekst:\n\n" . $markdown],
-    ],
-];
-
-$ch2 = curl_init($url);
-curl_setopt_array($ch2, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER => [
-        'Content-Type: application/json',
-        'x-api-key: ' . $apiKey,
-        'anthropic-version: 2023-06-01',
-    ],
-    CURLOPT_POSTFIELDS => json_encode($proofPayload),
-    CURLOPT_TIMEOUT => 120,
-    CURLOPT_CONNECTTIMEOUT => 30,
-    CURLOPT_SSL_VERIFYPEER => false,
-]);
-
-$proofResponse = curl_exec($ch2);
-$proofHttpCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
-curl_close($ch2);
-
-if ($proofResponse && $proofHttpCode === 200) {
-    $proofData = json_decode($proofResponse, true) ?? [];
-    $proofText = '';
-    if (isset($proofData['content'])) {
-        foreach ($proofData['content'] as $block) {
-            if (($block['type'] ?? '') === 'text') {
-                $proofText .= $block['text'];
-            }
-        }
-    }
-    if (trim($proofText)) {
-        $markdown = $proofText;
-        $inputTokens += $proofData['usage']['input_tokens'] ?? 0;
-        $outputTokens += $proofData['usage']['output_tokens'] ?? 0;
-    }
 }
 
 // Remove H1 from markdown (title is separate)

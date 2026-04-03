@@ -2536,14 +2536,32 @@ async function orderGenerate() {
         if (article.error) throw new Error(article.error);
 
         orderGeneratedData.html_content = article.html_content;
+        orderGeneratedData.markdown = article.markdown;
         log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Tresc wygenerowana (${article.char_count} znakow)</div>`;
-        orderProgress(bar, 40, 'Tresc gotowa');
+        orderProgress(bar, 30, 'Tresc gotowa');
     } catch (e) {
         log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Blad: ${esc(e.message)}</div>`;
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-stars"></i> Generuj artykul';
         return;
     }
+
+    // Phase 1b: Proofreading (30-40%)
+    orderProgress(bar, 32, 'Korekta ortograficzna...');
+    log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Korekta ortograficzna...</div>';
+    try {
+        const proof = await api('POST', 'api/proofread-article.php', {
+            markdown: orderGeneratedData.markdown, lang
+        });
+        if (!proof.error && proof.html_content) {
+            orderGeneratedData.html_content = proof.html_content;
+            orderGeneratedData.markdown = proof.markdown;
+            log.innerHTML += '<div class="text-success"><i class="bi bi-check-circle"></i> Korekta zakonczona</div>';
+        }
+    } catch (e) {
+        log.innerHTML += `<div class="text-warning"><i class="bi bi-exclamation-triangle"></i> Korekta: ${esc(e.message)}</div>`;
+    }
+    orderProgress(bar, 40, 'Korekta gotowa');
 
     // Phase 2: Generate featured image (40-60%)
     orderProgress(bar, 45, 'Generowanie grafiki wyrozniajacej...');
@@ -3153,6 +3171,18 @@ async function bulkOrderStart() {
             if (article.error) throw new Error(article.error);
 
             let htmlContent = article.html_content;
+            let articleMarkdown = article.markdown || '';
+
+            // 1b. Proofreading pass
+            log.innerHTML += `<div class="text-muted small">  Korekta ortograficzna...</div>`;
+            try {
+                const proof = await api('POST', 'api/proofread-article.php', {
+                    markdown: articleMarkdown, lang: itemLang
+                });
+                if (!proof.error && proof.html_content) {
+                    htmlContent = proof.html_content;
+                }
+            } catch (e) {}
 
             // 2. Generate featured image
             log.innerHTML += `<div class="text-muted small">  Grafika wyroznajaca...</div>`;
