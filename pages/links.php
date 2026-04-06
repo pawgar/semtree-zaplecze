@@ -77,6 +77,9 @@ require_once __DIR__ . '/../includes/header.php';
                 <i class="bi bi-download"></i> Eksportuj CSV
             </button>
         </div>
+        <div class="mb-3" style="max-width:300px">
+            <input type="text" class="form-control form-control-sm" id="clientsSearchInput" placeholder="Szukaj klienta..." oninput="filterClientsTable()">
+        </div>
         <div class="row">
             <div class="col-md-5">
                 <div class="table-responsive">

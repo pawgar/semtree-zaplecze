@@ -1609,6 +1609,15 @@ function initLinksPage() {
 }
 
 // ── Clients ──────────────────────────────────────────────────
+function filterClientsTable() {
+    const query = (document.getElementById('clientsSearchInput')?.value || '').toLowerCase().trim();
+    const rows = document.querySelectorAll('#clientsBody tr');
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = (!query || text.includes(query)) ? '' : 'none';
+    });
+}
+
 function loadClients() {
     api('GET', 'api/clients.php').then(clients => {
         linksClients = clients;
