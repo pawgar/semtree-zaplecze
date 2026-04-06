@@ -539,6 +539,8 @@ function changeOwnPassword() {
     });
 }
 
+let allProfilePublications = [];
+
 function loadProfileStats() {
     const userId = document.getElementById('profileUserId')?.value;
     if (!userId) return;
@@ -564,22 +566,47 @@ function loadProfileStats() {
         }
 
         // Publications list
-        const pubBody = document.getElementById('publicationsBody');
-        if (data.publications.length === 0) {
-            pubBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Brak publikacji</td></tr>';
-        } else {
-            pubBody.innerHTML = data.publications.map(p => `
-                <tr>
-                    <td>${esc(p.site_name)}</td>
-                    <td>${p.client_domain ? esc(p.client_domain) : '<span class="text-muted">-</span>'}</td>
-                    <td>
-                        ${p.post_url ? `<a href="${esc(p.post_url)}" target="_blank" title="${esc(p.post_title)}">${esc(truncate(p.post_title || p.post_url, 60))}</a>` : esc(p.post_title)}
-                    </td>
-                    <td>${formatDate(p.created_at)}</td>
-                </tr>
-            `).join('');
-        }
+        allProfilePublications = data.publications || [];
+        renderProfilePublications(allProfilePublications);
     });
+}
+
+function renderProfilePublications(pubs) {
+    const pubBody = document.getElementById('publicationsBody');
+    if (pubs.length === 0) {
+        pubBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Brak publikacji</td></tr>';
+    } else {
+        pubBody.innerHTML = pubs.map(p => `
+            <tr>
+                <td>${esc(p.site_name)}</td>
+                <td>${p.client_domain ? esc(p.client_domain) : '<span class="text-muted">-</span>'}</td>
+                <td>
+                    ${p.post_url ? `<a href="${esc(p.post_url)}" target="_blank" title="${esc(p.post_title)}">${esc(truncate(p.post_title || p.post_url, 60))}</a>` : esc(p.post_title)}
+                </td>
+                <td>${formatDate(p.created_at)}</td>
+            </tr>
+        `).join('');
+    }
+}
+
+function filterProfilePublications() {
+    const from = document.getElementById('profileDateFrom').value;
+    const to = document.getElementById('profileDateTo').value;
+    if (!from && !to) { renderProfilePublications(allProfilePublications); return; }
+
+    const filtered = allProfilePublications.filter(p => {
+        const date = (p.created_at || '').substring(0, 10);
+        if (from && date < from) return false;
+        if (to && date > to) return false;
+        return true;
+    });
+    renderProfilePublications(filtered);
+}
+
+function clearProfileDateFilter() {
+    document.getElementById('profileDateFrom').value = '';
+    document.getElementById('profileDateTo').value = '';
+    renderProfilePublications(allProfilePublications);
 }
 
 // ══════════════════════════════════════════════════════════════

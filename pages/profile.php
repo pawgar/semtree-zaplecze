@@ -56,6 +56,18 @@ $isOwnProfile = !$viewUserId || $viewUserId === (int) $_SESSION['user_id'];
 <div class="card mb-4">
     <div class="card-header"><i class="bi bi-list-ul"></i> Historia publikacji</div>
     <div class="card-body">
+        <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+            <label class="small text-muted text-nowrap">Od:</label>
+            <input type="date" class="form-control form-control-sm" id="profileDateFrom" style="width:160px">
+            <label class="small text-muted text-nowrap ms-2">Do:</label>
+            <input type="date" class="form-control form-control-sm" id="profileDateTo" style="width:160px">
+            <button class="btn btn-outline-primary btn-sm ms-2" onclick="filterProfilePublications()">
+                <i class="bi bi-funnel"></i> Filtruj
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="clearProfileDateFilter()">
+                <i class="bi bi-x-lg"></i> Wyczysc
+            </button>
+        </div>
         <div class="table-responsive">
             <table class="table table-striped table-sm">
                 <thead class="table-dark">
