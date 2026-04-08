@@ -169,3 +169,71 @@ th.sortable:hover {
     background: #0d6efd;
     color: #fff;
 }
+
+/* Fun fact bar */
+.fun-fact-bar {
+    background: linear-gradient(90deg, #fff8e1, #fffde7, #fff8e1);
+    border-bottom: 1px solid #ffe082;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    font-size: 0.82rem;
+    color: #5d4037;
+    transition: background 0.3s;
+    overflow: hidden;
+}
+
+.fun-fact-bar:hover {
+    background: linear-gradient(90deg, #fff3c4, #fffde7, #fff3c4);
+}
+
+.fun-fact-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 900px;
+    animation: funFactSlideIn 0.4s ease-out;
+}
+
+.fun-fact-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.fun-fact-label {
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.fun-fact-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fun-fact-close {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    color: #a1887f;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.fun-fact-close:hover {
+    color: #5d4037;
+}
+
+@keyframes funFactSlideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
