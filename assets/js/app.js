@@ -205,7 +205,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Init searchable selects after a short delay to let options populate
     setTimeout(initSearchableSelects, 300);
+
+    // Claude API status check
+    checkClaudeApiStatus();
+    setInterval(checkClaudeApiStatus, 120000); // refresh every 2 min
 });
+
+function checkClaudeApiStatus() {
+    const led = document.getElementById('claudeStatusLed');
+    const label = document.getElementById('claudeStatusLabel');
+    const indicator = document.getElementById('claudeStatusIndicator');
+    if (!led) return;
+
+    fetch('api/claude-status.php')
+        .then(r => r.json())
+        .then(data => {
+            led.className = 'status-led status-led-' + (data.status || 'unknown');
+            if (label) label.textContent = data.status === 'ok' ? 'API OK' : (data.description || 'API');
+            if (indicator) indicator.title = data.description || 'Status nieznany';
+        })
+        .catch(() => {
+            led.className = 'status-led status-led-unknown';
+            if (label) label.textContent = 'API ?';
+            if (indicator) indicator.title = 'Nie udało się sprawdzić statusu';
+        });
+}
 
 // ── Status Refresh ───────────────────────────────────────────
 function refreshSiteStatus(siteId) {

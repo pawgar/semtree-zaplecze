@@ -42,6 +42,10 @@
                 <?= htmlspecialchars($_SESSION['username']) ?>
                 <span class="badge bg-<?= isAdmin() ? 'danger' : 'secondary' ?>"><?= $_SESSION['role'] ?></span>
             </a>
+            <span class="nav-link d-flex align-items-center gap-1 pe-0" id="claudeStatusIndicator" title="Sprawdzanie statusu API...">
+                <span class="status-led status-led-unknown" id="claudeStatusLed"></span>
+                <small class="d-none d-xl-inline" id="claudeStatusLabel">API</small>
+            </span>
             <a class="nav-link" href="index.php?page=logout">
                 <i class="bi bi-box-arrow-right"></i> Wyloguj
             </a>
