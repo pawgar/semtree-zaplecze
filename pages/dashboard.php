@@ -34,16 +34,52 @@ $isAdminUser = isAdmin();
     </div>
 </div>
 
+<!-- Summary cards -->
+<div class="row g-3 mb-4" id="dashboardSummary" style="display:none">
+    <div class="col-auto">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <i class="bi bi-globe2 fs-4 text-primary"></i>
+                <div><div class="small text-muted">Stron</div><div class="fw-bold fs-5" id="sumSites">0</div></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-auto">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <i class="bi bi-file-earmark-text fs-4 text-success"></i>
+                <div><div class="small text-muted">Wpisow</div><div class="fw-bold fs-5" id="sumPosts">0</div></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-auto">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <i class="bi bi-link-45deg fs-4 text-info"></i>
+                <div><div class="small text-muted">Linkow</div><div class="fw-bold fs-5" id="sumLinks">0</div></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-auto">
+        <div class="card border-0 shadow-sm" id="sumErrorsCard">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
+                <div><div class="small text-muted">Bledy HTTP/API</div><div class="fw-bold fs-5" id="sumErrors">0</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="table-responsive">
     <table class="table table-striped table-hover" id="sitesTable">
         <thead class="table-dark">
             <tr>
                 <th>#</th>
-                <th>Nazwa</th>
+                <th class="sortable" data-sort="name" onclick="sortSites('name')">Nazwa <i class="bi bi-chevron-expand small"></i></th>
                 <th>URL</th>
                 <th>Kategorie</th>
-                <th>Wpisy</th>
-                <th>Linki</th>
+                <th class="sortable" data-sort="post_count" onclick="sortSites('post_count')">Wpisy <i class="bi bi-chevron-expand small"></i></th>
+                <th class="sortable" data-sort="link_count" onclick="sortSites('link_count')">Linki <i class="bi bi-chevron-expand small"></i></th>
                 <th>HTTP</th>
                 <th>API</th>
                 <th>Akcje</th>

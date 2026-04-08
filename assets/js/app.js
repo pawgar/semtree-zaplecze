@@ -8,13 +8,62 @@ function api(method, url, body = null) {
 // ── Sites (Dashboard) ────────────────────────────────────────
 let sitesData = [];
 
+let sitesSortField = 'name';
+let sitesSortAsc = true;
+
 function loadSites() {
     api('GET', 'api/sites.php').then(sites => {
         sitesData = sites;
         buildCategoryFilter();
         buildClientFilter();
+        updateDashboardSummary();
         filterSites();
     });
+}
+
+function updateDashboardSummary() {
+    const el = document.getElementById('dashboardSummary');
+    if (!el) return;
+    el.style.display = '';
+
+    const totalSites = sitesData.length;
+    const totalPosts = sitesData.reduce((sum, s) => sum + (parseInt(s.post_count) || 0), 0);
+    const totalLinks = sitesData.reduce((sum, s) => sum + (parseInt(s.link_count) || 0), 0);
+    const errors = sitesData.filter(s => {
+        if (!s.last_status_check) return false;
+        const httpBad = !(s.http_status >= 200 && s.http_status < 400);
+        return httpBad || !s.api_ok;
+    }).length;
+
+    document.getElementById('sumSites').textContent = totalSites;
+    document.getElementById('sumPosts').textContent = totalPosts;
+    document.getElementById('sumLinks').textContent = totalLinks;
+    document.getElementById('sumErrors').textContent = errors;
+
+    const errCard = document.getElementById('sumErrorsCard');
+    if (errCard) {
+        errCard.className = errors > 0
+            ? 'card border-danger shadow-sm'
+            : 'card border-0 shadow-sm';
+    }
+}
+
+function sortSites(field) {
+    if (sitesSortField === field) {
+        sitesSortAsc = !sitesSortAsc;
+    } else {
+        sitesSortField = field;
+        sitesSortAsc = true;
+    }
+    // Update sort indicators
+    document.querySelectorAll('#sitesTable th.sortable i').forEach(icon => {
+        icon.className = 'bi bi-chevron-expand small';
+    });
+    const th = document.querySelector(`#sitesTable th[data-sort="${field}"]`);
+    if (th) {
+        th.querySelector('i').className = sitesSortAsc ? 'bi bi-chevron-up small' : 'bi bi-chevron-down small';
+    }
+    filterSites();
 }
 
 function renderSites(sites) {
@@ -54,8 +103,12 @@ function renderSites(sites) {
             ? `<span class="status-led status-led-${s.api_ok ? 'ok' : 'error'}" title="${s.api_ok ? 'API OK' : 'API Failed'}"></span>`
             : '<span class="status-led status-led-unknown" title="Nie sprawdzono"></span>';
 
+        // Row highlighting for errors
+        const hasError = s.last_status_check && (!httpOk || !s.api_ok);
+        const rowClass = hasError ? 'class="table-danger"' : '';
+
         return `
-        <tr data-id="${s.id}">
+        <tr data-id="${s.id}" ${rowClass}>
             <td>${i + 1}</td>
             <td>${esc(s.name)}</td>
             <td><a href="${esc(s.url)}" target="_blank">${esc(s.url)}</a></td>
@@ -177,7 +230,7 @@ function filterSites() {
     const clientSel = document.getElementById('clientFilter');
     const cat = catSel ? catSel.value : '';
     const clientId = clientSel ? clientSel.value : '';
-    let filtered = sitesData;
+    let filtered = [...sitesData];
     if (cat) {
         filtered = filtered.filter(s => {
             const cats = (s.categories || '').split(',').map(c => c.trim());
@@ -190,6 +243,20 @@ function filterSites() {
             return !linked.includes(clientId);
         });
     }
+    // Sort
+    filtered.sort((a, b) => {
+        let va = a[sitesSortField], vb = b[sitesSortField];
+        if (sitesSortField === 'post_count' || sitesSortField === 'link_count') {
+            va = parseInt(va) || 0;
+            vb = parseInt(vb) || 0;
+        } else {
+            va = (va || '').toString().toLowerCase();
+            vb = (vb || '').toString().toLowerCase();
+        }
+        if (va < vb) return sitesSortAsc ? -1 : 1;
+        if (va > vb) return sitesSortAsc ? 1 : -1;
+        return 0;
+    });
     renderSites(filtered);
 }
 

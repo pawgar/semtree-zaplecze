@@ -114,6 +114,16 @@
     50% { opacity: 0.4; }
 }
 
+/* Sortable table headers */
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+th.sortable:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
 /* Searchable select */
 .searchable-select {
     position: relative;
