@@ -193,9 +193,9 @@ th.sortable:hover {
 
 .fun-fact-content {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 8px;
-    max-width: 900px;
+    max-width: 1100px;
     animation: funFactSlideIn 0.4s ease-out;
 }
 
@@ -211,9 +211,8 @@ th.sortable:hover {
 }
 
 .fun-fact-text {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    line-height: 1.4;
 }
 
 .fun-fact-close {
