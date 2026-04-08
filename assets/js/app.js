@@ -82,7 +82,7 @@ function renderSites(sites) {
     });
     const checkEl = document.getElementById('lastStatusCheck');
     if (checkEl) {
-        checkEl.textContent = latestCheck ? `Statusy z: ${formatDate(latestCheck)}` : 'Statusy: nigdy nie odswiezane';
+        checkEl.textContent = latestCheck ? `Statusy z: ${formatDateLocal(latestCheck)}` : 'Statusy: nigdy nie odswiezane';
     }
 
     tbody.innerHTML = sites.map((s, i) => {
@@ -2550,6 +2550,15 @@ function truncate(str, max) {
 function formatDate(dateStr) {
     if (!dateStr) return '-';
     return dateStr.substring(0, 16).replace('T', ' ');
+}
+
+function formatDateLocal(utcStr) {
+    if (!utcStr) return '-';
+    // SQLite datetime("now") is UTC — append Z so JS parses as UTC
+    const d = new Date(utcStr.replace(' ', 'T') + (utcStr.includes('Z') || utcStr.includes('+') ? '' : 'Z'));
+    if (isNaN(d)) return utcStr;
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function esc(str) {
