@@ -84,6 +84,25 @@ function migrateSchema(SQLite3 $db): void {
         )
     ');
 
+    // Add status columns to sites
+    $siteCols = [];
+    $colsResult = $db->query("PRAGMA table_info(sites)");
+    while ($col = $colsResult->fetchArray(SQLITE3_ASSOC)) {
+        $siteCols[] = $col['name'];
+    }
+    if (!in_array('post_count', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN post_count INTEGER DEFAULT NULL');
+    }
+    if (!in_array('http_status', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN http_status INTEGER DEFAULT 0');
+    }
+    if (!in_array('api_ok', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN api_ok INTEGER DEFAULT 0');
+    }
+    if (!in_array('last_status_check', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN last_status_check DATETIME DEFAULT NULL');
+    }
+
     // Create clients table
     $db->exec('
         CREATE TABLE IF NOT EXISTS clients (

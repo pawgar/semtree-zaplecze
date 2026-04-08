@@ -15,6 +15,7 @@ $isAdminUser = isAdmin();
         <button class="btn btn-outline-primary btn-sm" onclick="refreshAllStatuses()">
             <i class="bi bi-arrow-clockwise"></i> Odswiez statusy
         </button>
+        <span class="text-muted small align-self-center" id="lastStatusCheck" title="Ostatnie odswiezenie statusow"></span>
         <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#addSiteModal">
             <i class="bi bi-plus-lg"></i> Dodaj strone
         </button>
@@ -40,18 +41,16 @@ $isAdminUser = isAdmin();
                 <th>#</th>
                 <th>Nazwa</th>
                 <th>URL</th>
-                <th>Login WP</th>
-                <th>App Password</th>
                 <th>Kategorie</th>
                 <th>Wpisy</th>
                 <th>Linki</th>
-                <th>Status HTTP</th>
+                <th>HTTP</th>
                 <th>API</th>
                 <th>Akcje</th>
             </tr>
         </thead>
         <tbody id="sitesBody">
-            <tr><td colspan="11" class="text-center text-muted">Ladowanie...</td></tr>
+            <tr><td colspan="9" class="text-center text-muted">Ladowanie...</td></tr>
         </tbody>
     </table>
 </div>
@@ -133,6 +132,25 @@ $isAdminUser = isAdmin();
                 </button>
             </div>
         </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($isAdminUser): ?>
+<!-- Cron Settings -->
+<div class="card mt-4 mb-4">
+    <div class="card-body">
+        <h6 class="card-title"><i class="bi bi-clock-history"></i> Automatyczne odswiezanie statusow (CRON)</h6>
+        <p class="text-muted small mb-2">Ustaw cron job na serwerze (np. o 23:00 czasu polskiego):</p>
+        <div class="d-flex gap-2 align-items-center mb-2">
+            <label class="small text-muted text-nowrap">Token CRON:</label>
+            <input type="text" class="form-control form-control-sm" id="cronTokenInput" style="max-width:300px" placeholder="Wygeneruj lub wpisz token">
+            <button class="btn btn-outline-primary btn-sm" onclick="saveCronToken()">Zapisz</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="generateCronToken()">Generuj</button>
+        </div>
+        <code class="small d-block bg-light p-2 rounded" id="cronCommandPreview">
+            0 23 * * * curl -s "<?= htmlspecialchars(rtrim(($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'your-app.com'), '/')) ?>/api/cron-status.php?token=YOUR_TOKEN"
+        </code>
     </div>
 </div>
 <?php endif; ?>

@@ -40,4 +40,12 @@ try {
     $response['error'] = $e->getMessage();
 }
 
+// Persist status to database
+$upd = $db->prepare('UPDATE sites SET post_count = :pc, http_status = :hs, api_ok = :ao, last_status_check = datetime("now") WHERE id = :id');
+$upd->bindValue(':pc', $response['post_count'], $response['post_count'] !== null ? SQLITE3_INTEGER : SQLITE3_NULL);
+$upd->bindValue(':hs', $response['http_status'], SQLITE3_INTEGER);
+$upd->bindValue(':ao', $response['api_ok'] ? 1 : 0, SQLITE3_INTEGER);
+$upd->bindValue(':id', $id, SQLITE3_INTEGER);
+$upd->execute();
+
 echo json_encode($response);

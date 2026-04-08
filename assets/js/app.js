@@ -22,29 +22,48 @@ function renderSites(sites) {
     if (!tbody) return;
 
     if (sites.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>';
         return;
+    }
+
+    // Show last status check timestamp (take the most recent across all sites)
+    let latestCheck = '';
+    sites.forEach(s => {
+        if (s.last_status_check && s.last_status_check > latestCheck) latestCheck = s.last_status_check;
+    });
+    const checkEl = document.getElementById('lastStatusCheck');
+    if (checkEl) {
+        checkEl.textContent = latestCheck ? `Statusy z: ${formatDate(latestCheck)}` : 'Statusy: nigdy nie odswiezane';
     }
 
     tbody.innerHTML = sites.map((s, i) => {
         const cats = (s.categories || '').split(',').map(c => c.trim()).filter(c => c);
         const badges = cats.map(c => `<span class="badge bg-secondary category-badge">${esc(c)}</span>`).join(' ');
-        const pwdId = 'pwd-' + s.id;
+
+        // Post count from DB
+        const postCount = s.post_count !== null && s.post_count !== undefined ? s.post_count : '-';
+
+        // HTTP status LED
+        const httpOk = s.http_status >= 200 && s.http_status < 400;
+        const httpLed = s.last_status_check
+            ? `<span class="status-led status-led-${httpOk ? 'ok' : 'error'}" title="HTTP ${s.http_status || '?'}"></span>`
+            : '<span class="status-led status-led-unknown" title="Nie sprawdzono"></span>';
+
+        // API status LED
+        const apiLed = s.last_status_check
+            ? `<span class="status-led status-led-${s.api_ok ? 'ok' : 'error'}" title="${s.api_ok ? 'API OK' : 'API Failed'}"></span>`
+            : '<span class="status-led status-led-unknown" title="Nie sprawdzono"></span>';
+
         return `
         <tr data-id="${s.id}">
             <td>${i + 1}</td>
             <td>${esc(s.name)}</td>
             <td><a href="${esc(s.url)}" target="_blank">${esc(s.url)}</a></td>
-            <td>${esc(s.username)}</td>
-            <td class="text-nowrap">
-                <span id="${pwdId}" class="small" data-pw="${esc(s.app_password)}" data-visible="0">${'•'.repeat(8)}</span>
-                <button class="btn btn-sm btn-link p-0 ms-1" onclick="toggleTablePwd('${pwdId}')" title="Pokaz/ukryj"><i class="bi bi-eye small"></i></button>
-            </td>
             <td>${badges}</td>
-            <td class="status-loading" id="posts-${s.id}">-</td>
+            <td id="posts-${s.id}">${postCount}</td>
             <td><a href="#" onclick="goToLinks(${s.id}); return false;" title="Pokaz linki">${s.link_count || 0}</a></td>
-            <td class="status-loading" id="status-${s.id}">-</td>
-            <td class="status-loading" id="api-${s.id}">-</td>
+            <td class="text-center" id="status-${s.id}">${httpLed}</td>
+            <td class="text-center" id="api-${s.id}">${apiLed}</td>
             <td class="text-nowrap">
                 <button class="btn btn-sm btn-outline-success me-1" onclick="goToPublish(${s.id})" title="Publikuj">
                     <i class="bi bi-send"></i>
@@ -190,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Auto-load data based on page
-    if (document.getElementById('sitesBody')) loadSites();
+    if (document.getElementById('sitesBody')) { loadSites(); loadCronToken(); }
     if (document.getElementById('usersBody')) loadUsers();
     if (document.getElementById('profileUserId')) loadProfileStats();
     if (document.getElementById('linksOverviewBody')) {
@@ -244,24 +263,9 @@ function refreshSiteStatus(siteId) {
     if (btn) { btn.disabled = true; btn.querySelector('i').classList.add('spin'); }
 
     api('POST', 'api/status.php', {id: siteId}).then(r => {
-        if (postsCell) {
-            postsCell.textContent = r.post_count !== null ? r.post_count : '?';
-            postsCell.className = r.post_count !== null ? 'status-ok' : 'status-error';
-        }
-        if (statusCell) {
-            statusCell.textContent = r.http_status || 'ERR';
-            statusCell.className = (r.http_status >= 200 && r.http_status < 400) ? 'status-ok' : 'status-error';
-        }
-        if (apiCell) {
-            apiCell.textContent = r.api_ok ? 'OK' : 'FAILED';
-            apiCell.className = r.api_ok ? 'status-ok' : 'status-error';
-        }
+        applyStatusResult(r);
     }).catch(() => {
-        if (postsCell) { postsCell.textContent = 'ERR'; postsCell.className = 'status-error'; }
-        if (statusCell) { statusCell.textContent = 'ERR'; statusCell.className = 'status-error'; }
-        if (apiCell) { apiCell.textContent = 'ERR'; apiCell.className = 'status-error'; }
-    }).finally(() => {
-        if (btn) { btn.disabled = false; btn.querySelector('i').classList.remove('spin'); }
+        applyStatusResult({ id: siteId, http_status: 0, api_ok: false, post_count: null });
     });
 }
 
@@ -300,17 +304,67 @@ function applyStatusResult(r) {
 
     if (postsCell) {
         postsCell.textContent = r.post_count !== null ? r.post_count : '?';
-        postsCell.className = r.post_count !== null ? 'status-ok' : 'status-error';
     }
     if (statusCell) {
-        statusCell.textContent = r.http_status || 'ERR';
-        statusCell.className = (r.http_status >= 200 && r.http_status < 400) ? 'status-ok' : 'status-error';
+        const httpOk = r.http_status >= 200 && r.http_status < 400;
+        statusCell.innerHTML = `<span class="status-led status-led-${httpOk ? 'ok' : 'error'}" title="HTTP ${r.http_status || '?'}"></span>`;
     }
     if (apiCell) {
-        apiCell.textContent = r.api_ok ? 'OK' : 'FAILED';
-        apiCell.className = r.api_ok ? 'status-ok' : 'status-error';
+        apiCell.innerHTML = `<span class="status-led status-led-${r.api_ok ? 'ok' : 'error'}" title="${r.api_ok ? 'API OK' : 'API Failed'}"></span>`;
     }
-    if (btn) { btn.disabled = false; btn.querySelector('i').classList.remove('spin'); }
+    if (btn) { btn.disabled = false; btn.querySelector('i')?.classList.remove('spin'); }
+
+    // Update timestamp display
+    const checkEl = document.getElementById('lastStatusCheck');
+    if (checkEl) {
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        checkEl.textContent = `Statusy z: ${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+
+    // Update sitesData cache
+    const site = sitesData.find(s => s.id === r.id);
+    if (site) {
+        site.post_count = r.post_count;
+        site.http_status = r.http_status;
+        site.api_ok = r.api_ok;
+        site.last_status_check = new Date().toISOString();
+    }
+}
+
+// ── Cron Token ──────────────────────────────────────────────
+function loadCronToken() {
+    api('GET', 'api/settings.php?key=cron_token').then(r => {
+        const input = document.getElementById('cronTokenInput');
+        if (input && r.value) {
+            input.value = r.value;
+            updateCronPreview(r.value);
+        }
+    }).catch(() => {});
+}
+
+function saveCronToken() {
+    const token = document.getElementById('cronTokenInput').value.trim();
+    if (!token) { alert('Wpisz lub wygeneruj token'); return; }
+    api('POST', 'api/settings.php', { key: 'cron_token', value: token }).then(() => {
+        updateCronPreview(token);
+        alert('Token zapisany');
+    });
+}
+
+function generateCronToken() {
+    const arr = new Uint8Array(24);
+    crypto.getRandomValues(arr);
+    const token = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+    document.getElementById('cronTokenInput').value = token;
+    updateCronPreview(token);
+}
+
+function updateCronPreview(token) {
+    const el = document.getElementById('cronCommandPreview');
+    if (!el) return;
+    const base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '');
+    el.textContent = `0 23 * * * curl -s "${base}/api/cron-status.php?token=${token}"`;
 }
 
 // ── Change Password (all sites) ──────────────────────────────

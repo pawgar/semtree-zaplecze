@@ -9,6 +9,7 @@ if ($method === 'GET') {
     $db = getDb();
     $result = $db->query('
         SELECT s.id, s.name, s.url, s.username, s.app_password, s.categories, s.created_at,
+               s.post_count, s.http_status, s.api_ok, s.last_status_check,
                COUNT(l.id) AS link_count,
                IFNULL(GROUP_CONCAT(DISTINCT l.client_id), "") AS linked_client_ids
         FROM sites s
