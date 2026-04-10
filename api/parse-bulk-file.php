@@ -110,9 +110,19 @@ function parseXlsxBulk(string $path): array {
     $doc->loadXML($sheetXml, LIBXML_NOERROR | LIBXML_NOWARNING);
     $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
-    // 3. Parse all rows into column-indexed arrays
+    // 3. Detect dimension (e.g. "A1:E30") for column count fallback
+    $dimNodes = $doc->getElementsByTagNameNS($ns, 'dimension');
+    $dimMaxCol = 0;
+    if ($dimNodes->length > 0) {
+        $dimRef = $dimNodes->item(0)->getAttribute('ref'); // e.g. "A1:E30"
+        if (preg_match('/:([A-Z]+)\d+$/', $dimRef, $m)) {
+            $dimMaxCol = colLetterToIndex($m[1]);
+        }
+    }
+
+    // 4. Parse all rows into column-indexed arrays
     $rawRows = [];
-    $maxColIndex = 0;
+    $maxColIndex = $dimMaxCol; // start from dimension hint
     foreach ($doc->getElementsByTagNameNS($ns, 'row') as $row) {
         $cells = [];
         foreach ($row->getElementsByTagNameNS($ns, 'c') as $cell) {
@@ -124,8 +134,10 @@ function parseXlsxBulk(string $path): array {
             $value = $vNodes->length > 0 ? $vNodes->item(0)->textContent : '';
 
             if ($type === 's') {
+                // Shared string reference
                 $value = $sharedStrings[(int) $value] ?? '';
             } elseif ($type === 'inlineStr') {
+                // Inline string: value is in <is><t>...</t></is>
                 $isNodes = $cell->getElementsByTagNameNS($ns, 'is');
                 if ($isNodes->length > 0) {
                     $tNodes = $isNodes->item(0)->getElementsByTagNameNS($ns, 't');
@@ -134,7 +146,13 @@ function parseXlsxBulk(string $path): array {
                         $value .= $tNode->textContent;
                     }
                 }
+            } elseif ($type === 'str') {
+                // Formula string — value already in <v>
+            } elseif ($type === 'e') {
+                // Error cell — skip
+                $value = '';
             }
+            // type '' or 'n' (number) or 'b' (boolean) — value from <v> is fine
 
             $cells[$colIdx] = trim($value);
             if ($colIdx > $maxColIndex) $maxColIndex = $colIdx;
@@ -146,14 +164,14 @@ function parseXlsxBulk(string $path): array {
         throw new RuntimeException('Plik XLSX jest pusty lub ma tylko nagłówek');
     }
 
-    // 4. First row = headers
+    // 5. First row = headers
     $headerRow = array_shift($rawRows);
     $headers = [];
     for ($i = 0; $i <= $maxColIndex; $i++) {
         $headers[$i] = $headerRow[$i] ?? 'Kolumna ' . indexToColLetter($i);
     }
 
-    // 5. Data rows
+    // 6. Data rows
     $rows = [];
     foreach ($rawRows as $raw) {
         $row = [];
