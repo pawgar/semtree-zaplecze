@@ -310,8 +310,8 @@ function buildClientFilter() {
     if (!sel) return;
     api('GET', 'api/clients.php').then(clients => {
         const current = sel.value;
-        sel.innerHTML = '<option value="">Wszyscy klienci</option>' +
-            clients.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.domain)})</option>`).join('');
+        sel.innerHTML = '<option value="">Bez linku do...</option>' +
+            clients.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
         sel.value = current;
         initSearchableSelects();
     });
