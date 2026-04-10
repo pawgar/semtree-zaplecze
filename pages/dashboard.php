@@ -8,9 +8,12 @@ $isAdminUser = isAdmin();
     <select class="form-select form-select-sm" id="categoryFilter" style="width:200px" onchange="filterSites()">
         <option value="">Wszystkie kategorie</option>
     </select>
-    <select class="form-select form-select-sm" id="clientFilter" style="width:280px" onchange="filterSites()">
-        <option value="">Wszyscy klienci</option>
-    </select>
+    <div class="d-flex flex-column">
+        <select class="form-select form-select-sm" id="clientFilter" style="width:280px" onchange="filterSites()" title="Pokaż strony, na których wybrany klient nie ma jeszcze linka">
+            <option value="">Wszyscy klienci</option>
+        </select>
+        <small class="text-muted mt-1" style="font-size:.7rem; line-height:1.1">Strony bez linka do klienta</small>
+    </div>
     <button class="btn btn-outline-primary btn-sm" onclick="refreshAllStatuses()">
         <i class="bi bi-arrow-clockwise"></i> Odśwież statusy
     </button>

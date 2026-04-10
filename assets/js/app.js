@@ -2645,7 +2645,10 @@ function makeSearchable(selectEl) {
     input.className = selectEl.className.replace('form-select', 'form-control');
     input.placeholder = selectEl.options[0]?.text || 'Wybierz...';
     input.style.width = '100%';
-    input.classList.add('ss-input');
+    input.classList.add('ss-input', 'input-dropdown');
+    input.setAttribute('autocomplete', 'new-password');
+    input.setAttribute('data-lpignore', 'true');
+    input.setAttribute('readonly', '');
 
     const dropdown = document.createElement('div');
     dropdown.className = 'ss-dropdown';
@@ -2696,9 +2699,9 @@ function makeSearchable(selectEl) {
         syncDisplay();
     }
 
-    input.addEventListener('focus', () => open());
+    input.addEventListener('focus', () => { input.removeAttribute('readonly'); open(); });
     input.addEventListener('input', () => buildOptions(input.value));
-    input.addEventListener('blur', () => setTimeout(close, 150));
+    input.addEventListener('blur', () => { input.setAttribute('readonly', ''); setTimeout(close, 150); });
     input.addEventListener('keydown', e => {
         if (e.key === 'Escape') { close(); input.blur(); }
     });
