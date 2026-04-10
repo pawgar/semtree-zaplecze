@@ -4,13 +4,13 @@
 <!-- Step 1: Select site -->
 <div class="card mb-3">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-1-circle"></i> Wybierz strone</h6>
+        <h6 class="card-title"><i class="bi bi-1-circle"></i> Wybierz stronę</h6>
         <div class="d-flex align-items-center gap-3">
             <select class="form-select" id="publishSiteSelect" style="max-width:400px">
-                <option value="">-- wybierz strone --</option>
+                <option value="">-- wybierz stronę --</option>
             </select>
             <button class="btn btn-primary btn-sm" onclick="loadWpData()">
-                <i class="bi bi-arrow-clockwise"></i> Odswiez dane WP
+                <i class="bi bi-arrow-clockwise"></i> Odśwież dane WP
             </button>
             <span id="wpDataStatus" class="text-muted small"></span>
         </div>
@@ -37,7 +37,7 @@
 <div class="card mb-3 d-none" id="docxLoadCard">
     <div class="card-body">
         <h6 class="card-title"><i class="bi bi-3-circle"></i> Wgraj pliki DOCX</h6>
-        <p class="text-muted small mb-2">Wybierz pliki DOCX odpowiadajace planom z XLSX — system dopasuje po nazwie pliku.</p>
+        <p class="text-muted small mb-2">Wybierz pliki DOCX odpowiadające planom z XLSX — system dopasuje po nazwie pliku.</p>
         <div class="d-flex gap-2 align-items-center">
             <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('importDocxFiles').click()">
                 <i class="bi bi-file-earmark-word"></i> Wybierz pliki DOCX (wiele)
@@ -54,7 +54,7 @@
 <!-- Step 4: Articles table -->
 <div class="card mb-3 d-none" id="importArticlesCard">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-4-circle"></i> Lista artykulow</h6>
+        <h6 class="card-title"><i class="bi bi-4-circle"></i> Lista artykułów</h6>
 
         <!-- Bulk operations -->
         <div class="d-flex gap-3 mb-2 flex-wrap align-items-center">
@@ -101,7 +101,7 @@
                 <thead class="table-dark">
                     <tr>
                         <th style="width:30px">#</th>
-                        <th>Tytul</th>
+                        <th>Tytuł</th>
                         <th style="width:170px">Kategoria</th>
                         <th style="width:170px">Autor</th>
                         <th style="width:170px">Obrazek</th>
@@ -111,7 +111,7 @@
                     </tr>
                 </thead>
                 <tbody id="articlesBody">
-                    <tr><td colspan="8" class="text-center text-muted">Wgraj XLSX aby zaladowac artykuly.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted">Wgraj XLSX aby załadować artykuły.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -128,7 +128,7 @@
             </button>
             <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="speedLinksCheck">
-                <label class="form-check-label small" for="speedLinksCheck">Wyslij do indeksacji (Speed-Links)</label>
+                <label class="form-check-label small" for="speedLinksCheck">Wyślij do indeksacji (Speed-Links)</label>
             </div>
             <button class="btn btn-outline-info btn-sm" onclick="exportArticlesJson()">
                 <i class="bi bi-download"></i> Zapisz stan (JSON)
@@ -138,7 +138,7 @@
             </button>
             <input type="file" id="importJsonFile" accept=".json" style="display:none" onchange="importArticlesJson(this)">
             <button class="btn btn-outline-secondary btn-sm" onclick="clearArticles(); document.getElementById('importArticlesCard').classList.add('d-none'); document.getElementById('importPublishCard').classList.add('d-none');">
-                <i class="bi bi-trash"></i> Wyczysc liste
+                <i class="bi bi-trash"></i> Wyczyść listę
             </button>
         </div>
         <div class="progress mt-3 d-none" id="publishProgress" style="height:24px">

@@ -15,10 +15,10 @@
     <aside class="sidebar" id="appSidebar">
         <div class="sidebar-header">
             <a href="index.php" class="sidebar-brand">
-                <img src="https://semtree.pl/wp-content/uploads/2023/06/logo.svg" alt="Semtree" height="26">
+                <img src="https://semtree.pl/wp-content/uploads/2023/06/logo.svg" alt="Semtree" height="26" class="sidebar-logo">
                 <span class="sidebar-brand-text">Zaplecze</span>
             </a>
-            <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Zwin/rozwin menu">
+            <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Zwiń/rozwiń menu">
                 <i class="bi bi-list"></i>
             </button>
         </div>
@@ -30,10 +30,10 @@
                     <i class="bi bi-grid"></i><span>Dashboard</span>
                 </a>
                 <a class="sidebar-link <?= ($page ?? '') === 'order' ? 'active' : '' ?>" href="index.php?page=order">
-                    <i class="bi bi-magic"></i><span>Zamow i opublikuj</span>
+                    <i class="bi bi-magic"></i><span>Zamów i opublikuj</span>
                 </a>
                 <a class="sidebar-link <?= ($page ?? '') === 'publish' ? 'active' : '' ?>" href="index.php?page=publish">
-                    <i class="bi bi-pencil-square"></i><span>Publikuj artykuly</span>
+                    <i class="bi bi-pencil-square"></i><span>Publikuj artykuły</span>
                 </a>
                 <a class="sidebar-link <?= ($page ?? '') === 'import' ? 'active' : '' ?>" href="index.php?page=import">
                     <i class="bi bi-cloud-upload"></i><span>Import masowy</span>
@@ -47,7 +47,7 @@
                 <span class="sidebar-section-label">System</span>
                 <?php if (isAdmin()): ?>
                 <a class="sidebar-link <?= ($page ?? '') === 'users' ? 'active' : '' ?>" href="index.php?page=users">
-                    <i class="bi bi-people"></i><span>Uzytkownicy</span>
+                    <i class="bi bi-people"></i><span>Użytkownicy</span>
                 </a>
                 <?php endif; ?>
                 <a class="sidebar-link <?= ($page ?? '') === 'settings' ? 'active' : '' ?>" href="index.php?page=settings">
@@ -82,11 +82,11 @@
             <div class="topbar-breadcrumb">
                 <?php
                 $pageTitle = match($page ?? '') {
-                    'order' => '<i class="bi bi-magic"></i> Zamow i opublikuj',
-                    'publish' => '<i class="bi bi-pencil-square"></i> Publikuj artykuly',
+                    'order' => '<i class="bi bi-magic"></i> Zamów i opublikuj',
+                    'publish' => '<i class="bi bi-pencil-square"></i> Publikuj artykuły',
                     'import' => '<i class="bi bi-cloud-upload"></i> Import masowy',
                     'links' => '<i class="bi bi-link-45deg"></i> Linki',
-                    'users' => '<i class="bi bi-people"></i> Uzytkownicy',
+                    'users' => '<i class="bi bi-people"></i> Użytkownicy',
                     'settings' => '<i class="bi bi-gear"></i> Ustawienia',
                     'profile' => '<i class="bi bi-person-circle"></i> Profil',
                     default => '<i class="bi bi-grid"></i> Dashboard',
@@ -97,56 +97,56 @@
         </div>
 
         <!-- Fun Fact Bar -->
-        <div id="funFactBar" class="fun-fact-bar" onclick="nextFunFact()" title="Kliknij po nastepna ciekawostke">
+        <div id="funFactBar" class="fun-fact-bar" onclick="nextFunFact()" title="Kliknij po następną ciekawostkę">
             <div class="fun-fact-content">
                 <span class="fun-fact-icon">💡</span>
-                <span class="fun-fact-label">Czy wiesz, ze...</span>
+                <span class="fun-fact-label">Czy wiesz, że...</span>
                 <span id="funFactText" class="fun-fact-text"></span>
             </div>
             <button class="fun-fact-close" onclick="event.stopPropagation(); document.getElementById('funFactBar').style.display='none'" title="Zamknij">&times;</button>
         </div>
         <script>
         const squidwardFacts = [
-            "Skalmar Oblynos jest osmiornica, nie kalmarem — mimo ze jego angielskie imie zawiera slowo \"squid\" (kalmar). Potwierdzono to oficjalnie w odcinku \"Feral Friends\".",
-            "Stephen Hillenburg celowo narysowal Skalmara z 6 mackami zamiast 8, bo \"tak bylo prosciej do animacji.\" Pelne 8 macek pokazano tylko w dwoch odcinkach w historii serialu.",
-            "Tworcy zrezygnowali z zartow o wyrzucaniu atramentu przez Skalmara, bo wizualnie \"zawsze wygladalo to, jakby robil w spodnie.\"",
-            "Charakterystyczny dzwiek krokow Skalmara (imitujacy przyssawki) jest tworzony przez pocieranie termoforow — gumowych butelek na goraca wode.",
-            "Kolor skory Skalmara zmienial sie w trakcie serialu wedlug systemu kolorow PMS: od 332 w pilocie do 335 od polowy sezonu 2.",
-            "Rower poziomy, ktorym Skalmar jezdzi w kilku odcinkach, to uklon w strone jego aktora glosowego Rodgera Bumpassa, ktory sam taki posiada.",
-            "Pierwszym wyborem do glosu Skalmara byl Mr. Lawrence — ktory ostatecznie dostal role Planktona.",
-            "Glos Skalmara porownywano do stylu komika Jacka Benny'ego — sam Bumpass odrzucil to porownanie jednym zdaniem: \"Jack Benny, nie.\"",
-            "Rodger Bumpass wpadal w taki szal podczas nagrywania Skalmara, ze Tom Kenny (glos SpongeBoba) martwil sie, ze dostanie zatorowosci.",
-            "Skalmar pierwotnie mial grac na oboju, nie na klarnecie — zmieniono to pozniej w procesie produkcji.",
-            "Skalmar regularnie lamie czwarta sciane, odwolujac sie do \"11 minut\" — standardowej dlugosci jednego odcinka SpongeBoba.",
-            "Kiedy Skalmar sie smieje, jego nos napompowuje sie i opada — we wczesniejszych odcinkach towarzyszyl temu specjalny efekt dzwiekowy, z ktorego pozniej zrezygnowano.",
-            "Skalmar jest uczulony na az cztery rzeczy: sluz slimaka, glonojagody, orzechy i zwierzeta domowe.",
-            "Google wykupilo domene \"squidward.com\" — do dzis przekierowuje ona na google.com.",
-            "Tony Stark w filmie \"Avengers: Infinity War\" obraza Ebony Mawa, nazywajac go \"Squidwardem.\"",
-            "Skalmar urodzil sie 9 pazdziernika — w Dzien Leifa Eriksona, swieto entuzjastycznie obchodzone przez SpongeBoba w odcinku \"Bubble Buddy.\"",
-            "Pelne imie Skalmara to Squidward Quincy Tentacles, a w polskiej wersji — Skalmar J.Q. Oblynos.",
-            "W 2000 roku powstala seria krotkometrazowek \"Astrology with Squidward\", w ktorej Skalmar wciela sie w jasnowidza opowiadajacego o znakach zodiaku.",
-            "Skalmar pojawil sie w promowce Blue's Clues z 2002 roku, twierdzac ze bylby lepszym gospodarzem programu niz Joe.",
+            "Skalmar Obłynos jest ośmiornicą, nie kalmarem — mimo że jego angielskie imię zawiera słowo \"squid\" (kalmar). Potwierdzono to oficjalnie w odcinku \"Feral Friends\".",
+            "Stephen Hillenburg celowo narysował Skalmara z 6 mackami zamiast 8, bo \"tak było prościej do animacji.\" Pełne 8 macek pokazano tylko w dwóch odcinkach w historii serialu.",
+            "Twórcy zrezygnowali z żartów o wyrzucaniu atramentu przez Skalmara, bo wizualnie \"zawsze wyglądało to, jakby robił w spodnie.\"",
+            "Charakterystyczny dźwięk kroków Skalmara (imitujący przyssawki) jest tworzony przez pocieranie termoforów — gumowych butelek na gorącą wodę.",
+            "Kolor skóry Skalmara zmieniał się w trakcie serialu według systemu kolorów PMS: od 332 w pilocie do 335 od połowy sezonu 2.",
+            "Rower poziomy, którym Skalmar jeździ w kilku odcinkach, to ukłon w stronę jego aktora głosowego Rodgera Bumpassa, który sam taki posiada.",
+            "Pierwszym wyborem do głosu Skalmara był Mr. Lawrence — który ostatecznie dostał rolę Planktona.",
+            "Głos Skalmara porównywano do stylu komika Jacka Benny'ego — sam Bumpass odrzucił to porównanie jednym zdaniem: \"Jack Benny, nie.\"",
+            "Rodger Bumpass wpadał w taki szał podczas nagrywania Skalmara, że Tom Kenny (głos SpongeBoba) martwił się, że dostanie zatorowości.",
+            "Skalmar pierwotnie miał grać na oboju, nie na klarnecie — zmieniono to później w procesie produkcji.",
+            "Skalmar regularnie łamie czwartą ścianę, odwołując się do \"11 minut\" — standardowej długości jednego odcinka SpongeBoba.",
+            "Kiedy Skalmar się śmieje, jego nos napompowuje się i opada — we wcześniejszych odcinkach towarzyszył temu specjalny efekt dźwiękowy, z którego później zrezygnowano.",
+            "Skalmar jest uczulony na aż cztery rzeczy: śluz ślimaka, glonojagody, orzechy i zwierzęta domowe.",
+            "Google wykupiło domenę \"squidward.com\" — do dziś przekierowuje ona na google.com.",
+            "Tony Stark w filmie \"Avengers: Infinity War\" obraża Ebony Mawa, nazywając go \"Squidwardem.\"",
+            "Skalmar urodził się 9 października — w Dzień Leifa Eriksona, święto entuzjastycznie obchodzone przez SpongeBoba w odcinku \"Bubble Buddy.\"",
+            "Pełne imię Skalmara to Squidward Quincy Tentacles, a w polskiej wersji — Skalmar J.Q. Obłynos.",
+            "W 2000 roku powstała seria krótkometrażówek \"Astrology with Squidward\", w której Skalmar wcielał się w jasnowidza opowiadającego o znakach zodiaku.",
+            "Skalmar pojawił się w promówce Blue's Clues z 2002 roku, twierdząc że byłby lepszym gospodarzem programu niż Joe.",
             "Znak zodiaku Skalmara to Waga (Libra).",
-            "Skalmar ma druga najwieksza liczbe wystapien w serialu — wiecej niz Patryk, o okolo 40 odcinkow.",
-            "Skalmar kiedys mial bujne, dlugie blond wlosy — stracil je po odejsciu Jima z Krusty Krab, co ujawniono w odcinku \"The Original Fry Cook.\"",
+            "Skalmar ma drugą największą liczbę wystąpień w serialu — więcej niż Patryk, o około 40 odcinków.",
+            "Skalmar kiedyś miał bujne, długie blond włosy — stracił je po odejściu Jima z Krusty Krab, co ujawniono w odcinku \"The Original Fry Cook.\"",
             "Ulubione jedzenie Skalmara to lody — ujawniono to w odcinku \"The Fish Bowl.\"",
-            "Skalmar lubi muzyke conga — ujawniono to w odcinku \"Jolly Lodgers.\"",
-            "Skalmar Oblynos ma problem z obgryzaniem paznokci — ujawniono to w odcinku \"SpongeBob's Bad Habit.\"",
-            "Skalmar jest klaustrofobiczny i boi sie wysokosci — choc ta druga fobia jest niespojna, bo w \"No Hat for Pat\" stoi na trampolinie bez strachu.",
-            "Postac przypominajaca Skalmara pojawia sie jako cameo w odcinku 15 japonskiego anime \"Tengen Toppa Gurren Lagann.\"",
-            "W pazdzierniku 2007 Nickelodeon przebral Skalmara za Upiora z Opery w przerwach reklamowych.",
-            "Skalmar ma gwiazde na Hollywoodzkiej Alei Slaw — w fikcyjnym swiecie filmu \"Chip 'n Dale: Rescue Rangers.\"",
-            "Dom Skalmara (posag moai z Wyspy Wielkanocnej) sam z siebie pochylil sie, zeby spojrzec na tajemnicza skrzynke w odcinku \"The Secret Box\" — pierwszy przypadek samodzielnego ruchu domu.",
-            "Skalmar jest jedna z najtrudniejszych postaci do rysowania — jego nos \"dzieli wszystko na pol\", co utrudnia oddanie emocji.",
-            "W polskim dubbingu glosu Skalmarowi uzywa Zbigniew Suszynski. Wczesniej w wersji lektorskiej nazywal sie \"Squidward Macka.\"",
-            "Na musicalu broadwayowskim Gavin Lee gral Skalmara z 4 sztucznymi nogami i stepowal na nich ponad 7 minut — dodatkowe nogi wazyly 11 kg.",
-            "Gavin Lee zdobyl nagrode Drama Desk Award za role Skalmara i byl nominowany do Tony Award.",
-            "Magazyny, ktore Skalmar czyta w pracy, zmieniaja sie w zaleznosci od odcinka — ich tytuly to m.in. \"Dance!\", \"Art\", \"Squid Ink\" i \"House Fancy.\"",
-            "Skalmar w odcinku \"Reef Blower\" ma kolor fioletowy gdy SpongeBob wysysa wode z oceanu — niespojnosc nigdy niewyjastniona przez tworcow.",
-            "Skalmar jako dziecko gral na kazoo tak zle, ze wszyscy uczniowie uciekli ze szkoly — sam myslal, ze gra doskonale.",
-            "Skalmar potrafi karate — malo znany fakt ujawniony na polskiej wiki.",
-            "Pharrell Williams wyznal, ze Skalmar to jego ulubiona postac i \"gdyby byl czlowiekiem, spedzalby z nim czas.\"",
-            "Scenarzysta Casey Alexander powiedzial, ze Skalmar jest \"najbardziej ludzka postacia\" w serialu i ta, z ktora utozsamia sie najbardziej."
+            "Skalmar lubi muzykę conga — ujawniono to w odcinku \"Jolly Lodgers.\"",
+            "Skalmar Obłynos ma problem z obgryzaniem paznokci — ujawniono to w odcinku \"SpongeBob's Bad Habit.\"",
+            "Skalmar jest klaustrofobiczny i boi się wysokości — choć ta druga fobia jest niespójna, bo w \"No Hat for Pat\" stoi na trampolinie bez strachu.",
+            "Postać przypominająca Skalmara pojawia się jako cameo w odcinku 15 japońskiego anime \"Tengen Toppa Gurren Lagann.\"",
+            "W październiku 2007 Nickelodeon przebrał Skalmara za Upiora z Opery w przerwach reklamowych.",
+            "Skalmar ma gwiazdę na Hollywoodzkiej Alei Sław — w fikcyjnym świecie filmu \"Chip 'n Dale: Rescue Rangers.\"",
+            "Dom Skalmara (posąg moai z Wyspy Wielkanocnej) sam z siebie pochylił się, żeby spojrzeć na tajemniczą skrzynkę w odcinku \"The Secret Box\" — pierwszy przypadek samodzielnego ruchu domu.",
+            "Skalmar jest jedną z najtrudniejszych postaci do rysowania — jego nos \"dzieli wszystko na pół\", co utrudnia oddanie emocji.",
+            "W polskim dubbingu głosu Skalmarowi użycza Zbigniew Suszyński. Wcześniej w wersji lektorskiej nazywał się \"Squidward Macka.\"",
+            "Na musicalu broadwayowskim Gavin Lee grał Skalmara z 4 sztucznymi nogami i stepował na nich ponad 7 minut — dodatkowe nogi ważyły 11 kg.",
+            "Gavin Lee zdobył nagrodę Drama Desk Award za rolę Skalmara i był nominowany do Tony Award.",
+            "Magazyny, które Skalmar czyta w pracy, zmieniają się w zależności od odcinka — ich tytuły to m.in. \"Dance!\", \"Art\", \"Squid Ink\" i \"House Fancy.\"",
+            "Skalmar w odcinku \"Reef Blower\" ma kolor fioletowy gdy SpongeBob wysysa wodę z oceanu — niespójność nigdy niewyjaśniona przez twórców.",
+            "Skalmar jako dziecko grał na kazoo tak źle, że wszyscy uczniowie uciekli ze szkoły — sam myślał, że gra doskonale.",
+            "Skalmar potrafi karate — mało znany fakt ujawniony na polskiej wiki.",
+            "Pharrell Williams wyznał, że Skalmar to jego ulubiona postać i \"gdyby był człowiekiem, spędzałby z nim czas.\"",
+            "Scenarzysta Casey Alexander powiedział, że Skalmar jest \"najbardziej ludzką postacią\" w serialu i tą, z którą utożsamia się najbardziej."
         ];
         function nextFunFact() {
             const el = document.getElementById('funFactText');
@@ -185,65 +185,66 @@
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="changelogTab">
 
-                        <h6 class="text-primary">v2.5 <small class="text-muted">— kwiecien 2026</small></h6>
+                        <h6 class="text-primary">v2.5 <small class="text-muted">— kwiecień 2026</small></h6>
                         <ul class="small">
-                            <li>Nowy layout: sidebar nawigacyjny zamiast gornej belki</li>
-                            <li>Strona Ustawienia — centralne zarzadzanie kluczami API i konfiguracjami</li>
+                            <li>Nowy layout: sidebar nawigacyjny zamiast górnej belki</li>
+                            <li>Strona Ustawienia — centralne zarządzanie kluczami API i konfiguracjami</li>
                             <li>Toast notifications zamiast alert()</li>
-                            <li>Karty z cieniami i zaokragleniami, spojne przyciski</li>
-                            <li>Loading states i poprawiona responsywnosc</li>
+                            <li>Karty z cieniami i zaokrągleniami, spójne przyciski</li>
+                            <li>Loading states i poprawiona responsywność</li>
+                            <li>Rozbudowany panel profilu z wykresami i statystykami</li>
                         </ul>
 
-                        <h6 class="text-primary">v2.4 <small class="text-muted">— kwiecien 2026</small></h6>
+                        <h6 class="text-primary">v2.4 <small class="text-muted">— kwiecień 2026</small></h6>
                         <ul class="small">
-                            <li>Dashboard: karty podsumowania, sortowanie kolumn, podswietlanie bledow</li>
+                            <li>Dashboard: karty podsumowania, sortowanie kolumn, podświetlanie błędów</li>
                             <li>Dashboard: statusy zapisywane w bazie, diody LED zamiast tekstu</li>
-                            <li>Dashboard: ukrycie kolumn Login/Password, CRON automatyczne odswiezanie</li>
+                            <li>Dashboard: ukrycie kolumn Login/Password, CRON automatyczne odświeżanie</li>
                             <li>Dioda statusu Claude API w nawigacji (live z status.claude.com)</li>
-                            <li>Wyszukiwarka klientow w zakladce Linki</li>
+                            <li>Wyszukiwarka klientów w zakładce Linki</li>
                             <li>Filtrowanie dat w historii publikacji</li>
                             <li>Korekta ortograficzna (Sonnet) jako osobny krok po generowaniu</li>
                         </ul>
 
-                        <h6 class="text-primary">v2.3 <small class="text-muted">— kwiecien 2026</small></h6>
+                        <h6 class="text-primary">v2.3 <small class="text-muted">— kwiecień 2026</small></h6>
                         <ul class="small">
                             <li>Edytor WYSIWYG z toolbarem (linki, formatowanie, widok HTML)</li>
-                            <li>Zamowienie masowe: checkboxy, losowe daty, edytowalne kategorie, status publikacji</li>
-                            <li>Obsluga 35 jezykow europejskich w generowaniu artykulow</li>
-                            <li>Zakazane wzorce AI per jezyk (PL, EN, DE, ES, NL, SV, CS, FR, IT, PT)</li>
+                            <li>Zamówienie masowe: checkboxy, losowe daty, edytowalne kategorie, status publikacji</li>
+                            <li>Obsługa 35 języków europejskich w generowaniu artykułów</li>
+                            <li>Zakazane wzorce AI per język (PL, EN, DE, ES, NL, SV, CS, FR, IT, PT)</li>
                         </ul>
 
-                        <h6 class="text-primary">v2.2 <small class="text-muted">— marzec/kwiecien 2026</small></h6>
+                        <h6 class="text-primary">v2.2 <small class="text-muted">— marzec/kwiecień 2026</small></h6>
                         <ul class="small">
-                            <li>Zakladka "Zamow i opublikuj" — generowanie AI + grafiki Gemini + publikacja</li>
-                            <li>Zamowienie masowe CSV z automatycznym mapowaniem kategorii</li>
+                            <li>Zakładka "Zamów i opublikuj" — generowanie AI + grafiki Gemini + publikacja</li>
+                            <li>Zamówienie masowe CSV z automatycznym mapowaniem kategorii</li>
                             <li>Integracja Speed-Links.net (indeksacja VIP)</li>
-                            <li>Zakladka "Usun linki" — usuwanie linkow klienta z wpisow WP</li>
+                            <li>Zakładka "Usuń linki" — usuwanie linków klienta z wpisów WP</li>
                         </ul>
 
                         <h6 class="text-primary">v2.1 <small class="text-muted">— marzec 2026</small></h6>
                         <ul class="small">
-                            <li>Profile uzytkownikow ze statystykami publikacji</li>
-                            <li>Zarzadzanie haslami i rolami (admin/worker)</li>
+                            <li>Profile użytkowników ze statystykami publikacji</li>
+                            <li>Zarządzanie hasłami i rolami (admin/worker)</li>
                             <li>Przeszukiwalne dropdowny (filtrowanie list)</li>
-                            <li>Klikalna liczba linkow na dashboardzie</li>
+                            <li>Klikalna liczba linków na dashboardzie</li>
                         </ul>
 
                         <h6 class="text-primary">v2.0 <small class="text-muted">— marzec 2026</small></h6>
                         <ul class="small">
-                            <li>System sledzenia linkow (klienci, linki, skanowanie, raporty)</li>
-                            <li>Import/eksport CSV klientow</li>
-                            <li>Fuzzy matching tytulow DOCX/XLSX (Jaccard + subset)</li>
-                            <li>Parser DOCX z zachowaniem hyperlinkow</li>
+                            <li>System śledzenia linków (klienci, linki, skanowanie, raporty)</li>
+                            <li>Import/eksport CSV klientów</li>
+                            <li>Fuzzy matching tytułów DOCX/XLSX (Jaccard + subset)</li>
+                            <li>Parser DOCX z zachowaniem hyperlinków</li>
                         </ul>
 
                         <h6 class="text-primary">v1.0 <small class="text-muted">— luty/marzec 2026</small></h6>
                         <ul class="small">
                             <li>Dashboard stron zapleczowych z filtrami kategorii</li>
-                            <li>Publikacja artykulow przez WP REST API</li>
+                            <li>Publikacja artykułów przez WP REST API</li>
                             <li>Import masowy z XLSX + DOCX</li>
                             <li>Generowanie grafik AI (Gemini)</li>
-                            <li>Zarzadzanie haslami WP Application Passwords</li>
+                            <li>Zarządzanie hasłami WP Application Passwords</li>
                         </ul>
 
                     </div>
@@ -251,23 +252,23 @@
 
                         <h6><span class="badge bg-danger">v2.6</span> — w przygotowaniu</h6>
                         <ul class="small">
-                            <li><strong>Integracja Google Search Console</strong> — klikniecia i wyswietlenia per domena na dashboardzie (ostatnie 30 dni)</li>
-                            <li>Metryki jakosciowe stron zapleczowych z GSC</li>
-                            <li>Automatyczne odswiezanie danych GSC (CRON)</li>
+                            <li><strong>Integracja Google Search Console</strong> — kliknięcia i wyświetlenia per domena na dashboardzie (ostatnie 30 dni)</li>
+                            <li>Metryki jakościowe stron zapleczowych z GSC</li>
+                            <li>Automatyczne odświeżanie danych GSC (CRON)</li>
                         </ul>
 
                         <h6><span class="badge bg-warning text-dark">v2.7</span> — planowane</h6>
                         <ul class="small">
-                            <li>Panel statystyk admina (blog > linkowana domena > artykul > data > worker)</li>
-                            <li>Rozszerzone statystyki profilu (miesieczna historia, wykresy)</li>
+                            <li>Panel statystyk admina (blog > linkowana domena > artykuł > data > worker)</li>
+                            <li>Rozszerzone statystyki profilu (miesięczna historia, wykresy)</li>
                         </ul>
 
                         <h6><span class="badge bg-secondary">Backlog</span></h6>
                         <ul class="small">
                             <li>Grupowanie stron po kategoriach na dashboardzie</li>
-                            <li>Mini-wykresy trendow publikacji per domena</li>
+                            <li>Mini-wykresy trendów publikacji per domena</li>
                             <li>Powiadomienia o awariach stron (email/Slack)</li>
-                            <li>API do integracji z zewnetrznymi narzedziami</li>
+                            <li>API do integracji z zewnętrznymi narzędziami</li>
                         </ul>
 
                     </div>

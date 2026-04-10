@@ -69,10 +69,66 @@ if ($method === 'GET') {
         $publications[] = $row;
     }
 
+    // Top clients by link count
+    $stmt = $db->prepare("
+        SELECT c.name, c.domain, c.color, COUNT(l.id) AS link_count
+        FROM links l
+        JOIN clients c ON c.id = l.client_id
+        JOIN publications p ON p.site_id = l.site_id AND p.post_url = l.post_url
+        WHERE p.user_id = :uid
+        GROUP BY c.id
+        ORDER BY link_count DESC
+        LIMIT 10
+    ");
+    $stmt->bindValue(':uid', $userId, SQLITE3_INTEGER);
+    $result = $stmt->execute();
+    $topClients = [];
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+        $topClients[] = $row;
+    }
+
+    // Top sites by publication count
+    $stmt = $db->prepare("
+        SELECT s.name, s.url, COUNT(p.id) AS pub_count
+        FROM publications p
+        JOIN sites s ON s.id = p.site_id
+        WHERE p.user_id = :uid
+        GROUP BY s.id
+        ORDER BY pub_count DESC
+        LIMIT 10
+    ");
+    $stmt->bindValue(':uid', $userId, SQLITE3_INTEGER);
+    $result = $stmt->execute();
+    $topSites = [];
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+        $topSites[] = $row;
+    }
+
+    // Summary totals
+    $totalPubs = count($publications);
+    $uniqueSites = [];
+    $uniqueClients = [];
+    $linkedCount = 0;
+    foreach ($publications as $p) {
+        if (!empty($p['site_name'])) $uniqueSites[$p['site_name']] = true;
+        if (!empty($p['client_domain'])) {
+            $uniqueClients[$p['client_domain']] = true;
+            $linkedCount++;
+        }
+    }
+
     echo json_encode([
         'user' => $user,
         'monthly' => $monthly,
         'publications' => $publications,
+        'top_clients' => $topClients,
+        'top_sites' => $topSites,
+        'summary' => [
+            'total_pubs' => $totalPubs,
+            'total_linked' => $linkedCount,
+            'unique_sites' => count($uniqueSites),
+            'unique_clients' => count($uniqueClients),
+        ],
     ]);
     exit;
 }

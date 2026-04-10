@@ -8,16 +8,16 @@ $isAdminUser = isAdmin();
     <select class="form-select form-select-sm" id="categoryFilter" style="width:200px" onchange="filterSites()">
         <option value="">Wszystkie kategorie</option>
     </select>
-    <select class="form-select form-select-sm" id="clientFilter" style="width:220px" onchange="filterSites()">
+    <select class="form-select form-select-sm" id="clientFilter" style="width:280px" onchange="filterSites()">
         <option value="">Wszyscy klienci</option>
     </select>
     <button class="btn btn-outline-primary btn-sm" onclick="refreshAllStatuses()">
-        <i class="bi bi-arrow-clockwise"></i> Odswiez statusy
+        <i class="bi bi-arrow-clockwise"></i> Odśwież statusy
     </button>
-    <span class="text-muted small align-self-center" id="lastStatusCheck" title="Ostatnie odswiezenie statusow"></span>
+    <span class="text-muted small align-self-center" id="lastStatusCheck" title="Ostatnie odświeżenie statusów"></span>
     <div class="ms-auto d-flex gap-2">
         <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addSiteModal">
-            <i class="bi bi-plus-lg"></i> Dodaj strone
+            <i class="bi bi-plus-lg"></i> Dodaj stronę
         </button>
         <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('csvFile').click()">
             <i class="bi bi-upload"></i> Importuj CSV
@@ -43,7 +43,7 @@ $isAdminUser = isAdmin();
         <div class="card border-0 shadow-sm">
             <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
                 <i class="bi bi-file-earmark-text fs-4 text-success"></i>
-                <div><div class="small text-muted">Wpisow</div><div class="fw-bold fs-5" id="sumPosts">0</div></div>
+                <div><div class="small text-muted">Wpisów</div><div class="fw-bold fs-5" id="sumPosts">0</div></div>
             </div>
         </div>
     </div>
@@ -51,7 +51,7 @@ $isAdminUser = isAdmin();
         <div class="card border-0 shadow-sm">
             <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
                 <i class="bi bi-link-45deg fs-4 text-info"></i>
-                <div><div class="small text-muted">Linkow</div><div class="fw-bold fs-5" id="sumLinks">0</div></div>
+                <div><div class="small text-muted">Linków</div><div class="fw-bold fs-5" id="sumLinks">0</div></div>
             </div>
         </div>
     </div>
@@ -59,7 +59,7 @@ $isAdminUser = isAdmin();
         <div class="card border-0 shadow-sm" id="sumErrorsCard">
             <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
                 <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
-                <div><div class="small text-muted">Bledy HTTP/API</div><div class="fw-bold fs-5" id="sumErrors">0</div></div>
+                <div><div class="small text-muted">Błędy HTTP/API</div><div class="fw-bold fs-5" id="sumErrors">0</div></div>
             </div>
         </div>
     </div>
@@ -81,7 +81,7 @@ $isAdminUser = isAdmin();
             </tr>
         </thead>
         <tbody id="sitesBody">
-            <tr><td colspan="9" class="text-center text-muted">Ladowanie...</td></tr>
+            <tr><td colspan="9" class="text-center text-muted">Ładowanie...</td></tr>
         </tbody>
     </table>
 </div>
@@ -91,7 +91,7 @@ $isAdminUser = isAdmin();
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="siteModalTitle">Dodaj strone</h5>
+                <h5 class="modal-title" id="siteModalTitle">Dodaj stronę</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">

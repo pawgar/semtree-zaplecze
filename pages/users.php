@@ -18,7 +18,7 @@
             </tr>
         </thead>
         <tbody id="usersBody">
-            <tr><td colspan="5" class="text-center text-muted">Ladowanie...</td></tr>
+            <tr><td colspan="5" class="text-center text-muted">Ładowanie...</td></tr>
         </tbody>
     </table>
 </div>
@@ -37,7 +37,7 @@
                     <input type="text" class="form-control" id="newUserLogin" required>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Haslo</label>
+                    <label class="form-label">Hasło</label>
                     <input type="password" class="form-control" id="newUserPassword" required>
                 </div>
             </div>
@@ -54,19 +54,19 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Ustaw haslo dla: <span id="resetPasswordUser"></span></h5>
+                <h5 class="modal-title">Ustaw hasło dla: <span id="resetPasswordUser"></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">Nowe haslo</label>
+                    <label class="form-label">Nowe hasło</label>
                     <input type="password" class="form-control" id="resetPasswordInput" required>
                 </div>
                 <input type="hidden" id="resetPasswordUserId">
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-                <button type="button" class="btn btn-warning" onclick="confirmResetPassword()">Ustaw haslo</button>
+                <button type="button" class="btn btn-warning" onclick="confirmResetPassword()">Ustaw hasło</button>
             </div>
         </div>
     </div>

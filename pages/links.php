@@ -6,7 +6,7 @@ require_once __DIR__ . '/../includes/header.php';
 <ul class="nav nav-tabs mb-3" id="linksTabs" role="tablist">
     <li class="nav-item">
         <button class="nav-link active" id="tab-overview" data-bs-toggle="tab" data-bs-target="#pane-overview" type="button">
-            <i class="bi bi-grid-3x3-gap"></i> Przeglad
+            <i class="bi bi-grid-3x3-gap"></i> Przegląd
         </button>
     </li>
     <li class="nav-item">
@@ -26,7 +26,7 @@ require_once __DIR__ . '/../includes/header.php';
     </li>
     <li class="nav-item">
         <button class="nav-link" id="tab-removelinks" data-bs-toggle="tab" data-bs-target="#pane-removelinks" type="button">
-            <i class="bi bi-link-45deg text-danger"></i> Usun linki
+            <i class="bi bi-link-45deg text-danger"></i> Usuń linki
         </button>
     </li>
 </ul>
@@ -53,7 +53,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </tr>
                 </thead>
                 <tbody id="linksOverviewBody">
-                    <tr><td colspan="6" class="text-center text-muted">Ladowanie...</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted">Ładowanie...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -74,7 +74,7 @@ require_once __DIR__ . '/../includes/header.php';
             </button>
         </div>
         <div class="mb-3" style="max-width:300px">
-            <input type="text" class="form-control form-control-sm" id="clientsSearchInput" placeholder="Szukaj klienta..." oninput="filterClientsTable()">
+            <input type="text" class="form-control form-control-sm" id="clientsSearchInput" placeholder="Szukaj klienta..." autocomplete="new-password" data-lpignore="true" oninput="filterClientsTable()">
         </div>
         <div class="row">
             <div class="col-md-5">
@@ -90,7 +90,7 @@ require_once __DIR__ . '/../includes/header.php';
                             </tr>
                         </thead>
                         <tbody id="clientsBody">
-                            <tr><td colspan="5" class="text-center text-muted">Ladowanie...</td></tr>
+                            <tr><td colspan="5" class="text-center text-muted">Ładowanie...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -141,7 +141,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <i class="bi bi-download"></i> CSV
             </button>
             <button class="btn btn-outline-danger btn-sm" onclick="clearAllLinks()">
-                <i class="bi bi-trash"></i> Wyczysc wszystko
+                <i class="bi bi-trash"></i> Wyczyść wszystko
             </button>
             <span id="historyCount" class="text-muted small"></span>
         </div>
@@ -161,7 +161,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </tr>
                 </thead>
                 <tbody id="linksHistoryBody">
-                    <tr><td colspan="9" class="text-center text-muted">Ladowanie...</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted">Ładowanie...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -196,13 +196,13 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="">-- wybierz klienta --</option>
             </select>
             <button class="btn btn-outline-danger btn-sm" id="btnRemoveSelected" onclick="removeSelectedLinks()" disabled>
-                <i class="bi bi-trash"></i> Usun zaznaczone linki z wpisow
+                <i class="bi bi-trash"></i> Usuń zaznaczone linki z wpisów
             </button>
             <span id="removeLinksStatus" class="text-muted small"></span>
         </div>
         <div class="alert alert-info small">
             <i class="bi bi-info-circle"></i>
-            Usuwanie linku oznacza: tekst anchora pozostaje we wpisie, ale tag <code>&lt;a&gt;</code> zostaje usuniety.
+            Usuwanie linku oznacza: tekst anchora pozostaje we wpisie, ale tag <code>&lt;a&gt;</code> zostaje usunięty.
             Wpis blogowy NIE jest kasowany.
         </div>
         <div class="table-responsive">

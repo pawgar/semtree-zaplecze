@@ -311,7 +311,7 @@ function buildClientFilter() {
     api('GET', 'api/clients.php').then(clients => {
         const current = sel.value;
         sel.innerHTML = '<option value="">Wszyscy klienci</option>' +
-            clients.map(c => `<option value="${c.id}">Bez linka do: ${esc(c.name)}</option>`).join('');
+            clients.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.domain)})</option>`).join('');
         sel.value = current;
         initSearchableSelects();
     });
@@ -785,19 +785,35 @@ function loadProfileStats() {
     api('GET', `api/profile.php?user_id=${userId}`).then(data => {
         if (data.error) return;
 
-        // Set title
-        document.getElementById('profileTitle').textContent = `Profil: ${data.user.username}`;
+        // Summary cards
+        const summary = document.getElementById('profileSummary');
+        if (summary && data.summary) {
+            summary.style.display = '';
+            document.getElementById('profileTotalPubs').textContent = data.summary.total_pubs;
+            document.getElementById('profileTotalLinks').textContent = data.summary.total_linked;
+            document.getElementById('profileTotalSites').textContent = data.summary.unique_sites;
+            document.getElementById('profileTotalClients').textContent = data.summary.unique_clients;
+        }
 
-        // Monthly stats
+        // Activity chart (last 12 months bar chart)
+        renderProfileActivityChart(data.monthly || []);
+
+        // Top clients
+        renderProfileTopClients(data.top_clients || []);
+
+        // Top sites
+        renderProfileTopSites(data.top_sites || []);
+
+        // Monthly stats table
         const monthlyBody = document.getElementById('monthlyStatsBody');
         if (data.monthly.length === 0) {
             monthlyBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Brak danych</td></tr>';
         } else {
             monthlyBody.innerHTML = data.monthly.map(m => `
                 <tr>
-                    <td>${esc(m.month)}</td>
-                    <td>${m.total_articles}</td>
-                    <td>${m.articles_with_links}</td>
+                    <td class="small">${esc(m.month)}</td>
+                    <td class="text-center">${m.total_articles}</td>
+                    <td class="text-center">${m.articles_with_links}</td>
                 </tr>
             `).join('');
         }
@@ -806,6 +822,77 @@ function loadProfileStats() {
         allProfilePublications = data.publications || [];
         renderProfilePublications(allProfilePublications);
     });
+}
+
+function renderProfileActivityChart(monthly) {
+    const container = document.getElementById('profileActivityChart');
+    if (!container) return;
+
+    // Get last 12 months (fill gaps)
+    const months = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = d.toISOString().substring(0, 7);
+        const label = d.toLocaleDateString('pl', { month: 'short' });
+        const found = monthly.find(m => m.month === key);
+        months.push({ key, label, count: found ? parseInt(found.total_articles) : 0 });
+    }
+
+    const max = Math.max(...months.map(m => m.count), 1);
+
+    container.innerHTML = months.map(m => {
+        const pct = Math.max((m.count / max) * 100, 2);
+        return `<div class="d-flex flex-column align-items-center flex-fill" style="min-width:0">
+            <span class="small text-muted mb-1" style="font-size:0.7rem">${m.count || ''}</span>
+            <div class="profile-chart-bar" style="height:${pct}%" title="${m.key}: ${m.count} artykułów"></div>
+            <span class="small text-muted mt-1" style="font-size:0.65rem">${m.label}</span>
+        </div>`;
+    }).join('');
+}
+
+function renderProfileTopClients(clients) {
+    const container = document.getElementById('profileTopClients');
+    if (!container) return;
+
+    if (!clients.length) {
+        container.innerHTML = '<div class="text-muted small text-center">Brak danych</div>';
+        return;
+    }
+
+    const max = clients[0]?.link_count || 1;
+    container.innerHTML = clients.map(c => `
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="badge" style="background:${c.color || '#6c757d'};min-width:8px;height:8px;padding:0;border-radius:50%"></span>
+            <span class="small flex-fill text-truncate" title="${esc(c.domain)}">${esc(c.name)}</span>
+            <div class="progress flex-fill" style="height:6px;max-width:100px">
+                <div class="progress-bar" style="width:${(c.link_count / max) * 100}%;background:${c.color || 'var(--primary)'}"></div>
+            </div>
+            <span class="badge bg-secondary">${c.link_count}</span>
+        </div>
+    `).join('');
+}
+
+function renderProfileTopSites(sites) {
+    const container = document.getElementById('profileTopSites');
+    if (!container) return;
+
+    if (!sites.length) {
+        container.innerHTML = '<div class="text-muted small text-center">Brak danych</div>';
+        return;
+    }
+
+    const max = sites[0]?.pub_count || 1;
+    container.innerHTML = sites.map(s => `
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="bi bi-globe2 text-muted small"></i>
+            <span class="small flex-fill text-truncate" title="${esc(s.url)}">${esc(s.name)}</span>
+            <div class="progress flex-fill" style="height:6px;max-width:100px">
+                <div class="progress-bar bg-info" style="width:${(s.pub_count / max) * 100}%"></div>
+            </div>
+            <span class="badge bg-secondary">${s.pub_count}</span>
+        </div>
+    `).join('');
 }
 
 function renderProfilePublications(pubs) {

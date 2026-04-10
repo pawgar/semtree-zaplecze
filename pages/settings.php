@@ -13,7 +13,7 @@ $isAdminUser = isAdmin();
             <div class="content-card-body">
                 <div class="mb-4">
                     <label class="form-label fw-semibold">Anthropic API Key <small class="text-muted">(Claude)</small></label>
-                    <p class="text-muted small mb-2">Klucz API do generowania artykulow. Pobierz z <a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>.</p>
+                    <p class="text-muted small mb-2">Klucz API do generowania artykułów. Pobierz z <a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>.</p>
                     <div class="input-group">
                         <input type="password" class="form-control" id="anthropicApiKeyInput" placeholder="sk-ant-...">
                         <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('anthropicApiKeyInput', this)">
@@ -25,7 +25,7 @@ $isAdminUser = isAdmin();
 
                 <div class="mb-4">
                     <label class="form-label fw-semibold">Gemini API Key <small class="text-muted">(Obrazki)</small></label>
-                    <p class="text-muted small mb-2">Klucz do generowania obrazkow AI. Pobierz z <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>.</p>
+                    <p class="text-muted small mb-2">Klucz do generowania obrazków AI. Pobierz z <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>.</p>
                     <div class="input-group">
                         <input type="password" class="form-control" id="geminiApiKey" placeholder="AIza...">
                         <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('geminiApiKey', this)">
@@ -54,21 +54,21 @@ $isAdminUser = isAdmin();
     <div class="col-lg-6">
         <div class="content-card">
             <div class="content-card-header">
-                <i class="bi bi-cpu"></i> Generowanie tresci
+                <i class="bi bi-cpu"></i> Generowanie treści
             </div>
             <div class="content-card-body">
                 <div class="mb-4">
                     <label class="form-label fw-semibold">Model AI</label>
                     <select class="form-select" id="settingsAiModel">
-                        <option value="claude-sonnet-4-6">Claude Sonnet 4 (domyslny)</option>
-                        <option value="claude-opus-4-0-20250115">Claude Opus 4 (wyzsza jakosc, wolniejszy)</option>
-                        <option value="claude-3-5-haiku-20241022">Claude Haiku 3.5 (szybki, tanszy)</option>
+                        <option value="claude-sonnet-4-6">Claude Sonnet 4 (domyślny)</option>
+                        <option value="claude-opus-4-0-20250115">Claude Opus 4 (wyższa jakość, wolniejszy)</option>
+                        <option value="claude-3-5-haiku-20241022">Claude Haiku 3.5 (szybki, tańszy)</option>
                     </select>
-                    <div class="form-text">Model uzywany do generowania i korekty artykulow.</div>
+                    <div class="form-text">Model używany do generowania i korekty artykułów.</div>
                 </div>
 
                 <div class="mb-4">
-                    <label class="form-label fw-semibold">Domyslny jezyk</label>
+                    <label class="form-label fw-semibold">Domyślny język</label>
                     <select class="form-select" id="settingsDefaultLang">
                         <?php
                         require_once __DIR__ . '/../includes/article_prompt.php';
@@ -78,7 +78,7 @@ $isAdminUser = isAdmin();
                         }
                         ?>
                     </select>
-                    <div class="form-text">Jezyk domyslny w formularzach generowania.</div>
+                    <div class="form-text">Język domyślny w formularzach generowania.</div>
                 </div>
 
                 <button class="btn btn-primary" onclick="saveContentSettings()">
@@ -93,10 +93,10 @@ $isAdminUser = isAdmin();
     <div class="col-lg-6">
         <div class="content-card">
             <div class="content-card-header">
-                <i class="bi bi-clock-history"></i> Automatyczne odswiezanie (CRON)
+                <i class="bi bi-clock-history"></i> Automatyczne odświeżanie (CRON)
             </div>
             <div class="content-card-body">
-                <p class="text-muted small mb-3">Ustaw cron job na serwerze do automatycznego odswiezania statusow stron (np. o 23:00).</p>
+                <p class="text-muted small mb-3">Ustaw cron job na serwerze do automatycznego odświeżania statusów stron (np. o 23:00).</p>
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Token CRON</label>
                     <div class="input-group">
@@ -121,12 +121,12 @@ $isAdminUser = isAdmin();
     <div class="col-lg-6">
         <div class="content-card">
             <div class="content-card-header">
-                <i class="bi bi-shield-lock"></i> Hasla WordPress
+                <i class="bi bi-shield-lock"></i> Hasła WordPress
             </div>
             <div class="content-card-body">
-                <p class="text-muted small mb-3">Zmien haslo logowania na wszystkich stronach zapleczowych jednoczesnie. Application Passwords pozostana bez zmian.</p>
+                <p class="text-muted small mb-3">Zmień hasło logowania na wszystkich stronach zapleczowych jednocześnie. Application Passwords pozostaną bez zmian.</p>
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Nowe haslo</label>
+                    <label class="form-label fw-semibold">Nowe hasło</label>
                     <div class="input-group">
                         <input type="password" class="form-control" id="newGlobalPassword">
                         <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('newGlobalPassword', this)">
@@ -135,7 +135,7 @@ $isAdminUser = isAdmin();
                     </div>
                 </div>
                 <button class="btn btn-warning" id="btnChangeAllPasswords" onclick="changeAllPasswords()">
-                    <i class="bi bi-key"></i> Zmien haslo na wszystkich
+                    <i class="bi bi-key"></i> Zmień hasło na wszystkich
                 </button>
                 <div id="passwordChangeResults" class="d-none mt-3">
                     <hr>
