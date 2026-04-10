@@ -3348,50 +3348,140 @@ function matchBulkCategory(csvCategoryName) {
     return { id: 0, name: csvCategoryName + ' (?)' };
 }
 
-function bulkOrderParseCsv(input) {
+// ── Bulk file parsing (CSV + XLSX) with column mapping ──────
+let bulkOrderParsedData = null; // { headers: [], rows: [] }
+
+async function bulkOrderParseFile(input) {
     const file = input.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const text = e.target.result.replace(/^\uFEFF/, ''); // strip BOM
-        const lines = text.split(/\r?\n/).filter(l => l.trim());
-        bulkOrderItems = [];
+    const statusEl = document.getElementById('bulkOrderFileStatus');
+    statusEl.textContent = 'Wczytywanie pliku...';
 
-        for (const line of lines) {
-            const parts = line.split(';').map(p => p.trim());
-            const title = parts[0] || '';
-            if (!title) continue;
-            // Skip header row
-            if (['tytuł', 'tytul', 'title'].includes(title.toLowerCase())) continue;
+    const formData = new FormData();
+    formData.append('file', file);
 
-            const csvCategory = parts[3] || '';
-            const matched = matchBulkCategory(csvCategory);
-            bulkOrderItems.push({
-                title,
-                main_keyword: parts[1] || '',
-                secondary_keywords: parts[2] || '',
-                category_name: csvCategory,
-                category_id: matched.id,
-                category_matched: matched.id > 0,
-                notes: parts[4] || '',
-                lang: parts[5] || '',
-                selected: true,
-                publish_date: '',
-                status: 'pending',
-            });
-        }
+    try {
+        const resp = await fetch('api/parse-bulk-file.php', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error, 'error'); statusEl.textContent = ''; return; }
 
-        if (bulkOrderItems.length === 0) {
-            showToast('Plik CSV nie zawiera artykulow');
-            return;
-        }
+        bulkOrderParsedData = data;
+        statusEl.textContent = `${file.name} — ${data.rows.length} wierszy`;
 
-        renderBulkOrderTable();
-        document.getElementById('bulkOrderTableCard').style.display = '';
-    };
-    reader.readAsText(file, 'UTF-8');
+        // Show mapping modal
+        bulkOrderShowMapping(data);
+    } catch (e) {
+        showToast('Błąd parsowania pliku: ' + e.message, 'error');
+        statusEl.textContent = '';
+    }
     input.value = '';
+}
+
+function bulkOrderShowMapping(data) {
+    const headers = data.headers;
+    const fields = [
+        { id: 'mapColTitle', patterns: ['tytuł', 'tytul', 'title', 'temat', 'nazwa'], required: true },
+        { id: 'mapColMainKw', patterns: ['główne', 'glowne', 'main', 'keyword', 'słowo kluczowe', 'slowo kluczowe', 'kw'], required: true },
+        { id: 'mapColSecondaryKw', patterns: ['pomocnicze', 'poboczne', 'secondary', 'dodatkowe kw', 'słowa kluczowe poboczne'], required: false },
+        { id: 'mapColNotes', patterns: ['dodatkowe informacje', 'notatki', 'notes', 'info', 'wskazówki', 'wskazowki', 'opis'], required: false },
+        { id: 'mapColCategory', patterns: ['kategoria', 'category', 'cat', 'katalog', 'dział', 'dzial'], required: false },
+        { id: 'mapColLang', patterns: ['język', 'jezyk', 'lang', 'language'], required: false },
+    ];
+
+    // Auto-detect mapping
+    for (const field of fields) {
+        const sel = document.getElementById(field.id);
+        sel.innerHTML = '<option value="">— pomiń —</option>' +
+            headers.map((h, i) => `<option value="${i}">${esc(h)}</option>`).join('');
+
+        // Try to auto-match by header name
+        let matched = false;
+        for (let i = 0; i < headers.length; i++) {
+            const lower = headers[i].toLowerCase().trim();
+            for (const p of field.patterns) {
+                if (lower.includes(p)) {
+                    sel.value = String(i);
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched) break;
+        }
+    }
+
+    // Preview table
+    const previewHead = document.querySelector('#bulkOrderPreviewTable thead tr');
+    previewHead.innerHTML = headers.map(h => `<th class="small">${esc(h)}</th>`).join('');
+
+    const previewBody = document.querySelector('#bulkOrderPreviewTable tbody');
+    const previewRows = data.rows.slice(0, 5);
+    previewBody.innerHTML = previewRows.map(row => {
+        return '<tr>' + headers.map((_, i) => `<td class="small">${esc(truncate(row[i] || '', 80))}</td>`).join('') + '</tr>';
+    }).join('');
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('bulkOrderMappingModal'));
+    modal.show();
+}
+
+function bulkOrderCancelMapping() {
+    bulkOrderParsedData = null;
+    document.getElementById('bulkOrderFileStatus').textContent = '';
+}
+
+function bulkOrderApplyMapping() {
+    if (!bulkOrderParsedData) return;
+
+    const colTitle = document.getElementById('mapColTitle').value;
+    const colMainKw = document.getElementById('mapColMainKw').value;
+    const colSecKw = document.getElementById('mapColSecondaryKw').value;
+    const colNotes = document.getElementById('mapColNotes').value;
+    const colCategory = document.getElementById('mapColCategory').value;
+    const colLang = document.getElementById('mapColLang').value;
+
+    if (colTitle === '') { showToast('Kolumna "Tytuł" jest wymagana', 'error'); return; }
+    if (colMainKw === '') { showToast('Kolumna "Główne słowo kluczowe" jest wymagana', 'error'); return; }
+
+    bulkOrderItems = [];
+    for (const row of bulkOrderParsedData.rows) {
+        const title = (row[parseInt(colTitle)] || '').trim();
+        if (!title) continue;
+
+        const csvCategory = colCategory !== '' ? (row[parseInt(colCategory)] || '').trim() : '';
+        const matched = matchBulkCategory(csvCategory);
+
+        bulkOrderItems.push({
+            title,
+            main_keyword: (row[parseInt(colMainKw)] || '').trim(),
+            secondary_keywords: colSecKw !== '' ? (row[parseInt(colSecKw)] || '').trim() : '',
+            category_name: csvCategory,
+            category_id: matched.id,
+            category_matched: matched.id > 0,
+            notes: colNotes !== '' ? (row[parseInt(colNotes)] || '').trim() : '',
+            lang: colLang !== '' ? (row[parseInt(colLang)] || '').trim() : '',
+            selected: true,
+            publish_date: '',
+            status: 'pending',
+        });
+    }
+
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('bulkOrderMappingModal'));
+    if (modal) modal.hide();
+    bulkOrderParsedData = null;
+
+    if (bulkOrderItems.length === 0) {
+        showToast('Plik nie zawiera artykułów', 'warning');
+        return;
+    }
+
+    showToast(`Wczytano ${bulkOrderItems.length} artykułów`, 'success');
+    renderBulkOrderTable();
+    document.getElementById('bulkOrderTableCard').style.display = '';
 }
 
 function renderBulkOrderTable() {

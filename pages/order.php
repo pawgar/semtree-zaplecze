@@ -10,7 +10,7 @@
     </li>
     <li class="nav-item">
         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#orderBulkTab" type="button">
-            <i class="bi bi-files"></i> Zamówienie masowe (CSV)
+            <i class="bi bi-files"></i> Zamówienie masowe
         </button>
     </li>
 </ul>
@@ -224,13 +224,13 @@
 
 <div class="card mb-3" id="bulkOrderUploadCard" style="display:none">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-2-circle"></i> Wgraj CSV</h6>
-        <p class="text-muted small mb-2">Format CSV (separator: <code>;</code>): tytuł; główne słowo kluczowe; pomocnicze słowa kluczowe; kategoria; dodatkowe informacje; język (opcjonalnie, domyślnie wg ustawienia poniżej)</p>
+        <h6 class="card-title"><i class="bi bi-2-circle"></i> Wgraj plik</h6>
         <div class="d-flex gap-2 align-items-center flex-wrap">
-            <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('bulkOrderCsvFile').click()">
-                <i class="bi bi-upload"></i> Wgraj plik CSV
+            <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('bulkOrderFile').click()">
+                <i class="bi bi-file-earmark-excel"></i> Wgraj plik XLSX / CSV
             </button>
-            <input type="file" id="bulkOrderCsvFile" accept=".csv,.txt" style="display:none" onchange="bulkOrderParseCsv(this)">
+            <input type="file" id="bulkOrderFile" accept=".xlsx,.csv,.txt" style="display:none" onchange="bulkOrderParseFile(this)">
+            <span id="bulkOrderFileStatus" class="text-muted small"></span>
             <div class="form-check ms-3">
                 <input class="form-check-input" type="checkbox" id="bulkOrderInlineImages">
                 <label class="form-check-label" for="bulkOrderInlineImages">Grafiki w treści</label>
@@ -243,6 +243,60 @@
         <div class="mt-2">
             <label class="form-label small text-muted">Dodatkowe informacje dla wszystkich artykułów (opcjonalnie):</label>
             <textarea class="form-control form-control-sm" id="bulkOrderGlobalNotes" rows="2" placeholder="Wspólne wskazówki dla AI dotyczące wszystkich artykułów..."></textarea>
+        </div>
+    </div>
+</div>
+
+<!-- Column Mapping Modal -->
+<div class="modal fade" id="bulkOrderMappingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-diagram-3"></i> Mapowanie kolumn</h5>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">Przypisz kolumny z pliku do odpowiednich pól. Pola oznaczone <span class="text-danger">*</span> są wymagane.</p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Tytuł artykułu <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" id="mapColTitle"></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Główne słowo kluczowe <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" id="mapColMainKw"></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Słowa kluczowe pomocnicze</label>
+                        <select class="form-select form-select-sm" id="mapColSecondaryKw"></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Dodatkowe informacje</label>
+                        <select class="form-select form-select-sm" id="mapColNotes"></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Kategoria</label>
+                        <select class="form-select form-select-sm" id="mapColCategory"></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Język</label>
+                        <select class="form-select form-select-sm" id="mapColLang"></select>
+                    </div>
+                </div>
+                <hr>
+                <p class="small fw-semibold mb-2">Podgląd pierwszych wierszy:</p>
+                <div class="table-responsive" style="max-height:200px;overflow-y:auto">
+                    <table class="table table-sm table-bordered" id="bulkOrderPreviewTable">
+                        <thead class="table-light"><tr></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="bulkOrderCancelMapping()">Anuluj</button>
+                <button type="button" class="btn btn-primary" onclick="bulkOrderApplyMapping()">
+                    <i class="bi bi-check-lg"></i> Zatwierdź mapowanie
+                </button>
+            </div>
         </div>
     </div>
 </div>
