@@ -3323,6 +3323,7 @@ function bulkOrderFilterSites() {
 }
 
 let bulkOrderCategories = []; // WP categories for matching
+let bulkOrderAuthors = []; // WP authors
 
 async function bulkOrderSelectSite(id, name) {
     document.getElementById('bulkOrderSiteId').value = id;
@@ -3330,13 +3331,28 @@ async function bulkOrderSelectSite(id, name) {
     document.getElementById('bulkOrderSiteDropdown').classList.remove('show');
     document.getElementById('bulkOrderUploadCard').style.display = '';
 
-    // Load categories for bulk
-    try {
-        const r = await api('GET', `api/wp-data.php?site_id=${id}&type=categories`);
-        bulkOrderCategories = r;
+    // Load categories and authors in parallel
+    const [catResult, authResult] = await Promise.allSettled([
+        api('GET', `api/wp-data.php?site_id=${id}&type=categories`),
+        api('GET', `api/wp-data.php?site_id=${id}&type=authors`),
+    ]);
+
+    if (catResult.status === 'fulfilled') {
+        bulkOrderCategories = catResult.value;
         const sel = document.getElementById('bulkOrderFallbackCategory');
-        sel.innerHTML = '<option value="">-- brak --</option>' + r.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-    } catch (e) {}
+        sel.innerHTML = '<option value="">-- brak --</option>' + catResult.value.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    }
+
+    if (authResult.status === 'fulfilled') {
+        bulkOrderAuthors = authResult.value;
+        const authSel = document.getElementById('bulkOrderDefaultAuthor');
+        authSel.innerHTML = '<option value="">-- brak (domyślny WP) --</option>' + authResult.value.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+        // Build random author checkboxes
+        const checksDiv = document.getElementById('bulkOrderRandomAuthorsChecks');
+        checksDiv.innerHTML = authResult.value.map(a =>
+            `<div class="form-check form-check-inline"><input class="form-check-input bulk-author-check" type="checkbox" value="${a.id}" id="bulkAuth${a.id}" checked><label class="form-check-label small" for="bulkAuth${a.id}">${esc(a.name)}</label></div>`
+        ).join('');
+    }
 }
 
 function matchBulkCategory(csvCategoryName) {
@@ -3465,6 +3481,7 @@ function bulkOrderApplyMapping() {
             lang: colLang !== '' ? (row[parseInt(colLang)] || '').trim() : '',
             selected: true,
             publish_date: '',
+            author_id: 0,
             status: 'pending',
         });
     }
@@ -3480,11 +3497,70 @@ function bulkOrderApplyMapping() {
     }
 
     showToast(`Wczytano ${bulkOrderItems.length} artykułów`, 'success');
+
+    // Show category mapping step if there are unmapped categories from the file
+    const uniqueFileCats = [...new Set(bulkOrderItems.map(i => i.category_name).filter(n => n))];
+    if (uniqueFileCats.length > 0) {
+        bulkOrderShowCategoryMapping(uniqueFileCats);
+    } else {
+        bulkOrderShowArticleTable();
+    }
+}
+
+function bulkOrderShowCategoryMapping(uniqueFileCats) {
+    const tbody = document.querySelector('#bulkOrderCategoryMapTable tbody');
+    const wpOptions = '<option value="">-- brak --</option>' + bulkOrderCategories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+
+    tbody.innerHTML = uniqueFileCats.map((catName, i) => {
+        const count = bulkOrderItems.filter(it => it.category_name === catName).length;
+        const matched = matchBulkCategory(catName);
+        const selHtml = `<select class="form-select form-select-sm bulk-cat-map" data-file-cat="${esc(catName)}">${wpOptions}</select>`;
+        return `<tr>
+            <td><code>${esc(catName)}</code></td>
+            <td class="text-center">${count}</td>
+            <td>${selHtml}</td>
+        </tr>`;
+    }).join('');
+
+    // Auto-select matched categories
+    tbody.querySelectorAll('select.bulk-cat-map').forEach(sel => {
+        const fileCat = sel.dataset.fileCat;
+        const matched = matchBulkCategory(fileCat);
+        if (matched.id > 0) sel.value = String(matched.id);
+    });
+
+    document.getElementById('bulkOrderCategoryMapCard').style.display = '';
+}
+
+function bulkOrderApplyCategoryMapping() {
+    // Read mappings from the table
+    document.querySelectorAll('select.bulk-cat-map').forEach(sel => {
+        const fileCat = sel.dataset.fileCat;
+        const wpCatId = parseInt(sel.value) || 0;
+        bulkOrderItems.forEach(item => {
+            if (item.category_name === fileCat) {
+                item.category_id = wpCatId;
+                item.category_matched = wpCatId > 0;
+            }
+        });
+    });
+    document.getElementById('bulkOrderCategoryMapCard').style.display = 'none';
+    bulkOrderShowArticleTable();
+}
+
+function bulkOrderSkipCategoryMapping() {
+    document.getElementById('bulkOrderCategoryMapCard').style.display = 'none';
+    bulkOrderShowArticleTable();
+}
+
+function bulkOrderShowArticleTable() {
     renderBulkOrderTable();
     document.getElementById('bulkOrderTableCard').style.display = '';
 }
 
 function renderBulkOrderTable() {
+    const authorMode = (document.getElementById('bulkOrderAuthorMode') || {}).value || 'default';
+    const showAuthorCol = authorMode === 'manual';
     const tbody = document.querySelector('#bulkOrderTable tbody');
     tbody.innerHTML = bulkOrderItems.map((item, i) => {
         const statusBadge = {
@@ -3500,6 +3576,20 @@ function renderBulkOrderTable() {
             return `<option value="${c.id}"${sel}>${esc(c.name)}</option>`;
         }).join('');
         const catCell = `<select class="form-select form-select-sm" style="min-width:120px" onchange="bulkOrderSetCategory(${i}, this.value)">${catOptions}</select>`;
+
+        // Author cell (manual mode)
+        let authorCell = '';
+        if (showAuthorCol) {
+            let authOptions = '<option value="">-- domyślny --</option>' + bulkOrderAuthors.map(a => {
+                const sel = (item.author_id && item.author_id == a.id) ? ' selected' : '';
+                return `<option value="${a.id}"${sel}>${esc(a.name)}</option>`;
+            }).join('');
+            authorCell = `<td><select class="form-select form-select-sm" style="min-width:120px" onchange="bulkOrderSetAuthor(${i}, this.value)">${authOptions}</select></td>`;
+        } else {
+            const authorName = bulkOrderGetAuthorName(item.author_id);
+            authorCell = `<td>${authorName ? `<small>${esc(authorName)}</small>` : '<span class="text-muted">dom.</span>'}</td>`;
+        }
+
         const checked = item.selected ? 'checked' : '';
         const rowClass = item.selected ? '' : 'class="table-light text-muted"';
         const dateVal = item.publish_date || '';
@@ -3510,6 +3600,7 @@ function renderBulkOrderTable() {
             <td>${esc(item.main_keyword)}</td>
             <td>${esc(item.secondary_keywords)}</td>
             <td>${catCell}</td>
+            ${authorCell}
             <td>${item.lang ? `<small>${esc(item.lang.toUpperCase())}</small>` : '<span class="text-muted">dom.</span>'}</td>
             <td>${dateVal ? `<small>${esc(dateVal)}</small>` : '<span class="text-muted">teraz</span>'}</td>
             <td>${item.notes ? `<small>${esc(truncate(item.notes, 50))}</small>` : '<span class="text-muted">-</span>'}</td>
@@ -3517,6 +3608,42 @@ function renderBulkOrderTable() {
         </tr>`;
     }).join('');
     bulkOrderUpdateSelectedCount();
+}
+
+function bulkOrderGetAuthorName(authorId) {
+    if (!authorId) return '';
+    const a = bulkOrderAuthors.find(a => a.id == authorId);
+    return a ? a.name : '';
+}
+
+function bulkOrderSetAuthor(index, authorId) {
+    bulkOrderItems[index].author_id = parseInt(authorId) || 0;
+}
+
+function bulkOrderAuthorModeChanged() {
+    const mode = document.getElementById('bulkOrderAuthorMode').value;
+    document.getElementById('bulkOrderDefaultAuthorWrap').style.display = mode === 'default' ? '' : 'none';
+    document.getElementById('bulkOrderRandomAuthorsWrap').style.display = mode === 'random' ? '' : 'none';
+
+    // Reset author assignments when switching modes
+    if (mode === 'default') {
+        bulkOrderItems.forEach(item => { item.author_id = 0; });
+    } else if (mode === 'random') {
+        bulkOrderAssignRandomAuthors();
+    } else {
+        bulkOrderItems.forEach(item => { item.author_id = 0; });
+    }
+    renderBulkOrderTable();
+}
+
+function bulkOrderAssignRandomAuthors() {
+    const checked = document.querySelectorAll('.bulk-author-check:checked');
+    const authorIds = Array.from(checked).map(c => parseInt(c.value));
+    if (authorIds.length === 0) { showToast('Zaznacz przynajmniej jednego autora', 'warning'); return; }
+    bulkOrderItems.forEach(item => {
+        item.author_id = authorIds[Math.floor(Math.random() * authorIds.length)];
+    });
+    renderBulkOrderTable();
 }
 
 function bulkOrderToggleItem(index, checked) {
@@ -3711,11 +3838,18 @@ async function bulkOrderStart() {
             const itemCatId = item.category_id || parseInt(fallbackCategoryId) || 0;
             // Use future date → schedule status in WP; otherwise use selected status
             const effectiveStatus = item.publish_date ? 'future' : publishStatus;
+            // Resolve author: per-item > default dropdown > 0 (WP default)
+            const authorMode = (document.getElementById('bulkOrderAuthorMode') || {}).value || 'default';
+            let itemAuthorId = item.author_id || 0;
+            if (!itemAuthorId && authorMode === 'default') {
+                itemAuthorId = parseInt(document.getElementById('bulkOrderDefaultAuthor').value) || 0;
+            }
             const postData = {
                 site_id: parseInt(siteId), title: item.title, content: htmlContent,
                 status: effectiveStatus, category_id: itemCatId,
                 publish_date: item.publish_date || '',
             };
+            if (itemAuthorId) postData.author_id = itemAuthorId;
             if (mediaId) postData.media_id = mediaId;
 
             const result = await api('POST', 'api/publish.php', postData);

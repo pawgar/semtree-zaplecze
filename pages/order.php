@@ -301,9 +301,29 @@
     </div>
 </div>
 
+<!-- Category mapping (optional step after file import) -->
+<div class="card mb-3" id="bulkOrderCategoryMapCard" style="display:none">
+    <div class="card-body">
+        <h6 class="card-title"><i class="bi bi-3-circle"></i> Mapowanie kategorii <span class="text-muted small fw-normal">(opcjonalne)</span></h6>
+        <p class="text-muted small mb-2">Przypisz kategorie z pliku do kategorii WordPress. Niedopasowane kategorie zostaną oznaczone.</p>
+        <div class="table-responsive">
+            <table class="table table-sm" id="bulkOrderCategoryMapTable">
+                <thead><tr><th>Kategoria z pliku</th><th>Ilość</th><th>Kategoria WordPress</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm" onclick="bulkOrderApplyCategoryMapping()">
+                <i class="bi bi-check-lg"></i> Zatwierdź i przejdź dalej
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="bulkOrderSkipCategoryMapping()">Pomiń</button>
+        </div>
+    </div>
+</div>
+
 <div class="card mb-3" id="bulkOrderTableCard" style="display:none">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-3-circle"></i> Artykuły do wygenerowania</h6>
+        <h6 class="card-title"><i class="bi bi-4-circle"></i> Artykuły do wygenerowania</h6>
         <div class="d-flex gap-2 mb-2 align-items-center flex-wrap">
             <div class="d-flex align-items-center gap-1">
                 <label class="small text-muted text-nowrap">Kategoria domyślna:</label>
@@ -319,6 +339,30 @@
                     }
                     ?>
                 </select>
+            </div>
+        </div>
+
+        <!-- Author assignment -->
+        <div class="d-flex gap-2 mb-2 align-items-center flex-wrap">
+            <div class="d-flex align-items-center gap-1">
+                <label class="small text-muted text-nowrap">Autor:</label>
+                <select class="form-select form-select-sm" id="bulkOrderAuthorMode" style="width:200px" onchange="bulkOrderAuthorModeChanged()">
+                    <option value="default">Domyślny autor</option>
+                    <option value="random">Losuj autorów</option>
+                    <option value="manual">Ręcznie per artykuł</option>
+                </select>
+            </div>
+            <div class="d-flex align-items-center gap-1 ms-2" id="bulkOrderDefaultAuthorWrap">
+                <select class="form-select form-select-sm" id="bulkOrderDefaultAuthor" style="width:200px">
+                    <option value="">-- brak (domyślny WP) --</option>
+                </select>
+            </div>
+            <div id="bulkOrderRandomAuthorsWrap" style="display:none" class="d-flex align-items-center gap-1 ms-2 flex-wrap">
+                <span class="small text-muted">Losuj spośród:</span>
+                <div id="bulkOrderRandomAuthorsChecks" class="d-flex gap-2 flex-wrap"></div>
+                <button class="btn btn-outline-secondary btn-sm ms-1" onclick="bulkOrderAssignRandomAuthors()" title="Wylosuj autorów">
+                    <i class="bi bi-shuffle"></i> Losuj
+                </button>
             </div>
         </div>
 
@@ -350,7 +394,7 @@
             <table class="table table-sm table-hover" id="bulkOrderTable">
                 <thead><tr>
                     <th><input type="checkbox" class="form-check-input" id="bulkOrderSelectAll" checked onchange="bulkOrderToggleAll(this.checked)"></th>
-                    <th>#</th><th>Tytuł</th><th>Główne KW</th><th>Pomocnicze KW</th><th>Kategoria</th><th>Język</th><th>Data</th><th>Informacje</th><th>Status</th>
+                    <th>#</th><th>Tytuł</th><th>Główne KW</th><th>Pomocnicze KW</th><th>Kategoria</th><th>Autor</th><th>Język</th><th>Data</th><th>Informacje</th><th>Status</th>
                 </tr></thead>
                 <tbody></tbody>
             </table>
@@ -366,7 +410,7 @@
 
 <div class="card mb-3" id="bulkOrderProgressCard" style="display:none">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-4-circle"></i> Postęp</h6>
+        <h6 class="card-title"><i class="bi bi-5-circle"></i> Postęp</h6>
         <div class="progress mb-2" style="height:24px">
             <div class="progress-bar progress-bar-striped progress-bar-animated" id="bulkOrderProgressBar" style="width:0%">0%</div>
         </div>
@@ -376,7 +420,7 @@
 
 <div class="card mb-3" id="bulkOrderResultCard" style="display:none">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-5-circle"></i> Raport</h6>
+        <h6 class="card-title"><i class="bi bi-6-circle"></i> Raport</h6>
         <div id="bulkOrderResultLog"></div>
         <button class="btn btn-outline-primary btn-sm mt-2" onclick="bulkOrderCopyUrls()">
             <i class="bi bi-clipboard"></i> Kopiuj linki
