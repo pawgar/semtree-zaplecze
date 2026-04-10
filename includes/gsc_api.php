@@ -52,7 +52,7 @@ class GscApi {
             'response_type' => 'code',
             'scope' => self::SCOPE,
             'access_type' => 'offline',
-            'prompt' => 'consent',
+            'prompt' => 'select_account consent',
         ];
         return self::AUTH_URL . '?' . http_build_query($params);
     }
