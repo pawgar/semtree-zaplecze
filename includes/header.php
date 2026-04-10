@@ -41,6 +41,9 @@
                 <a class="sidebar-link <?= ($page ?? '') === 'links' ? 'active' : '' ?>" href="index.php?page=links">
                     <i class="bi bi-link-45deg"></i><span>Linki</span>
                 </a>
+                <a class="sidebar-link <?= ($page ?? '') === 'gsc-report' ? 'active' : '' ?>" href="index.php?page=gsc-report">
+                    <i class="bi bi-graph-up"></i><span>Raport GSC</span>
+                </a>
             </div>
 
             <div class="sidebar-section">
@@ -86,6 +89,8 @@
                     'publish' => '<i class="bi bi-pencil-square"></i> Publikuj artykuły',
                     'import' => '<i class="bi bi-cloud-upload"></i> Import masowy',
                     'links' => '<i class="bi bi-link-45deg"></i> Linki',
+                    'gsc-report' => '<i class="bi bi-graph-up"></i> Raport GSC',
+                    'site-card' => '<i class="bi bi-card-text"></i> Karta strony',
                     'users' => '<i class="bi bi-people"></i> Użytkownicy',
                     'settings' => '<i class="bi bi-gear"></i> Ustawienia',
                     'profile' => '<i class="bi bi-person-circle"></i> Profil',

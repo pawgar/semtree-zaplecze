@@ -68,6 +68,7 @@ function loadSettingsPage() {
     loadSpeedLinksKey();
     loadCronToken();
     loadContentSettings();
+    loadGscSettings();
 }
 
 async function loadContentSettings() {
@@ -103,6 +104,8 @@ let sitesData = [];
 let sitesSortField = 'name';
 let sitesSortAsc = true;
 
+let gscDashboardData = null;
+
 function loadSites() {
     api('GET', 'api/sites.php').then(sites => {
         sitesData = sites;
@@ -110,6 +113,7 @@ function loadSites() {
         buildClientFilter();
         updateDashboardSummary();
         filterSites();
+        loadDashboardGsc();
     });
 }
 
@@ -140,6 +144,81 @@ function updateDashboardSummary() {
     }
 }
 
+async function loadDashboardGsc() {
+    try {
+        const data = await api('GET', 'api/gsc-data.php?action=dashboard&range=28d');
+        if (data.error) return;
+        gscDashboardData = data;
+
+        // Show GSC cards
+        const clicksCard = document.getElementById('gscClicksCard');
+        const impCard = document.getElementById('gscImpressionsCard');
+        const kwCard = document.getElementById('gscKeywordsCard');
+        const refreshBtn = document.getElementById('refreshGscBtn');
+        if (clicksCard) clicksCard.style.display = '';
+        if (impCard) impCard.style.display = '';
+        if (kwCard) kwCard.style.display = '';
+        if (refreshBtn) refreshBtn.style.display = '';
+
+        // Update totals
+        const t = data.totals || {};
+        document.getElementById('sumGscClicks').textContent = formatNumber(t.clicks || 0);
+        document.getElementById('sumGscImpressions').textContent = formatNumber(t.impressions || 0);
+        document.getElementById('sumGscKeywords').textContent = formatNumber(t.keywords || 0);
+
+        const clicksChg = document.getElementById('sumGscClicksChange');
+        const impChg = document.getElementById('sumGscImpressionsChange');
+        if (clicksChg) clicksChg.innerHTML = formatChange(t.clicks_change);
+        if (impChg) impChg.innerHTML = formatChange(t.impressions_change);
+
+        // Show GSC columns in table
+        document.querySelectorAll('.gsc-col').forEach(el => el.style.display = '');
+
+        // Merge GSC data into sitesData for rendering
+        if (data.sites) {
+            data.sites.forEach(gsc => {
+                const site = sitesData.find(s => s.url === gsc.url || s.id === gsc.site_id);
+                if (site) {
+                    site.gsc_clicks = gsc.clicks;
+                    site.gsc_impressions = gsc.impressions;
+                    site.gsc_clicks_change = gsc.clicks_change;
+                    site.gsc_impressions_change = gsc.impressions_change;
+                }
+            });
+        }
+        filterSites();
+    } catch (e) {
+        // GSC not configured - silently skip
+    }
+}
+
+async function refreshDashboardGsc() {
+    const btn = document.getElementById('refreshGscBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Odświeżam...'; }
+    try {
+        await api('GET', 'api/gsc-data.php?action=refresh');
+        await loadDashboardGsc();
+        showToast('Dane GSC odświeżone', 'success');
+    } catch (e) {
+        showToast('Błąd odświeżania GSC: ' + e.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-graph-up"></i> Odśwież GSC'; }
+    }
+}
+
+function formatNumber(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+    return n.toString();
+}
+
+function formatChange(pct) {
+    if (pct === null || pct === undefined) return '';
+    const cls = pct > 0 ? 'text-success' : pct < 0 ? 'text-danger' : 'text-muted';
+    const icon = pct > 0 ? 'arrow-up' : pct < 0 ? 'arrow-down' : 'dash';
+    return `<span class="${cls}"><i class="bi bi-${icon}"></i> ${Math.abs(pct).toFixed(1)}%</span>`;
+}
+
 function sortSites(field) {
     if (sitesSortField === field) {
         sitesSortAsc = !sitesSortAsc;
@@ -162,8 +241,9 @@ function renderSites(sites) {
     const tbody = document.getElementById('sitesBody');
     if (!tbody) return;
 
+    const colSpan = gscDashboardData ? 11 : 9;
     if (sites.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>`;
         return;
     }
 
@@ -202,11 +282,15 @@ function renderSites(sites) {
         return `
         <tr data-id="${s.id}" ${rowClass}>
             <td>${i + 1}</td>
-            <td>${esc(s.name)}</td>
+            <td><a href="index.php?page=site-card&id=${s.id}" title="Karta strony">${esc(s.name)}</a></td>
             <td><a href="${esc(s.url)}" target="_blank">${esc(s.url)}</a></td>
             <td>${badges}</td>
             <td id="posts-${s.id}">${postCount}</td>
             <td><a href="#" onclick="goToLinks(${s.id}); return false;" title="Pokaz linki">${s.link_count || 0}</a></td>
+            ${gscDashboardData ? `
+            <td class="gsc-col text-end">${s.gsc_clicks != null ? formatNumber(s.gsc_clicks) : '-'} ${s.gsc_clicks_change != null ? `<small>${formatChange(s.gsc_clicks_change)}</small>` : ''}</td>
+            <td class="gsc-col text-end">${s.gsc_impressions != null ? formatNumber(s.gsc_impressions) : '-'} ${s.gsc_impressions_change != null ? `<small>${formatChange(s.gsc_impressions_change)}</small>` : ''}</td>
+            ` : ''}
             <td class="text-center" id="status-${s.id}">${httpLed}</td>
             <td class="text-center" id="api-${s.id}">${apiLed}</td>
             <td class="text-nowrap">
@@ -338,7 +422,7 @@ function filterSites() {
     // Sort
     filtered.sort((a, b) => {
         let va = a[sitesSortField], vb = b[sitesSortField];
-        if (sitesSortField === 'post_count' || sitesSortField === 'link_count') {
+        if (sitesSortField === 'post_count' || sitesSortField === 'link_count' || sitesSortField === 'gsc_clicks' || sitesSortField === 'gsc_impressions') {
             va = parseInt(va) || 0;
             vb = parseInt(vb) || 0;
         } else {
@@ -368,6 +452,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Auto-load data based on page
+    if (document.getElementById('siteCardContainer')) { loadSiteCard(); }
+    if (document.getElementById('gscReportContainer')) { loadGscReport(); }
     if (document.getElementById('sitesBody')) { loadSites(); loadCronToken(); }
     if (document.getElementById('usersBody')) loadUsers();
     if (document.getElementById('profileUserId')) loadProfileStats();
@@ -524,6 +610,106 @@ function updateCronPreview(token) {
     if (!el) return;
     const base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '');
     el.textContent = `0 23 * * * curl -s "${base}/api/cron-status.php?token=${token}"`;
+    const elGsc = document.getElementById('cronGscCommandPreview');
+    if (elGsc) {
+        elGsc.textContent = `0 6 * * * curl -s "${base}/api/cron-gsc.php?token=${token}"`;
+    }
+}
+
+// ── GSC Settings ────────────────────────────────────────────
+async function loadGscSettings() {
+    try {
+        const [r1, r2, status] = await Promise.all([
+            api('GET', 'api/settings.php?key=gsc_client_id'),
+            api('GET', 'api/settings.php?key=gsc_client_secret'),
+            api('GET', 'api/gsc-auth.php?action=status'),
+        ]);
+        const idEl = document.getElementById('gscClientId');
+        const secretEl = document.getElementById('gscClientSecret');
+        if (idEl) idEl.value = r1.value || '';
+        if (secretEl && r2.value) secretEl.value = r2.value;
+
+        updateGscStatus(status);
+    } catch (e) {}
+}
+
+function updateGscStatus(status) {
+    const statusEl = document.getElementById('gscStatus');
+    const connectBtn = document.getElementById('gscConnectBtn');
+    const disconnectBtn = document.getElementById('gscDisconnectBtn');
+    if (!statusEl) return;
+
+    if (status.connected) {
+        statusEl.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill"></i> Połączono z Google Search Console</span>';
+        if (connectBtn) connectBtn.classList.add('d-none');
+        if (disconnectBtn) disconnectBtn.classList.remove('d-none');
+    } else if (status.configured) {
+        statusEl.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-circle"></i> Skonfigurowano, ale nie połączono. Kliknij "Połącz z Google".</span>';
+        if (connectBtn) connectBtn.classList.remove('d-none');
+        if (disconnectBtn) disconnectBtn.classList.add('d-none');
+    } else {
+        statusEl.innerHTML = '<span class="text-muted"><i class="bi bi-info-circle"></i> Wpisz Client ID i Client Secret, aby rozpocząć.</span>';
+        if (connectBtn) connectBtn.classList.remove('d-none');
+        if (disconnectBtn) disconnectBtn.classList.add('d-none');
+    }
+
+    // Show success/error from redirect
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('gsc_connected') === '1') {
+        showToast('Połączono z Google Search Console!', 'success');
+        window.history.replaceState({}, '', window.location.pathname + '?page=settings');
+    }
+    if (params.get('gsc_error')) {
+        showToast('Błąd GSC: ' + params.get('gsc_error'), 'error');
+        window.history.replaceState({}, '', window.location.pathname + '?page=settings');
+    }
+}
+
+async function saveGscCredentials() {
+    const clientId = document.getElementById('gscClientId')?.value.trim();
+    const clientSecret = document.getElementById('gscClientSecret')?.value.trim();
+    try {
+        await api('POST', 'api/settings.php', { key: 'gsc_client_id', value: clientId || '' });
+        await api('POST', 'api/settings.php', { key: 'gsc_client_secret', value: clientSecret || '' });
+        showToast('Dane GSC zapisane', 'success');
+        loadGscSettings();
+    } catch (e) {
+        showToast('Błąd zapisu: ' + e.message, 'error');
+    }
+}
+
+async function connectGsc() {
+    try {
+        // Save credentials first
+        const clientId = document.getElementById('gscClientId')?.value.trim();
+        const clientSecret = document.getElementById('gscClientSecret')?.value.trim();
+        if (!clientId || !clientSecret) {
+            showToast('Wpisz Client ID i Client Secret', 'error');
+            return;
+        }
+        await api('POST', 'api/settings.php', { key: 'gsc_client_id', value: clientId });
+        await api('POST', 'api/settings.php', { key: 'gsc_client_secret', value: clientSecret });
+
+        const r = await api('GET', 'api/gsc-auth.php?action=connect');
+        if (r.auth_url) {
+            window.location.href = r.auth_url;
+        } else if (r.error) {
+            showToast(r.error, 'error');
+        }
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    }
+}
+
+async function disconnectGsc() {
+    if (!confirm('Rozłączyć Google Search Console?')) return;
+    try {
+        await api('GET', 'api/gsc-auth.php?action=disconnect');
+        showToast('Rozłączono GSC', 'success');
+        loadGscSettings();
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    }
 }
 
 // ── Change Password (all sites) ──────────────────────────────
@@ -4058,4 +4244,237 @@ function sanitizeArticleHtml(html) {
     });
 
     return root.innerHTML;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ══ Site Card Page ═══════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+
+let siteCardChart = null;
+
+async function loadSiteCard(force = false) {
+    const siteUrl = document.getElementById('siteCardUrl')?.value;
+    if (!siteUrl) return;
+
+    const range = document.getElementById('scDateRange')?.value || '28d';
+    const forceParam = force ? '&force=1' : '';
+
+    try {
+        const data = await api('GET', `api/gsc-data.php?action=site-detail&site_url=${encodeURIComponent(siteUrl)}&range=${range}${forceParam}`);
+
+        if (data.error) {
+            document.getElementById('siteCardNoGsc').style.display = '';
+            return;
+        }
+
+        // Show GSC sections
+        ['siteCardGscClicks', 'siteCardGscImpressions', 'siteCardGscCtr', 'siteCardGscPos',
+         'siteCardGscControls', 'siteCardChart', 'siteCardTables'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = '';
+        });
+
+        // Summary cards
+        const s = data.summary || {};
+        const ps = data.prev_summary || {};
+        document.getElementById('scClicks').textContent = formatNumber(s.clicks || 0);
+        document.getElementById('scImpressions').textContent = formatNumber(s.impressions || 0);
+        document.getElementById('scCtr').textContent = (s.ctr || 0).toFixed(1) + '%';
+        document.getElementById('scPosition').textContent = (s.position || 0).toFixed(1);
+
+        const clicksChg = document.getElementById('scClicksChange');
+        const impChg = document.getElementById('scImpressionsChange');
+        if (clicksChg) clicksChg.innerHTML = formatChange(calcChangeJs(s.clicks, ps.clicks));
+        if (impChg) impChg.innerHTML = formatChange(calcChangeJs(s.impressions, ps.impressions));
+
+        // Date info
+        const dateInfo = document.getElementById('scDateInfo');
+        if (dateInfo) dateInfo.textContent = `${data.date_from} — ${data.date_to}`;
+
+        // Chart
+        renderSiteCardChart(data.daily || []);
+
+        // Keywords table
+        const kwBody = document.getElementById('scKeywordsBody');
+        if (kwBody) {
+            const kws = data.keywords || [];
+            if (kws.length === 0) {
+                kwBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Brak danych</td></tr>';
+            } else {
+                kwBody.innerHTML = kws.map(k => `
+                    <tr>
+                        <td class="text-truncate" style="max-width:250px" title="${esc(k.keyword)}">${esc(k.keyword)}</td>
+                        <td class="text-end">${k.clicks}</td>
+                        <td class="text-end">${k.impressions}</td>
+                        <td class="text-end">${k.ctr.toFixed(1)}%</td>
+                        <td class="text-end">${k.position.toFixed(1)}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // Pages table
+        const pgBody = document.getElementById('scPagesBody');
+        if (pgBody) {
+            const pgs = data.pages || [];
+            if (pgs.length === 0) {
+                pgBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Brak danych</td></tr>';
+            } else {
+                pgBody.innerHTML = pgs.map(p => {
+                    const shortUrl = p.url.replace(/^https?:\/\/[^/]+/, '');
+                    return `
+                    <tr>
+                        <td class="text-truncate" style="max-width:300px" title="${esc(p.url)}"><a href="${esc(p.url)}" target="_blank">${esc(shortUrl || '/')}</a></td>
+                        <td class="text-end">${p.clicks}</td>
+                        <td class="text-end">${p.impressions}</td>
+                        <td class="text-end">${p.ctr.toFixed(1)}%</td>
+                        <td class="text-end">${p.position.toFixed(1)}</td>
+                    </tr>`;
+                }).join('');
+            }
+        }
+    } catch (e) {
+        document.getElementById('siteCardNoGsc').style.display = '';
+    }
+}
+
+function renderSiteCardChart(daily) {
+    const canvas = document.getElementById('scChartCanvas');
+    if (!canvas || !window.Chart) return;
+
+    if (siteCardChart) siteCardChart.destroy();
+
+    const labels = daily.map(d => d.date);
+    siteCardChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Kliknięcia',
+                    data: daily.map(d => d.clicks),
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13,110,253,0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    yAxisID: 'y',
+                },
+                {
+                    label: 'Wyświetlenia',
+                    data: daily.map(d => d.impressions),
+                    borderColor: '#ffc107',
+                    backgroundColor: 'rgba(255,193,7,0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    yAxisID: 'y1',
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                y: { position: 'left', title: { display: true, text: 'Kliknięcia' } },
+                y1: { position: 'right', title: { display: true, text: 'Wyświetlenia' }, grid: { drawOnChartArea: false } },
+                x: { ticks: { maxTicksLimit: 15 } },
+            },
+            plugins: { legend: { position: 'top' } },
+        },
+    });
+}
+
+async function refreshSiteCardGsc() {
+    showToast('Odświeżam dane GSC...', 'info');
+    await loadSiteCard(true);
+    showToast('Dane GSC odświeżone', 'success');
+}
+
+function calcChangeJs(current, previous) {
+    if (!previous || previous === 0) return current > 0 ? 100 : 0;
+    return ((current - previous) / previous) * 100;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ══ GSC Report Page ═════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+
+async function loadGscReport(force = false) {
+    const range = document.getElementById('gscReportRange')?.value || '28d';
+    const forceParam = force ? '&force=1' : '';
+    const tbody = document.getElementById('gscReportBody');
+    const noData = document.getElementById('gscReportNoData');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted"><i class="bi bi-arrow-clockwise spin"></i> Ładowanie danych GSC...</td></tr>';
+
+    try {
+        const data = await api('GET', `api/gsc-data.php?action=report&range=${range}${forceParam}`);
+
+        if (data.error) {
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">${esc(data.error)}</td></tr>`;
+            if (noData) noData.style.display = '';
+            return;
+        }
+
+        const dateInfo = document.getElementById('gscReportDateInfo');
+        if (dateInfo) dateInfo.textContent = `${data.date_from} — ${data.date_to}`;
+
+        const sites = data.sites || [];
+        if (sites.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Brak danych GSC</td></tr>';
+            if (noData) noData.style.display = '';
+            return;
+        }
+        if (noData) noData.style.display = 'none';
+
+        // Sort by clicks descending
+        sites.sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
+
+        tbody.innerHTML = sites.map((s, i) => {
+            const sparkline = renderSparklineSvg(s.daily || [], 'clicks');
+            return `
+            <tr>
+                <td>${i + 1}</td>
+                <td><a href="index.php?page=site-card&id=${s.site_id}">${esc(s.name)}</a></td>
+                <td class="text-end fw-bold">${formatNumber(s.clicks)}</td>
+                <td class="text-end">${formatNumber(s.impressions)}</td>
+                <td class="text-end">${(s.ctr || 0).toFixed(1)}%</td>
+                <td class="text-end">${(s.position || 0).toFixed(1)}</td>
+                <td class="text-end">${formatChange(s.clicks_change)}</td>
+                <td class="text-end">${formatChange(s.impressions_change)}</td>
+                <td>${sparkline}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Błąd: ${esc(e.message)}</td></tr>`;
+        if (noData) noData.style.display = '';
+    }
+}
+
+async function refreshGscReport() {
+    showToast('Odświeżam dane GSC...', 'info');
+    await api('GET', 'api/gsc-data.php?action=refresh');
+    await loadGscReport(true);
+    showToast('Dane GSC odświeżone', 'success');
+}
+
+function renderSparklineSvg(daily, metric) {
+    if (!daily || daily.length < 2) return '<span class="text-muted">—</span>';
+
+    const values = daily.map(d => d[metric] || 0);
+    const max = Math.max(...values, 1);
+    const width = 120;
+    const height = 30;
+
+    const points = values.map((v, i) => {
+        const x = (i / (values.length - 1)) * width;
+        const y = height - (v / max) * (height - 4) - 2;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+
+    const trend = values[values.length - 1] >= values[0] ? '#198754' : '#dc3545';
+
+    return `<svg width="${width}" height="${height}" style="display:block">
+        <polyline points="${points}" fill="none" stroke="${trend}" stroke-width="1.5" />
+    </svg>`;
 }

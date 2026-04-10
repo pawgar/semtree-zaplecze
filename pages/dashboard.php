@@ -14,6 +14,9 @@ $isAdminUser = isAdmin();
     <button class="btn btn-outline-primary btn-sm" onclick="refreshAllStatuses()">
         <i class="bi bi-arrow-clockwise"></i> Odśwież statusy
     </button>
+    <button class="btn btn-outline-success btn-sm" id="refreshGscBtn" onclick="refreshDashboardGsc()" style="display:none">
+        <i class="bi bi-graph-up"></i> Odśwież GSC
+    </button>
     <span class="text-muted small align-self-center" id="lastStatusCheck" title="Ostatnie odświeżenie statusów"></span>
     <div class="ms-auto d-flex gap-2">
         <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addSiteModal">
@@ -63,6 +66,41 @@ $isAdminUser = isAdmin();
             </div>
         </div>
     </div>
+    <div class="col-auto" id="gscClicksCard" style="display:none">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <i class="bi bi-cursor fs-4 text-primary"></i>
+                <div>
+                    <div class="small text-muted">Kliknięcia GSC</div>
+                    <div class="fw-bold fs-5" id="sumGscClicks">0</div>
+                    <div class="small" id="sumGscClicksChange"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-auto" id="gscImpressionsCard" style="display:none">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <i class="bi bi-eye fs-4 text-warning"></i>
+                <div>
+                    <div class="small text-muted">Wyświetlenia GSC</div>
+                    <div class="fw-bold fs-5" id="sumGscImpressions">0</div>
+                    <div class="small" id="sumGscImpressionsChange"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-auto" id="gscKeywordsCard" style="display:none">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                <i class="bi bi-search fs-4 text-success"></i>
+                <div>
+                    <div class="small text-muted">Słowa kluczowe</div>
+                    <div class="fw-bold fs-5" id="sumGscKeywords">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="table-responsive">
@@ -75,13 +113,15 @@ $isAdminUser = isAdmin();
                 <th>Kategorie</th>
                 <th class="sortable" data-sort="post_count" onclick="sortSites('post_count')">Wpisy <i class="bi bi-chevron-expand small"></i></th>
                 <th class="sortable" data-sort="link_count" onclick="sortSites('link_count')">Linki <i class="bi bi-chevron-expand small"></i></th>
+                <th class="gsc-col sortable" data-sort="gsc_clicks" onclick="sortSites('gsc_clicks')" style="display:none">Klik. GSC <i class="bi bi-chevron-expand small"></i></th>
+                <th class="gsc-col sortable" data-sort="gsc_impressions" onclick="sortSites('gsc_impressions')" style="display:none">Wyśw. GSC <i class="bi bi-chevron-expand small"></i></th>
                 <th>HTTP</th>
                 <th>API</th>
                 <th>Akcje</th>
             </tr>
         </thead>
         <tbody id="sitesBody">
-            <tr><td colspan="9" class="text-center text-muted">Ładowanie...</td></tr>
+            <tr><td colspan="11" class="text-center text-muted">Ładowanie...</td></tr>
         </tbody>
     </table>
 </div>

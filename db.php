@@ -134,6 +134,20 @@ function migrateSchema(SQLite3 $db): void {
 
     $db->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_links_unique ON links(site_id, post_url, target_url)');
 
+    // Create GSC cache table
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS gsc_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_url TEXT NOT NULL,
+            metric_type TEXT NOT NULL,
+            date_from TEXT NOT NULL,
+            date_to TEXT NOT NULL,
+            data TEXT NOT NULL DEFAULT "{}",
+            fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(site_url, metric_type, date_from, date_to)
+        )
+    ');
+
     // Create publications table — tracks who published which article
     $db->exec('
         CREATE TABLE IF NOT EXISTS publications (

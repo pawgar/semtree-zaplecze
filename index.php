@@ -46,6 +46,14 @@ switch ($page) {
         requireLogin();
         require __DIR__ . '/pages/links.php';
         break;
+    case 'gsc-report':
+        requireLogin();
+        require __DIR__ . '/pages/gsc-report.php';
+        break;
+    case 'site-card':
+        requireLogin();
+        require __DIR__ . '/pages/site-card.php';
+        break;
     case 'settings':
         requireLogin();
         require __DIR__ . '/pages/settings.php';
