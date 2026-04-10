@@ -45,8 +45,12 @@ $systemPrompt = "Jesteś profesjonalnym korektorem tekstów w języku {$langName
     . "- Zwróć WYŁĄCZNIE poprawiony tekst w tym samym formacie Markdown\n"
     . "- Jeśli tekst nie zawiera błędów — zwróć go bez zmian";
 
+// Get configured model
+$modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
+$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-4-6';
+
 $payload = [
-    'model'      => 'claude-sonnet-4-6',
+    'model'      => $aiModel,
     'max_tokens' => 16000,
     'system'     => $systemPrompt,
     'messages'   => [

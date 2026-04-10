@@ -1,8 +1,7 @@
 <?php require_once __DIR__ . '/../includes/header.php'; ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="mb-0"><i class="bi bi-people"></i> Uzytkownicy</h4>
-    <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
+<div class="d-flex justify-content-end mb-3">
+    <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
         <i class="bi bi-person-plus"></i> Dodaj pracownika
     </button>
 </div>

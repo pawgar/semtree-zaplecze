@@ -3,34 +3,29 @@ require_once __DIR__ . '/../includes/header.php';
 $isAdminUser = isAdmin();
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="mb-0"><i class="bi bi-grid"></i> Strony zapleczowe</h4>
-    <div class="d-flex gap-2 align-items-center">
-        <select class="form-select form-select-sm" id="categoryFilter" style="width:200px" onchange="filterSites()">
-            <option value="">Wszystkie kategorie</option>
-        </select>
-        <select class="form-select form-select-sm" id="clientFilter" style="width:220px" onchange="filterSites()">
-            <option value="">Wszyscy klienci</option>
-        </select>
-        <button class="btn btn-outline-primary btn-sm" onclick="refreshAllStatuses()">
-            <i class="bi bi-arrow-clockwise"></i> Odswiez statusy
-        </button>
-        <span class="text-muted small align-self-center" id="lastStatusCheck" title="Ostatnie odswiezenie statusow"></span>
-        <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#addSiteModal">
+<!-- Toolbar -->
+<div class="d-flex gap-2 align-items-center mb-3 flex-wrap">
+    <select class="form-select form-select-sm" id="categoryFilter" style="width:200px" onchange="filterSites()">
+        <option value="">Wszystkie kategorie</option>
+    </select>
+    <select class="form-select form-select-sm" id="clientFilter" style="width:220px" onchange="filterSites()">
+        <option value="">Wszyscy klienci</option>
+    </select>
+    <button class="btn btn-outline-primary btn-sm" onclick="refreshAllStatuses()">
+        <i class="bi bi-arrow-clockwise"></i> Odswiez statusy
+    </button>
+    <span class="text-muted small align-self-center" id="lastStatusCheck" title="Ostatnie odswiezenie statusow"></span>
+    <div class="ms-auto d-flex gap-2">
+        <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addSiteModal">
             <i class="bi bi-plus-lg"></i> Dodaj strone
         </button>
-        <button class="btn btn-outline-info btn-sm" onclick="document.getElementById('csvFile').click()">
+        <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('csvFile').click()">
             <i class="bi bi-upload"></i> Importuj CSV
         </button>
         <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="importCsv(this)">
         <button class="btn btn-outline-secondary btn-sm" onclick="exportCsv()">
             <i class="bi bi-download"></i> Eksportuj CSV
         </button>
-        <?php if ($isAdminUser): ?>
-        <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
-            <i class="bi bi-key"></i> Zmien haslo na wszystkich
-        </button>
-        <?php endif; ?>
     </div>
 </div>
 
@@ -134,61 +129,5 @@ $isAdminUser = isAdmin();
         </div>
     </div>
 </div>
-
-<?php if ($isAdminUser): ?>
-<!-- Change Password Modal -->
-<div class="modal fade" id="changePasswordModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-warning">
-                <h5 class="modal-title"><i class="bi bi-key"></i> Zmien haslo na wszystkich stronach</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted">Nowe haslo zostanie ustawione na wszystkich stronach zapleczowych jako haslo logowania do wp-admin. Application Passwords pozostana bez zmian.</p>
-                <div class="mb-3">
-                    <label class="form-label">Nowe haslo</label>
-                    <div class="input-group">
-                        <input type="password" class="form-control" id="newGlobalPassword">
-                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('newGlobalPassword', this)">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                    </div>
-                </div>
-                <div id="passwordChangeResults" class="d-none">
-                    <hr>
-                    <h6>Wyniki:</h6>
-                    <div id="passwordChangeLog"></div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
-                <button type="button" class="btn btn-warning" id="btnChangeAllPasswords" onclick="changeAllPasswords()">
-                    <i class="bi bi-key"></i> Zmien haslo
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-
-<?php if ($isAdminUser): ?>
-<!-- Cron Settings -->
-<div class="card mt-4 mb-4">
-    <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-clock-history"></i> Automatyczne odswiezanie statusow (CRON)</h6>
-        <p class="text-muted small mb-2">Ustaw cron job na serwerze (np. o 23:00 czasu polskiego):</p>
-        <div class="d-flex gap-2 align-items-center mb-2">
-            <label class="small text-muted text-nowrap">Token CRON:</label>
-            <input type="text" class="form-control form-control-sm" id="cronTokenInput" style="max-width:300px" placeholder="Wygeneruj lub wpisz token">
-            <button class="btn btn-outline-primary btn-sm" onclick="saveCronToken()">Zapisz</button>
-            <button class="btn btn-outline-secondary btn-sm" onclick="generateCronToken()">Generuj</button>
-        </div>
-        <code class="small d-block bg-light p-2 rounded" id="cronCommandPreview">
-            0 23 * * * curl -s "<?= htmlspecialchars(rtrim(($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'your-app.com'), '/')) ?>/api/cron-status.php?token=YOUR_TOKEN"
-        </code>
-    </div>
-</div>
-<?php endif; ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

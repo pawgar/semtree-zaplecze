@@ -46,6 +46,10 @@ switch ($page) {
         requireLogin();
         require __DIR__ . '/pages/links.php';
         break;
+    case 'settings':
+        requireLogin();
+        require __DIR__ . '/pages/settings.php';
+        break;
     case 'users':
         requireAdmin();
         require __DIR__ . '/pages/users.php';

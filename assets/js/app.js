@@ -5,6 +5,98 @@ function api(method, url, body = null) {
     return fetch(url, opts).then(r => r.json());
 }
 
+// ── Sidebar Toggle ───────────────────────────────────────────
+function toggleSidebar() {
+    const sidebar = document.getElementById('appSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
+
+    if (window.innerWidth < 992) {
+        sidebar.classList.toggle('mobile-open');
+        overlay.classList.toggle('show');
+    } else {
+        sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const sidebar = document.getElementById('appSidebar');
+    if (sidebar && localStorage.getItem('sidebarCollapsed') === '1' && window.innerWidth >= 992) {
+        sidebar.classList.add('collapsed');
+    }
+    loadSettingsPage();
+});
+
+// ── Toast Notifications ──────────────────────────────────────
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    if (!container) { alert(message); return; }
+
+    const icons = {
+        success: 'bi-check-circle-fill',
+        error: 'bi-exclamation-circle-fill',
+        warning: 'bi-exclamation-triangle-fill',
+        info: 'bi-info-circle-fill'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-custom toast-${type}`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="toast-body">
+            <i class="bi ${icons[type] || icons.info} toast-icon"></i>
+            <span>${message}</span>
+            <button type="button" class="btn-close btn-close-sm ms-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    container.appendChild(toast);
+
+    const bsToast = new bootstrap.Toast(toast, { delay: type === 'error' ? 6000 : 3500 });
+    bsToast.show();
+    toast.addEventListener('hidden.bs.toast', () => toast.remove());
+}
+
+// ── Settings Page ────────────────────────────────────────────
+function loadSettingsPage() {
+    if (!document.getElementById('anthropicApiKeyInput')) return;
+    // Only load on settings page
+    const isSettings = window.location.search.includes('page=settings');
+    if (!isSettings) return;
+    loadAnthropicKey();
+    loadGeminiKey();
+    loadSpeedLinksKey();
+    loadCronToken();
+    loadContentSettings();
+}
+
+async function loadContentSettings() {
+    try {
+        const r1 = await api('GET', 'api/settings.php?key=ai_model');
+        if (r1.value) {
+            const el = document.getElementById('settingsAiModel');
+            if (el) el.value = r1.value;
+        }
+        const r2 = await api('GET', 'api/settings.php?key=default_lang');
+        if (r2.value) {
+            const el = document.getElementById('settingsDefaultLang');
+            if (el) el.value = r2.value;
+        }
+    } catch (e) {}
+}
+
+async function saveContentSettings() {
+    const model = document.getElementById('settingsAiModel')?.value;
+    const lang = document.getElementById('settingsDefaultLang')?.value;
+    try {
+        if (model) await api('POST', 'api/settings.php', { key: 'ai_model', value: model });
+        if (lang) await api('POST', 'api/settings.php', { key: 'default_lang', value: lang });
+        showToast('Ustawienia zapisane', 'success');
+    } catch (e) {
+        showToast('Blad zapisu: ' + e.message, 'error');
+    }
+}
+
 // ── Sites (Dashboard) ────────────────────────────────────────
 let sitesData = [];
 
@@ -146,20 +238,20 @@ function saveSite() {
     };
 
     if (!data.name || !data.url || !data.username || !data.app_password) {
-        alert('Wypelnij wszystkie pola');
+        showToast('Wypelnij wszystkie pola');
         return;
     }
 
     if (editId) {
         data.id = parseInt(editId);
         api('PUT', 'api/sites.php', data).then(r => {
-            if (r.error) return alert(r.error);
+            if (r.error) return showToast(r.error, 'error');
             bootstrap.Modal.getInstance(document.getElementById('addSiteModal')).hide();
             loadSites();
         });
     } else {
         api('POST', 'api/sites.php', data).then(r => {
-            if (r.error) return alert(r.error);
+            if (r.error) return showToast(r.error, 'error');
             bootstrap.Modal.getInstance(document.getElementById('addSiteModal')).hide();
             loadSites();
         });
@@ -184,7 +276,7 @@ function editSite(id) {
 function deleteSite(id, name) {
     if (!confirm(`Usunac strone "${name}"?`)) return;
     api('DELETE', 'api/sites.php', {id}).then(r => {
-        if (r.error) return alert(r.error);
+        if (r.error) return showToast(r.error, 'error');
         loadSites();
     });
 }
@@ -412,10 +504,10 @@ function loadCronToken() {
 
 function saveCronToken() {
     const token = document.getElementById('cronTokenInput').value.trim();
-    if (!token) { alert('Wpisz lub wygeneruj token'); return; }
+    if (!token) { showToast('Wpisz lub wygeneruj token'); return; }
     api('POST', 'api/settings.php', { key: 'cron_token', value: token }).then(() => {
         updateCronPreview(token);
-        alert('Token zapisany');
+        showToast('Token zapisany');
     });
 }
 
@@ -437,8 +529,8 @@ function updateCronPreview(token) {
 // ── Change Password (all sites) ──────────────────────────────
 function changeAllPasswords() {
     const password = document.getElementById('newGlobalPassword').value;
-    if (!password) return alert('Wpisz nowe haslo');
-    if (password.length < 6) return alert('Haslo musi miec co najmniej 6 znakow');
+    if (!password) return showToast('Wpisz nowe haslo');
+    if (password.length < 6) return showToast('Haslo musi miec co najmniej 6 znakow');
     if (!confirm(`Zmieniac haslo na ${sitesData.length} stronach?`)) return;
 
     const log = document.getElementById('passwordChangeLog');
@@ -509,7 +601,7 @@ function importCsv(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const lines = e.target.result.split('\n').map(l => l.trim()).filter(l => l);
-        if (lines.length < 2) return alert('Plik CSV jest pusty');
+        if (lines.length < 2) return showToast('Plik CSV jest pusty');
 
         const header = lines[0].split(';');
         const required = ['name', 'url', 'username', 'app_password'];
@@ -517,7 +609,7 @@ function importCsv(input) {
         const indices = {};
         for (const col of required) {
             const idx = header.indexOf(col);
-            if (idx === -1) return alert(`Brak kolumny: ${col}\nWymagane: ${required.join(';')}`);
+            if (idx === -1) return showToast(`Brak kolumny: ${col}\nWymagane: ${required.join(';')}`);
             indices[col] = idx;
         }
         for (const col of optional) {
@@ -553,7 +645,7 @@ function importCsv(input) {
         }
 
         Promise.all(promises).then(() => {
-            alert(`Zaimportowano: ${imported}\nPominieto: ${skipped}`);
+            showToast(`Zaimportowano: ${imported}\nPominieto: ${skipped}`);
             loadSites();
         });
     };
@@ -561,7 +653,7 @@ function importCsv(input) {
 }
 
 function exportCsv() {
-    if (sitesData.length === 0) return alert('Brak stron do eksportu');
+    if (sitesData.length === 0) return showToast('Brak stron do eksportu');
 
     let csv = 'name;url;username;app_password;categories\n';
     sitesData.forEach(s => {
@@ -615,10 +707,10 @@ function addUser() {
     const username = document.getElementById('newUserLogin').value.trim();
     const password = document.getElementById('newUserPassword').value;
 
-    if (!username || !password) return alert('Wypelnij login i haslo');
+    if (!username || !password) return showToast('Wypelnij login i haslo');
 
     api('POST', 'api/users.php', {username, password}).then(r => {
-        if (r.error) return alert(r.error);
+        if (r.error) return showToast(r.error, 'error');
         bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
         document.getElementById('newUserLogin').value = '';
         document.getElementById('newUserPassword').value = '';
@@ -629,14 +721,14 @@ function addUser() {
 function deleteUser(id, name) {
     if (!confirm(`Usunac uzytkownika "${name}"?`)) return;
     api('DELETE', 'api/users.php', {id}).then(r => {
-        if (r.error) return alert(r.error);
+        if (r.error) return showToast(r.error, 'error');
         loadUsers();
     });
 }
 
 function changeRole(id, role) {
     api('PATCH', 'api/users.php', {id, action: 'change_role', role}).then(r => {
-        if (r.error) { alert(r.error); loadUsers(); return; }
+        if (r.error) { showToast(r.error, 'error'); loadUsers(); return; }
         loadUsers();
     });
 }
@@ -651,11 +743,11 @@ function showResetPassword(id, username) {
 function confirmResetPassword() {
     const id = parseInt(document.getElementById('resetPasswordUserId').value);
     const password = document.getElementById('resetPasswordInput').value;
-    if (!password) return alert('Wpisz nowe haslo');
+    if (!password) return showToast('Wpisz nowe haslo');
     api('PATCH', 'api/users.php', {id, action: 'reset_password', password}).then(r => {
-        if (r.error) return alert(r.error);
+        if (r.error) return showToast(r.error, 'error');
         bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
-        alert('Haslo zostalo zmienione');
+        showToast('Haslo zostalo zmienione');
     });
 }
 
@@ -813,7 +905,7 @@ function initPublishPage() {
 // ── Load WP categories & authors ─────────────────────────────
 function loadWpData() {
     const siteId = document.getElementById('publishSiteSelect').value;
-    if (!siteId) return alert('Wybierz strone');
+    if (!siteId) return showToast('Wybierz strone');
 
     const status = document.getElementById('wpDataStatus');
     status.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Laduje...';
@@ -875,7 +967,7 @@ let manualImageFilename = '';
 
 async function generateManualImage() {
     const title = document.getElementById('manualTitle').value.trim();
-    if (!title) return alert('Wpisz najpierw tytul');
+    if (!title) return showToast('Wpisz najpierw tytul');
     const preview = document.getElementById('manualImagePreview');
     preview.innerHTML = '<i class="bi bi-arrow-clockwise spin text-primary"></i> <span class="small">Generuje obrazek...</span>';
     try {
@@ -894,7 +986,7 @@ function addManualArticle() {
     const content = document.getElementById('manualContent').value;
     const imageInput = document.getElementById('manualImage');
 
-    if (!title) return alert('Wpisz tytul');
+    if (!title) return showToast('Wpisz tytul');
 
     const article = {
         id: Date.now(),
@@ -949,7 +1041,7 @@ function uploadDocxFiles(input) {
             .then(r => r.json())
             .then(r => {
                 if (r.error) {
-                    alert(`Blad parsowania ${file.name}: ${r.error}`);
+                    showToast(`Blad parsowania ${file.name}: ${r.error}`, 'error');
                 } else {
                     articles.push({
                         id: Date.now() + Math.random(),
@@ -965,7 +1057,7 @@ function uploadDocxFiles(input) {
                     });
                 }
             })
-            .catch(e => alert(`Blad uploadu ${file.name}: ${e.message}`))
+            .catch(e => showToast(`Blad uploadu ${file.name}: ${e.message}`, 'error'))
             .finally(() => {
                 done++;
                 if (done === files.length) {
@@ -1092,12 +1184,12 @@ function setBulkStatus(val) {
 function setRandomDates() {
     const fromStr = document.getElementById('randomDateFrom').value;
     const toStr = document.getElementById('randomDateTo').value;
-    if (!fromStr || !toStr) return alert('Ustaw zakres dat (od - do)');
+    if (!fromStr || !toStr) return showToast('Ustaw zakres dat (od - do)');
 
     const from = new Date(fromStr).getTime();
     const to = new Date(toStr).getTime();
-    if (from >= to) return alert('Data "od" musi byc wczesniejsza niz "do"');
-    if (!articles.length) return alert('Brak artykulow');
+    if (from >= to) return showToast('Data "od" musi byc wczesniejsza niz "do"');
+    if (!articles.length) return showToast('Brak artykulow');
 
     articles.forEach(a => {
         const randomTime = from + Math.random() * (to - from);
@@ -1110,7 +1202,7 @@ function setRandomDates() {
 
 // ── Save/Load articles state ──────────────────────────────────
 function exportArticlesJson() {
-    if (!articles.length) return alert('Brak artykulow do zapisania');
+    if (!articles.length) return showToast('Brak artykulow do zapisania');
     const data = JSON.stringify(articles, null, 0);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1144,9 +1236,9 @@ function importArticlesJson(input) {
 
             const imgCount = articles.filter(a => a.image_data).length;
             const mediaCount = articles.filter(a => a._media_id).length;
-            alert(`Wczytano ${data.length} artykulow (${imgCount} z obrazkami, ${mediaCount} juz uploadowanych).`);
+            showToast(`Wczytano ${data.length} artykulow (${imgCount} z obrazkami, ${mediaCount} juz uploadowanych).`);
         } catch (err) {
-            alert('Blad wczytywania: ' + err.message);
+            showToast('Blad wczytywania: ' + err.message);
         }
     };
     reader.readAsText(file);
@@ -1156,8 +1248,8 @@ function importArticlesJson(input) {
 // ── Publish all (batched image upload + sequential post creation) ──
 async function publishAllArticles() {
     const siteId = document.getElementById('publishSiteSelect').value;
-    if (!siteId) return alert('Wybierz strone');
-    if (!articles.length) return alert('Dodaj artykuly');
+    if (!siteId) return showToast('Wybierz strone');
+    if (!articles.length) return showToast('Dodaj artykuly');
     if (!confirm(`Opublikowac ${articles.length} artykulow?`)) return;
 
     const btn = document.getElementById('btnPublishAll');
@@ -1281,9 +1373,9 @@ async function publishAllArticles() {
 }
 
 function copyPublishedUrls() {
-    if (!publishedUrls.length) return alert('Brak linkow do skopiowania');
+    if (!publishedUrls.length) return showToast('Brak linkow do skopiowania');
     navigator.clipboard.writeText(publishedUrls.join('\n')).then(() => {
-        alert('Skopiowano ' + publishedUrls.length + ' linkow');
+        showToast('Skopiowano ' + publishedUrls.length + ' linkow');
     });
 }
 
@@ -1313,7 +1405,7 @@ async function generateGeminiImage(index) {
 
 async function bulkGenerateImages() {
     const indices = articles.map((a, i) => !a.image_data ? i : -1).filter(i => i >= 0);
-    if (!indices.length) return alert('Wszystkie artykuly maja juz obrazki');
+    if (!indices.length) return showToast('Wszystkie artykuly maja juz obrazki');
     if (!confirm(`Wygenerowac obrazki AI dla ${indices.length} artykulow?`)) return;
 
     const status = document.getElementById('geminiStatus');
@@ -1344,10 +1436,9 @@ async function saveGeminiKey() {
     const key = document.getElementById('geminiApiKey').value.trim();
     try {
         await api('POST', 'api/settings.php', { key: 'gemini_api_key', value: key });
-        bootstrap.Modal.getInstance(document.getElementById('geminiKeyModal')).hide();
-        alert('Klucz API zapisany');
+        showToast('Klucz Gemini API zapisany', 'success');
     } catch (e) {
-        alert('Blad zapisu: ' + e.message);
+        showToast('Blad zapisu: ' + e.message, 'error');
     }
 }
 
@@ -1365,10 +1456,9 @@ async function saveSpeedLinksKey() {
     const key = document.getElementById('speedLinksApiKey').value.trim();
     try {
         await api('POST', 'api/settings.php', { key: 'speedlinks_api_key', value: key });
-        bootstrap.Modal.getInstance(document.getElementById('speedLinksKeyModal')).hide();
-        alert('Klucz API zapisany');
+        showToast('Klucz Speed-Links API zapisany', 'success');
     } catch (e) {
-        alert('Blad zapisu: ' + e.message);
+        showToast('Blad zapisu: ' + e.message, 'error');
     }
 }
 
@@ -1831,7 +1921,7 @@ function saveClient() {
     };
 
     if (!data.name || !data.domain) {
-        alert('Wypelnij nazwe i domene');
+        showToast('Wypelnij nazwe i domene');
         return;
     }
 
@@ -1839,7 +1929,7 @@ function saveClient() {
     if (editId) data.id = parseInt(editId);
 
     api(method, 'api/clients.php', data).then(r => {
-        if (r.error) return alert(r.error);
+        if (r.error) return showToast(r.error, 'error');
         bootstrap.Modal.getInstance(document.getElementById('clientModal')).hide();
         loadClients();
     });
@@ -1859,13 +1949,13 @@ function editClient(id) {
 function deleteClient(id, name) {
     if (!confirm(`Usunac klienta "${name}"? Linki pozostana ale bez przypisania.`)) return;
     api('DELETE', 'api/clients.php', { id }).then(r => {
-        if (r.error) return alert(r.error);
+        if (r.error) return showToast(r.error, 'error');
         loadClients();
     });
 }
 
 function exportClientsCsv() {
-    if (!linksClients || linksClients.length === 0) return alert('Brak klientow do eksportu');
+    if (!linksClients || linksClients.length === 0) return showToast('Brak klientow do eksportu');
     let csv = 'name;domain;color\n';
     linksClients.forEach(c => {
         csv += `${c.name};${c.domain};${c.color || '#6c757d'}\n`;
@@ -1887,7 +1977,7 @@ function importClientsCsv(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const lines = e.target.result.split('\n').map(l => l.trim()).filter(l => l);
-        if (lines.length < 2) return alert('Plik CSV jest pusty');
+        if (lines.length < 2) return showToast('Plik CSV jest pusty');
 
         const header = lines[0].split(';').map(h => h.trim().toLowerCase());
         const required = ['name', 'domain'];
@@ -1896,7 +1986,7 @@ function importClientsCsv(input) {
 
         for (const col of required) {
             const idx = header.indexOf(col);
-            if (idx === -1) return alert(`Brak kolumny: ${col}\nWymagane: ${required.join(';')}`);
+            if (idx === -1) return showToast(`Brak kolumny: ${col}\nWymagane: ${required.join(';')}`);
             indices[col] = idx;
         }
         for (const col of optional) {
@@ -1926,7 +2016,7 @@ function importClientsCsv(input) {
         }
 
         Promise.all(promises).then(() => {
-            alert(`Zaimportowano: ${imported}\nPominieto: ${skipped}`);
+            showToast(`Zaimportowano: ${imported}\nPominieto: ${skipped}`);
             loadClients();
         });
     };
@@ -2019,12 +2109,12 @@ function scanSiteLinks(siteId, btn) {
 
     api('POST', 'api/scan-links.php', { site_id: siteId }).then(r => {
         if (r.error) {
-            alert('Blad skanowania: ' + r.error);
+            showToast('Blad skanowania: ' + r.error, 'error');
         } else {
             if (btn) btn.innerHTML = `<i class="bi bi-check text-success"></i> +${r.links_inserted}`;
         }
     }).catch(e => {
-        alert('Blad: ' + e.message);
+        showToast('Blad: ' + e.message, 'error');
         if (btn) btn.innerHTML = '<i class="bi bi-x text-danger"></i>';
     }).finally(() => {
         if (btn) btn.disabled = false;
@@ -2100,7 +2190,7 @@ function loadLinksHistory() {
 function deleteLink(id) {
     if (!confirm('Usunac ten link?')) return;
     api('DELETE', 'api/links.php', { id }).then(r => {
-        if (r.error) return alert(r.error);
+        if (r.error) return showToast(r.error, 'error');
         loadLinksHistory();
     });
 }
@@ -2109,8 +2199,8 @@ function clearAllLinks() {
     if (!confirm('UWAGA: Usunac WSZYSTKIE linki z bazy? Tej operacji nie mozna cofnac!')) return;
     if (!confirm('Na pewno? To usunie cala historie linkow.')) return;
     api('DELETE', 'api/links.php', { all: true }).then(r => {
-        if (r.error) return alert(r.error);
-        alert(`Usunieto ${r.deleted} linkow.`);
+        if (r.error) return showToast(r.error, 'error');
+        showToast(`Usunieto ${r.deleted} linkow.`);
         loadLinksHistory();
         loadLinksOverview();
     });
@@ -2130,7 +2220,7 @@ function exportLinksCsv() {
 
     api('GET', `api/links.php?${qs}`).then(r => {
         const links = r.links || [];
-        if (!links.length) return alert('Brak linkow do eksportu');
+        if (!links.length) return showToast('Brak linkow do eksportu');
 
         let csv = 'Data;Strona;Post URL;Post Tytul;Klient;Anchor;URL docelowy;Typ\n';
         links.forEach(l => {
@@ -2154,7 +2244,7 @@ function generateReport() {
     const dateTo = document.getElementById('reportDateTo').value;
     const container = document.getElementById('reportContent');
 
-    if (!clientId) return alert('Wybierz klienta');
+    if (!clientId) return showToast('Wybierz klienta');
 
     let qs = `client_id=${clientId}&limit=2000`;
     if (dateFrom) qs += `&date_from=${dateFrom}`;
@@ -2286,7 +2376,7 @@ function generateReport() {
 
 function copyReportToClipboard() {
     const container = document.getElementById('reportContent');
-    if (!container || !container.textContent.trim()) return alert('Brak raportu');
+    if (!container || !container.textContent.trim()) return showToast('Brak raportu');
 
     // Build plain text version
     const client = linksClients.find(c => c.id === parseInt(document.getElementById('reportClientSelect').value));
@@ -2297,11 +2387,11 @@ function copyReportToClipboard() {
         text += `${l.created_at} | ${l.site_name} | ${l.post_url} | ${l.anchor_text} | ${l.target_url} | ${l.link_type}\n`;
     });
 
-    navigator.clipboard.writeText(text).then(() => alert('Raport skopiowany do schowka'));
+    navigator.clipboard.writeText(text).then(() => showToast('Raport skopiowany do schowka'));
 }
 
 function exportReportCsv() {
-    if (!reportLinks.length) return alert('Brak danych raportu');
+    if (!reportLinks.length) return showToast('Brak danych raportu');
     let csv = 'Data;Strona;Post URL;Post Tytul;Anchor;URL docelowy;Typ\n';
     reportLinks.forEach(l => {
         csv += `${l.created_at};${l.site_name};${l.post_url};${l.post_title};${l.anchor_text};${l.target_url};${l.link_type}\n`;
@@ -2364,7 +2454,7 @@ function toggleRemoveCheckAll(el) {
 
 async function removeSelectedLinks() {
     const checked = [...document.querySelectorAll('.remove-link-cb:checked')].map(cb => parseInt(cb.value));
-    if (checked.length === 0) return alert('Zaznacz linki do usuniecia');
+    if (checked.length === 0) return showToast('Zaznacz linki do usuniecia');
     if (!confirm(`Usunac ${checked.length} linkow z wpisow blogowych? Wpisy pozostana, tylko linki zostana usuniete.`)) return;
 
     const status = document.getElementById('removeLinksStatus');
@@ -2602,10 +2692,9 @@ async function saveAnthropicKey() {
     const key = document.getElementById('anthropicApiKeyInput').value.trim();
     try {
         await api('POST', 'api/settings.php', { key: 'anthropic_api_key', value: key });
-        bootstrap.Modal.getInstance(document.getElementById('anthropicKeyModal')).hide();
-        alert('Klucz API zapisany');
+        showToast('Klucz Anthropic API zapisany', 'success');
     } catch (e) {
-        alert('Blad zapisu: ' + e.message);
+        showToast('Blad zapisu: ' + e.message, 'error');
     }
 }
 
@@ -2691,10 +2780,10 @@ function orderSelectCategory(id, name) {
 async function orderGenerate() {
     const title = document.getElementById('orderTitle').value.trim();
     const mainKw = document.getElementById('orderMainKeyword').value.trim();
-    if (!title) { alert('Wpisz tytul artykulu'); return; }
-    if (!mainKw) { alert('Wpisz glowne slowo kluczowe'); return; }
+    if (!title) { showToast('Wpisz tytul artykulu'); return; }
+    if (!mainKw) { showToast('Wpisz glowne slowo kluczowe'); return; }
     const siteId = document.getElementById('orderSiteId').value;
-    if (!siteId) { alert('Wybierz strone zapleczowa'); return; }
+    if (!siteId) { showToast('Wybierz strone zapleczowa'); return; }
 
     const secondaryKw = document.getElementById('orderSecondaryKeywords').value.trim();
     const notes = document.getElementById('orderNotes').value.trim();
@@ -3006,7 +3095,7 @@ async function orderPublish() {
     const publishDate = document.getElementById('orderPublishDate').value;
     const speedLinks = document.getElementById('orderSpeedLinks').checked;
 
-    if (!title || !content) { alert('Brak tytulu lub tresci'); return; }
+    if (!title || !content) { showToast('Brak tytulu lub tresci'); return; }
 
     const btn = document.getElementById('orderPublishBtn');
     btn.disabled = true;
@@ -3204,7 +3293,7 @@ function bulkOrderParseCsv(input) {
         }
 
         if (bulkOrderItems.length === 0) {
-            alert('Plik CSV nie zawiera artykulow');
+            showToast('Plik CSV nie zawiera artykulow');
             return;
         }
 
@@ -3277,10 +3366,10 @@ function bulkOrderUpdateSelectedCount() {
 function bulkOrderAssignRandomDates() {
     const fromStr = document.getElementById('bulkOrderDateFrom').value;
     const toStr = document.getElementById('bulkOrderDateTo').value;
-    if (!fromStr || !toStr) { alert('Podaj zakres dat (Od i Do)'); return; }
+    if (!fromStr || !toStr) { showToast('Podaj zakres dat (Od i Do)'); return; }
     const fromMs = new Date(fromStr + 'T00:00:00').getTime();
     const toMs = new Date(toStr + 'T23:59:59').getTime();
-    if (fromMs > toMs) { alert('Data "Od" musi byc przed data "Do"'); return; }
+    if (fromMs > toMs) { showToast('Data "Od" musi byc przed data "Do"'); return; }
 
     // Generate random timestamps, then sort chronologically
     const randomDates = bulkOrderItems.map(() => {
@@ -3302,10 +3391,10 @@ function bulkOrderAssignRandomDates() {
 
 async function bulkOrderStart() {
     const siteId = document.getElementById('bulkOrderSiteId').value;
-    if (!siteId) { alert('Wybierz strone'); return; }
+    if (!siteId) { showToast('Wybierz strone'); return; }
 
     const selectedItems = bulkOrderItems.filter(i => i.selected);
-    if (selectedItems.length === 0) { alert('Zaznacz przynajmniej jeden artykul'); return; }
+    if (selectedItems.length === 0) { showToast('Zaznacz przynajmniej jeden artykul'); return; }
 
     const fallbackCategoryId = document.getElementById('bulkOrderFallbackCategory').value;
     const fallbackLang = document.getElementById('bulkOrderLang').value || 'pl';
@@ -3508,7 +3597,7 @@ async function bulkOrderStart() {
 
 function bulkOrderCopyUrls() {
     const text = bulkOrderPublishedUrls.join('\n');
-    navigator.clipboard.writeText(text).then(() => alert('Skopiowano ' + bulkOrderPublishedUrls.length + ' linkow'));
+    navigator.clipboard.writeText(text).then(() => showToast('Skopiowano ' + bulkOrderPublishedUrls.length + ' linkow'));
 }
 
 // ── Helper: Extract H2 titles from HTML ─────────────────────

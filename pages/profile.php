@@ -4,9 +4,7 @@ $viewUserId = (int) ($_GET['user_id'] ?? 0);
 $isOwnProfile = !$viewUserId || $viewUserId === (int) $_SESSION['user_id'];
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="mb-0"><i class="bi bi-person-circle"></i> <span id="profileTitle">Profil</span></h4>
-</div>
+<input type="hidden" id="profileTitleHolder" data-target="profileTitle">
 
 <?php if ($isOwnProfile): ?>
 <!-- Password change -->

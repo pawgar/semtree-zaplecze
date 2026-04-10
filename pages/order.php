@@ -1,19 +1,5 @@
 <?php require_once __DIR__ . '/../includes/header.php'; ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="mb-0"><i class="bi bi-magic"></i> Zamow i opublikuj</h4>
-    <div class="d-flex gap-2">
-        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#anthropicKeyModal" onclick="loadAnthropicKey()">
-            <i class="bi bi-key"></i> Anthropic API Key
-        </button>
-        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#geminiKeyModal" onclick="loadGeminiKey()">
-            <i class="bi bi-key"></i> Gemini API Key
-        </button>
-        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#speedLinksKeyModal" onclick="loadSpeedLinksKey()">
-            <i class="bi bi-key"></i> Speed-Links API Key
-        </button>
-    </div>
-</div>
 
 <!-- Tabs: Single / Bulk -->
 <ul class="nav nav-tabs mb-3" role="tablist">
@@ -346,89 +332,5 @@
 
 </div><!-- end bulk tab -->
 </div><!-- end tab-content -->
-
-<!-- Anthropic API Key Modal -->
-<div class="modal fade" id="anthropicKeyModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-key"></i> Anthropic API Key</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted small">Klucz API Anthropic do generowania artykulow przez Claude. Pobierz z <a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>.</p>
-                <div class="mb-3">
-                    <label class="form-label">API Key</label>
-                    <div class="input-group">
-                        <input type="password" class="form-control" id="anthropicApiKeyInput" placeholder="sk-ant-...">
-                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('anthropicApiKeyInput', this)">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-                <button type="button" class="btn btn-primary" onclick="saveAnthropicKey()">Zapisz</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Gemini API Key Modal -->
-<div class="modal fade" id="geminiKeyModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-key"></i> Gemini API Key</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted small">Klucz API do generowania obrazkow przez Google Gemini. Pobierz z <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>.</p>
-                <div class="mb-3">
-                    <label class="form-label">API Key</label>
-                    <div class="input-group">
-                        <input type="password" class="form-control" id="geminiApiKey">
-                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('geminiApiKey', this)">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-                <button type="button" class="btn btn-primary" onclick="saveGeminiKey()">Zapisz</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Speed-Links API Key Modal -->
-<div class="modal fade" id="speedLinksKeyModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-key"></i> Speed-Links API Key</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted small">Klucz API do automatycznej indeksacji przez <a href="https://speed-links.net/" target="_blank">Speed-Links.net</a>.</p>
-                <div class="mb-3">
-                    <label class="form-label">API Key</label>
-                    <div class="input-group">
-                        <input type="password" class="form-control" id="speedLinksApiKey">
-                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('speedLinksApiKey', this)">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
-                <button type="button" class="btn btn-primary" onclick="saveSpeedLinksKey()">Zapisz</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
