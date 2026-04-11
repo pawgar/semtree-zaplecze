@@ -39,74 +39,55 @@ $pubCount = $pubStmt->execute()->fetchArray(SQLITE3_ASSOC)['cnt'] ?? 0;
 
     <!-- Stats row -->
     <div class="row g-3 mb-4">
-        <div class="col-auto">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
-                    <i class="bi bi-file-earmark-text fs-4 text-success"></i>
-                    <div><div class="small text-muted">Wpisy</div><div class="fw-bold fs-5"><?= $site['post_count'] ?? '-' ?></div></div>
-                </div>
+        <div class="col">
+            <div class="stat-card">
+                <div class="stat-card-icon stat-card-icon--success"><i class="bi bi-file-earmark-text"></i></div>
+                <div class="stat-card-value"><?= $site['post_count'] ?? '-' ?></div>
+                <div class="stat-card-label">Wpisy</div>
             </div>
         </div>
-        <div class="col-auto">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
-                    <i class="bi bi-link-45deg fs-4 text-info"></i>
-                    <div><div class="small text-muted">Linki</div><div class="fw-bold fs-5"><?= $linkCount ?></div></div>
-                </div>
+        <div class="col">
+            <div class="stat-card">
+                <div class="stat-card-icon stat-card-icon--info"><i class="bi bi-link-45deg"></i></div>
+                <div class="stat-card-value"><?= $linkCount ?></div>
+                <div class="stat-card-label">Linki</div>
             </div>
         </div>
-        <div class="col-auto">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
-                    <i class="bi bi-pencil-square fs-4 text-primary"></i>
-                    <div><div class="small text-muted">Publikacje</div><div class="fw-bold fs-5"><?= $pubCount ?></div></div>
-                </div>
+        <div class="col">
+            <div class="stat-card">
+                <div class="stat-card-icon stat-card-icon--primary"><i class="bi bi-pencil-square"></i></div>
+                <div class="stat-card-value"><?= $pubCount ?></div>
+                <div class="stat-card-label">Publikacje</div>
             </div>
         </div>
-        <div class="col-auto" id="siteCardGscClicks" style="display:none">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
-                    <i class="bi bi-cursor fs-4 text-primary"></i>
-                    <div>
-                        <div class="small text-muted">Kliknięcia</div>
-                        <div class="fw-bold fs-5" id="scClicks">0</div>
-                        <div class="small" id="scClicksChange"></div>
-                    </div>
-                </div>
+        <div class="col" id="siteCardGscClicks" style="display:none">
+            <div class="stat-card">
+                <div class="stat-card-icon stat-card-icon--primary"><i class="bi bi-cursor"></i></div>
+                <div class="stat-card-value" id="scClicks">0</div>
+                <div class="stat-card-label">Kliknięcia</div>
+                <div class="stat-card-change" id="scClicksChange"></div>
             </div>
         </div>
-        <div class="col-auto" id="siteCardGscImpressions" style="display:none">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
-                    <i class="bi bi-eye fs-4 text-warning"></i>
-                    <div>
-                        <div class="small text-muted">Wyświetlenia</div>
-                        <div class="fw-bold fs-5" id="scImpressions">0</div>
-                        <div class="small" id="scImpressionsChange"></div>
-                    </div>
-                </div>
+        <div class="col" id="siteCardGscImpressions" style="display:none">
+            <div class="stat-card">
+                <div class="stat-card-icon stat-card-icon--warning"><i class="bi bi-eye"></i></div>
+                <div class="stat-card-value" id="scImpressions">0</div>
+                <div class="stat-card-label">Wyświetlenia</div>
+                <div class="stat-card-change" id="scImpressionsChange"></div>
             </div>
         </div>
-        <div class="col-auto" id="siteCardGscCtr" style="display:none">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
-                    <i class="bi bi-percent fs-4 text-success"></i>
-                    <div>
-                        <div class="small text-muted">CTR</div>
-                        <div class="fw-bold fs-5" id="scCtr">0%</div>
-                    </div>
-                </div>
+        <div class="col" id="siteCardGscCtr" style="display:none">
+            <div class="stat-card">
+                <div class="stat-card-icon stat-card-icon--success"><i class="bi bi-percent"></i></div>
+                <div class="stat-card-value" id="scCtr">0%</div>
+                <div class="stat-card-label">CTR</div>
             </div>
         </div>
-        <div class="col-auto" id="siteCardGscPos" style="display:none">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
-                    <i class="bi bi-sort-numeric-down fs-4 text-secondary"></i>
-                    <div>
-                        <div class="small text-muted">Śr. pozycja</div>
-                        <div class="fw-bold fs-5" id="scPosition">0</div>
-                    </div>
-                </div>
+        <div class="col" id="siteCardGscPos" style="display:none">
+            <div class="stat-card">
+                <div class="stat-card-icon stat-card-icon--secondary"><i class="bi bi-sort-numeric-down"></i></div>
+                <div class="stat-card-value" id="scPosition">0</div>
+                <div class="stat-card-label">Śr. pozycja</div>
             </div>
         </div>
     </div>

@@ -138,9 +138,10 @@ function updateDashboardSummary() {
 
     const errCard = document.getElementById('sumErrorsCard');
     if (errCard) {
-        errCard.className = errors > 0
-            ? 'card border-danger shadow-sm'
-            : 'card border-0 shadow-sm';
+        const statCard = errCard.querySelector('.stat-card');
+        if (statCard) {
+            statCard.style.boxShadow = errors > 0 ? '0 0 0 2px rgba(239,68,68,0.5)' : '';
+        }
     }
 }
 
@@ -216,7 +217,7 @@ function formatChange(pct) {
     if (pct === null || pct === undefined) return '';
     const cls = pct > 0 ? 'text-success' : pct < 0 ? 'text-danger' : 'text-muted';
     const icon = pct > 0 ? 'arrow-up' : pct < 0 ? 'arrow-down' : 'dash';
-    return `<span class="${cls}"><i class="bi bi-${icon}"></i> ${Math.abs(pct).toFixed(1)}%</span>`;
+    return `<span class="${cls} change-inline"><i class="bi bi-${icon}"></i>${Math.round(Math.abs(pct))}%</span>`;
 }
 
 function sortSites(field) {
@@ -241,7 +242,7 @@ function renderSites(sites) {
     const tbody = document.getElementById('sitesBody');
     if (!tbody) return;
 
-    const colSpan = gscDashboardData ? 11 : 9;
+    const colSpan = gscDashboardData ? 10 : 8;
     if (sites.length === 0) {
         tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>`;
         return;
@@ -283,17 +284,19 @@ function renderSites(sites) {
         <tr data-id="${s.id}" ${rowClass}>
             <td>${i + 1}</td>
             <td><a href="index.php?page=site-card&id=${s.id}" title="Karta strony">${esc(s.name)}</a></td>
-            <td><a href="${esc(s.url)}" target="_blank">${esc(s.url)}</a></td>
             <td>${badges}</td>
             <td id="posts-${s.id}">${postCount}</td>
             <td><a href="#" onclick="goToLinks(${s.id}); return false;" title="Pokaz linki">${s.link_count || 0}</a></td>
             ${gscDashboardData ? `
-            <td class="gsc-col text-end">${s.gsc_clicks != null ? formatNumber(s.gsc_clicks) : '-'} ${s.gsc_clicks_change != null ? `<small>${formatChange(s.gsc_clicks_change)}</small>` : ''}</td>
-            <td class="gsc-col text-end">${s.gsc_impressions != null ? formatNumber(s.gsc_impressions) : '-'} ${s.gsc_impressions_change != null ? `<small>${formatChange(s.gsc_impressions_change)}</small>` : ''}</td>
+            <td class="gsc-col text-end text-nowrap">${s.gsc_clicks != null ? formatNumber(s.gsc_clicks) : '-'} ${s.gsc_clicks_change != null ? formatChange(s.gsc_clicks_change) : ''}</td>
+            <td class="gsc-col text-end text-nowrap">${s.gsc_impressions != null ? formatNumber(s.gsc_impressions) : '-'} ${s.gsc_impressions_change != null ? formatChange(s.gsc_impressions_change) : ''}</td>
             ` : ''}
             <td class="text-center" id="status-${s.id}">${httpLed}</td>
             <td class="text-center" id="api-${s.id}">${apiLed}</td>
             <td class="text-nowrap">
+                <a href="${esc(s.url)}" target="_blank" class="btn btn-sm btn-outline-info me-1" title="Otwórz stronę">
+                    <i class="bi bi-eye"></i>
+                </a>
                 <button class="btn btn-sm btn-outline-success me-1" onclick="goToPublish(${s.id})" title="Publikuj">
                     <i class="bi bi-send"></i>
                 </button>

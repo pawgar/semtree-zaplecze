@@ -581,15 +581,85 @@ body {
     animation: spin 0.6s linear infinite;
 }
 
-/* ═══ SUMMARY CARDS (Dashboard) ═══ */
-#dashboardSummary .card {
-    border: none;
+/* ═══ STAT CARDS (Dashboard & Site Card) ═══ */
+.stat-card {
+    background: #fff;
+    border-radius: var(--card-radius);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    padding: 20px 16px;
+    text-align: center;
     transition: transform 0.15s, box-shadow 0.2s;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
 }
 
-#dashboardSummary .card:hover {
+.stat-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+}
+
+.stat-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    margin-bottom: 4px;
+}
+
+.stat-card-icon--primary { background: rgba(79,110,247,0.12); color: var(--primary); }
+.stat-card-icon--success { background: rgba(34,197,94,0.12); color: var(--success); }
+.stat-card-icon--info { background: rgba(59,130,246,0.12); color: var(--info); }
+.stat-card-icon--warning { background: rgba(245,158,11,0.12); color: var(--warning); }
+.stat-card-icon--danger { background: rgba(239,68,68,0.12); color: var(--danger); }
+.stat-card-icon--secondary { background: rgba(100,116,139,0.12); color: #64748b; }
+
+.stat-card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.2;
+}
+
+.stat-card-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 500;
+}
+
+.stat-card-change {
+    font-size: 0.7rem;
+    margin-top: 2px;
+}
+
+/* Ensure stat cards in row have equal width */
+#dashboardSummary .col {
+    min-width: 120px;
+    max-width: 180px;
+}
+
+/* ═══ TABLE HEADER ALIGNMENT ═══ */
+.th-fixed {
+    white-space: nowrap;
+    vertical-align: middle !important;
+}
+
+.th-fixed i {
+    vertical-align: middle;
+}
+
+/* ═══ INLINE CHANGE INDICATOR ═══ */
+.change-inline {
+    font-size: 0.7rem;
+    white-space: nowrap;
+    vertical-align: middle;
 }
 
 /* ═══ LOGIN PAGE ═══ */
