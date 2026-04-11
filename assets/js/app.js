@@ -546,6 +546,9 @@ async function refreshAllStatuses() {
         );
         await Promise.all(promises);
     }
+
+    // Refresh summary counts (incl. links total)
+    updateDashboardSummary();
 }
 
 function applyStatusResult(r) {
@@ -574,6 +577,12 @@ function applyStatusResult(r) {
         checkEl.textContent = `Statusy z: ${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
     }
 
+    // Update link count cell if returned
+    if (r.link_count !== undefined) {
+        const linkCell = document.querySelector(`tr[data-id="${r.id}"] td:nth-child(6) a`);
+        if (linkCell) linkCell.textContent = r.link_count;
+    }
+
     // Update sitesData cache
     const site = sitesData.find(s => s.id === r.id);
     if (site) {
@@ -581,6 +590,7 @@ function applyStatusResult(r) {
         site.http_status = r.http_status;
         site.api_ok = r.api_ok;
         site.last_status_check = new Date().toISOString();
+        if (r.link_count !== undefined) site.link_count = r.link_count;
     }
 }
 

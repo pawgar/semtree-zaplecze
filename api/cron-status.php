@@ -6,9 +6,10 @@
  *
  * Requires a cron_token setting in the database for security.
  */
-set_time_limit(600);
+set_time_limit(900);
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../includes/wp_api.php';
+require_once __DIR__ . '/../includes/link_extractor.php';
 header('Content-Type: application/json');
 
 // Authenticate via token
@@ -45,12 +46,49 @@ foreach ($sites as $site) {
     // HTTP status
     $status['http_status'] = WpApi::getHttpStatus($site['url']);
 
-    // API test + post count
+    // API test + post count + link scan
     try {
         $api = new WpApi($site['url'], $site['username'], $site['app_password']);
         $api->testConnection();
         $status['api_ok'] = true;
         $status['post_count'] = $api->getPostCount();
+
+        // Scan links
+        $posts = $api->getPosts();
+        $parsedUrl = parse_url($site['url']);
+        $siteDomain = strtolower(preg_replace('/^www\./', '', $parsedUrl['host'] ?? ''));
+
+        $clientDomains = [];
+        $clientResult = $db->query('SELECT id, domain FROM clients');
+        while ($row = $clientResult->fetchArray(SQLITE3_ASSOC)) {
+            $clientDomains[strtolower($row['domain'])] = (int) $row['id'];
+        }
+
+        $insertStmt = $db->prepare('
+            INSERT OR IGNORE INTO links (site_id, client_id, post_url, post_title, target_url, anchor_text, link_type)
+            VALUES (:site_id, :client_id, :post_url, :post_title, :target_url, :anchor_text, :link_type)
+        ');
+
+        foreach ($posts as $post) {
+            $postUrl = $post['link'] ?? '';
+            $postTitle = $post['title']['rendered'] ?? '';
+            $html = $post['content']['rendered'] ?? '';
+            if (empty($html)) continue;
+
+            $externalLinks = extractExternalLinks($html, $siteDomain);
+            foreach ($externalLinks as $link) {
+                $clientId = matchClientDomain($link['target_url'], $clientDomains);
+                $insertStmt->bindValue(':site_id', $site['id'], SQLITE3_INTEGER);
+                $insertStmt->bindValue(':client_id', $clientId, $clientId ? SQLITE3_INTEGER : SQLITE3_NULL);
+                $insertStmt->bindValue(':post_url', $postUrl, SQLITE3_TEXT);
+                $insertStmt->bindValue(':post_title', $postTitle, SQLITE3_TEXT);
+                $insertStmt->bindValue(':target_url', $link['target_url'], SQLITE3_TEXT);
+                $insertStmt->bindValue(':anchor_text', $link['anchor_text'], SQLITE3_TEXT);
+                $insertStmt->bindValue(':link_type', $link['link_type'], SQLITE3_TEXT);
+                $insertStmt->execute();
+                $insertStmt->reset();
+            }
+        }
     } catch (Exception $e) {
         // keep defaults
     }
@@ -68,6 +106,9 @@ foreach ($sites as $site) {
     // Small delay between sites to avoid overwhelming
     usleep(500000); // 0.5s
 }
+
+// Re-match any unmatched links with client domains
+rematchClientLinks($db);
 
 echo json_encode([
     'success' => true,
