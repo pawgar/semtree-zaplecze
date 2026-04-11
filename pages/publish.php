@@ -22,6 +22,9 @@
     <div class="card-body">
         <h6 class="card-title"><i class="bi bi-2-circle"></i> Dodaj artykuły</h6>
         <div class="d-flex gap-2">
+            <button class="btn btn-outline-warning btn-sm" id="btnOrderSingleArticle" onclick="goToOrderWithSite()" style="display:none">
+                <i class="bi bi-magic"></i> Zamów pojedynczy artykuł
+            </button>
             <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('docxFiles').click()">
                 <i class="bi bi-file-earmark-word"></i> Wgraj DOCX
             </button>

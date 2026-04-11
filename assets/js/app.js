@@ -365,6 +365,13 @@ function deleteSite(id, name) {
     });
 }
 
+function goToOrderWithSite() {
+    const siteId = document.getElementById('publishSiteSelect')?.value;
+    if (!siteId) { showToast('Najpierw wybierz stronę'); return; }
+    sessionStorage.setItem('orderSiteId', siteId);
+    window.location.href = 'index.php?page=order';
+}
+
 function goToPublish(siteId) {
     sessionStorage.setItem('publishSiteId', siteId);
     window.location.href = 'index.php?page=publish';
@@ -1156,6 +1163,8 @@ function initPublishPage() {
         articles.forEach(a => { a.category_id = ''; a.author_id = ''; });
         renderArticles();
         document.getElementById('wpDataStatus').textContent = '';
+        const orderBtn = document.getElementById('btnOrderSingleArticle');
+        if (orderBtn) orderBtn.style.display = this.value ? '' : 'none';
         if (this.value) {
             loadWpData();
         }
@@ -2945,6 +2954,15 @@ let bulkOrderPublishedUrls = [];
 function initOrderPage() {
     api('GET', 'api/sites.php').then(sites => {
         orderSites = sites;
+        // Auto-select site if navigated from publish page
+        const preselected = sessionStorage.getItem('orderSiteId');
+        if (preselected) {
+            sessionStorage.removeItem('orderSiteId');
+            const site = sites.find(s => s.id == preselected);
+            if (site) {
+                orderSelectSite(site.id, site.name);
+            }
+        }
     });
     // Toggle date range visibility
     const rdCb = document.getElementById('bulkOrderRandomDates');
