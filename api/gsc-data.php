@@ -82,35 +82,40 @@ function getDashboardData(GscApi $gsc, string $dateFrom, string $dateTo, string 
     $totalKeywords = 0;
 
     foreach ($sites as $site) {
-        $gscUrl = $gsc->matchSiteToProperty($site['url']);
-        if (!$gscUrl) continue;
+        try {
+            $gscUrl = $gsc->matchSiteToProperty($site['url']);
+            if (!$gscUrl) continue;
 
-        $summary = $gsc->getCachedOrFetch($gscUrl, 'summary', $dateFrom, $dateTo, $ttl);
-        $prevSummary = $gsc->getCachedOrFetch($gscUrl, 'summary', $prevFrom, $prevTo, $ttl);
-        $keywords = $gsc->getCachedOrFetch($gscUrl, 'keywords', $dateFrom, $dateTo, $ttl);
+            $summary = $gsc->getCachedOrFetch($gscUrl, 'summary', $dateFrom, $dateTo, $ttl);
+            $prevSummary = $gsc->getCachedOrFetch($gscUrl, 'summary', $prevFrom, $prevTo, $ttl);
+            $keywords = $gsc->getCachedOrFetch($gscUrl, 'keywords', $dateFrom, $dateTo, $ttl);
 
-        $totalClicks += $summary['clicks'] ?? 0;
-        $totalImpressions += $summary['impressions'] ?? 0;
-        $totalClicksPrev += $prevSummary['clicks'] ?? 0;
-        $totalImpressionsPrev += $prevSummary['impressions'] ?? 0;
-        $totalKeywords += count($keywords);
+            $totalClicks += $summary['clicks'] ?? 0;
+            $totalImpressions += $summary['impressions'] ?? 0;
+            $totalClicksPrev += $prevSummary['clicks'] ?? 0;
+            $totalImpressionsPrev += $prevSummary['impressions'] ?? 0;
+            $totalKeywords += count($keywords);
 
-        $clicksChange = calcChange($summary['clicks'] ?? 0, $prevSummary['clicks'] ?? 0);
-        $impressionsChange = calcChange($summary['impressions'] ?? 0, $prevSummary['impressions'] ?? 0);
+            $clicksChange = calcChange($summary['clicks'] ?? 0, $prevSummary['clicks'] ?? 0);
+            $impressionsChange = calcChange($summary['impressions'] ?? 0, $prevSummary['impressions'] ?? 0);
 
-        $siteData[] = [
-            'site_id' => $site['id'],
-            'name' => $site['name'],
-            'url' => $site['url'],
-            'gsc_url' => $gscUrl,
-            'clicks' => $summary['clicks'] ?? 0,
-            'impressions' => $summary['impressions'] ?? 0,
-            'ctr' => $summary['ctr'] ?? 0,
-            'position' => $summary['position'] ?? 0,
-            'clicks_change' => $clicksChange,
-            'impressions_change' => $impressionsChange,
-            'keywords_count' => count($keywords),
-        ];
+            $siteData[] = [
+                'site_id' => $site['id'],
+                'name' => $site['name'],
+                'url' => $site['url'],
+                'gsc_url' => $gscUrl,
+                'clicks' => $summary['clicks'] ?? 0,
+                'impressions' => $summary['impressions'] ?? 0,
+                'ctr' => $summary['ctr'] ?? 0,
+                'position' => $summary['position'] ?? 0,
+                'clicks_change' => $clicksChange,
+                'impressions_change' => $impressionsChange,
+                'keywords_count' => count($keywords),
+            ];
+        } catch (Exception $e) {
+            // Skip sites with permission errors or API issues
+            continue;
+        }
     }
 
     return [
@@ -167,26 +172,31 @@ function getReportData(GscApi $gsc, string $dateFrom, string $dateTo, string $pr
 
     $siteData = [];
     foreach ($sites as $site) {
-        $gscUrl = $gsc->matchSiteToProperty($site['url']);
-        if (!$gscUrl) continue;
+        try {
+            $gscUrl = $gsc->matchSiteToProperty($site['url']);
+            if (!$gscUrl) continue;
 
-        $summary = $gsc->getCachedOrFetch($gscUrl, 'summary', $dateFrom, $dateTo, $ttl);
-        $prevSummary = $gsc->getCachedOrFetch($gscUrl, 'summary', $prevFrom, $prevTo, $ttl);
-        $daily = $gsc->getCachedOrFetch($gscUrl, 'daily', $dateFrom, $dateTo, $ttl);
+            $summary = $gsc->getCachedOrFetch($gscUrl, 'summary', $dateFrom, $dateTo, $ttl);
+            $prevSummary = $gsc->getCachedOrFetch($gscUrl, 'summary', $prevFrom, $prevTo, $ttl);
+            $daily = $gsc->getCachedOrFetch($gscUrl, 'daily', $dateFrom, $dateTo, $ttl);
 
-        $siteData[] = [
-            'site_id' => $site['id'],
-            'name' => $site['name'],
-            'url' => $site['url'],
-            'gsc_url' => $gscUrl,
-            'clicks' => $summary['clicks'] ?? 0,
-            'impressions' => $summary['impressions'] ?? 0,
-            'ctr' => $summary['ctr'] ?? 0,
-            'position' => $summary['position'] ?? 0,
-            'clicks_change' => calcChange($summary['clicks'] ?? 0, $prevSummary['clicks'] ?? 0),
-            'impressions_change' => calcChange($summary['impressions'] ?? 0, $prevSummary['impressions'] ?? 0),
-            'daily' => $daily,
-        ];
+            $siteData[] = [
+                'site_id' => $site['id'],
+                'name' => $site['name'],
+                'url' => $site['url'],
+                'gsc_url' => $gscUrl,
+                'clicks' => $summary['clicks'] ?? 0,
+                'impressions' => $summary['impressions'] ?? 0,
+                'ctr' => $summary['ctr'] ?? 0,
+                'position' => $summary['position'] ?? 0,
+                'clicks_change' => calcChange($summary['clicks'] ?? 0, $prevSummary['clicks'] ?? 0),
+                'impressions_change' => calcChange($summary['impressions'] ?? 0, $prevSummary['impressions'] ?? 0),
+                'daily' => $daily,
+            ];
+        } catch (Exception $e) {
+            // Skip sites with permission errors or API issues
+            continue;
+        }
     }
 
     return [

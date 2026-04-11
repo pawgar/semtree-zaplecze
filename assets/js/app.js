@@ -4422,6 +4422,7 @@ function renderSiteCardChart(daily) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             scales: {
                 y: { position: 'left', title: { display: true, text: 'Kliknięcia' } },

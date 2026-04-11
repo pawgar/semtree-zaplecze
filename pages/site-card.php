@@ -132,7 +132,9 @@ $pubCount = $pubStmt->execute()->fetchArray(SQLITE3_ASSOC)['cnt'] ?? 0;
             <i class="bi bi-graph-up"></i> Wykres GSC
         </div>
         <div class="content-card-body">
-            <canvas id="scChartCanvas" height="250"></canvas>
+            <div style="position:relative;height:220px">
+                <canvas id="scChartCanvas"></canvas>
+            </div>
         </div>
     </div>
 
