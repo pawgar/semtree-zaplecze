@@ -104,18 +104,22 @@ if ($method === 'GET') {
         $topSites[] = $row;
     }
 
-    // Summary totals
-    $totalPubs = count($publications);
+    // Summary totals — count distinct publications, not duplicated rows from LEFT JOIN
+    $uniquePubs = [];
     $uniqueSites = [];
     $uniqueClients = [];
-    $linkedCount = 0;
+    $pubsWithLinks = [];
     foreach ($publications as $p) {
+        $pubKey = $p['site_name'] . '|' . $p['post_url'];
+        $uniquePubs[$pubKey] = true;
         if (!empty($p['site_name'])) $uniqueSites[$p['site_name']] = true;
         if (!empty($p['client_domain'])) {
             $uniqueClients[$p['client_domain']] = true;
-            $linkedCount++;
+            $pubsWithLinks[$pubKey] = true;
         }
     }
+    $totalPubs = count($uniquePubs);
+    $linkedCount = count($pubsWithLinks);
 
     echo json_encode([
         'user' => $user,

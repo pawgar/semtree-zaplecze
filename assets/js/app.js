@@ -1044,14 +1044,36 @@ function renderProfileActivityChart(monthly) {
 
     const max = Math.max(...months.map(m => m.count), 1);
 
-    container.innerHTML = months.map(m => {
-        const pct = Math.max((m.count / max) * 100, 2);
-        return `<div class="d-flex flex-column align-items-center flex-fill" style="min-width:0">
-            <span class="small text-muted mb-1" style="font-size:0.7rem">${m.count || ''}</span>
-            <div class="profile-chart-bar" style="height:${pct}%" title="${m.key}: ${m.count} artykułów"></div>
-            <span class="small text-muted mt-1" style="font-size:0.65rem">${m.label}</span>
+    // Build Y-axis ticks (0, 25%, 50%, 75%, max)
+    const ticks = [0, Math.round(max * 0.25), Math.round(max * 0.5), Math.round(max * 0.75), max];
+    const uniqueTicks = [...new Set(ticks)].sort((a, b) => b - a);
+
+    const yAxis = uniqueTicks.map(t => {
+        const bottom = (t / max) * 100;
+        return `<div style="position:absolute;right:4px;bottom:${bottom}%;transform:translateY(50%);font-size:0.65rem;color:#999;line-height:1">${t}</div>`;
+    }).join('');
+
+    const yLines = uniqueTicks.map(t => {
+        const bottom = (t / max) * 100;
+        return `<div style="position:absolute;left:0;right:0;bottom:${bottom}%;border-bottom:1px solid #eee;pointer-events:none"></div>`;
+    }).join('');
+
+    const bars = months.map(m => {
+        const pct = max > 0 ? (m.count / max) * 100 : 0;
+        return `<div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;height:100%">
+            <div style="flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center">
+                <div class="profile-chart-bar" style="height:${Math.max(pct, m.count > 0 ? 3 : 0)}%;width:70%;max-width:40px" title="${m.key}: ${m.count} artykułów"></div>
+            </div>
+            <span style="font-size:0.65rem;color:#999;margin-top:4px;white-space:nowrap">${m.label}</span>
         </div>`;
     }).join('');
+
+    container.innerHTML = `
+        <div style="position:relative;flex:1;display:flex;height:100%;margin-left:30px">
+            <div style="position:absolute;left:-30px;top:0;bottom:20px;width:28px">${yAxis}</div>
+            <div style="position:absolute;left:0;right:0;top:0;bottom:20px">${yLines}</div>
+            <div style="display:flex;width:100%;gap:2px;align-items:stretch">${bars}</div>
+        </div>`;
 }
 
 function renderProfileTopClients(clients) {
