@@ -161,4 +161,24 @@ function migrateSchema(SQLite3 $db): void {
             FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
         )
     ');
+
+    // Add GSC metric columns to sites table (for instant dashboard loading)
+    if (!in_array('gsc_clicks', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN gsc_clicks INTEGER DEFAULT NULL');
+    }
+    if (!in_array('gsc_impressions', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN gsc_impressions INTEGER DEFAULT NULL');
+    }
+    if (!in_array('gsc_clicks_change', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN gsc_clicks_change REAL DEFAULT NULL');
+    }
+    if (!in_array('gsc_impressions_change', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN gsc_impressions_change REAL DEFAULT NULL');
+    }
+    if (!in_array('gsc_keywords_count', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN gsc_keywords_count INTEGER DEFAULT NULL');
+    }
+    if (!in_array('gsc_last_update', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN gsc_last_update DATETIME DEFAULT NULL');
+    }
 }

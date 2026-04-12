@@ -112,8 +112,8 @@ function loadSites() {
         buildCategoryFilter();
         buildClientFilter();
         updateDashboardSummary();
+        updateDashboardGscFromSites();
         filterSites();
-        loadDashboardGsc();
     });
 }
 
@@ -145,52 +145,59 @@ function updateDashboardSummary() {
     }
 }
 
-async function loadDashboardGsc() {
-    try {
-        const data = await api('GET', 'api/gsc-data.php?action=dashboard&range=28d');
-        if (data.error) return;
-        gscDashboardData = data;
+function updateDashboardGscFromSites() {
+    // Check if any site has GSC data (stored in sites table by CRON/refresh)
+    const hasGsc = sitesData.some(s => s.gsc_clicks !== null && s.gsc_clicks !== undefined);
+    if (!hasGsc) return;
 
-        // Show GSC cards
-        const clicksCard = document.getElementById('gscClicksCard');
-        const impCard = document.getElementById('gscImpressionsCard');
-        const kwCard = document.getElementById('gscKeywordsCard');
-        const refreshBtn = document.getElementById('refreshGscBtn');
-        if (clicksCard) clicksCard.style.display = '';
-        if (impCard) impCard.style.display = '';
-        if (kwCard) kwCard.style.display = '';
-        if (refreshBtn) refreshBtn.style.display = '';
+    gscDashboardData = true; // Flag to show GSC columns
 
-        // Update totals
-        const t = data.totals || {};
-        document.getElementById('sumGscClicks').textContent = formatNumber(t.clicks || 0);
-        document.getElementById('sumGscImpressions').textContent = formatNumber(t.impressions || 0);
-        document.getElementById('sumGscKeywords').textContent = formatNumber(t.keywords || 0);
+    // Show GSC cards and refresh button
+    const clicksCard = document.getElementById('gscClicksCard');
+    const impCard = document.getElementById('gscImpressionsCard');
+    const kwCard = document.getElementById('gscKeywordsCard');
+    const refreshBtn = document.getElementById('refreshGscBtn');
+    if (clicksCard) clicksCard.style.display = '';
+    if (impCard) impCard.style.display = '';
+    if (kwCard) kwCard.style.display = '';
+    if (refreshBtn) refreshBtn.style.display = '';
 
-        const clicksChg = document.getElementById('sumGscClicksChange');
-        const impChg = document.getElementById('sumGscImpressionsChange');
-        if (clicksChg) clicksChg.innerHTML = formatChange(t.clicks_change);
-        if (impChg) impChg.innerHTML = formatChange(t.impressions_change);
+    // Calculate totals from sitesData (already loaded from sites.php)
+    let totalClicks = 0, totalImpressions = 0, totalKeywords = 0;
+    sitesData.forEach(s => {
+        totalClicks += parseInt(s.gsc_clicks) || 0;
+        totalImpressions += parseInt(s.gsc_impressions) || 0;
+        totalKeywords += parseInt(s.gsc_keywords_count) || 0;
+    });
 
-        // Show GSC columns in table
-        document.querySelectorAll('.gsc-col').forEach(el => el.style.display = '');
+    document.getElementById('sumGscClicks').textContent = formatNumber(totalClicks);
+    document.getElementById('sumGscImpressions').textContent = formatNumber(totalImpressions);
+    document.getElementById('sumGscKeywords').textContent = formatNumber(totalKeywords);
 
-        // Merge GSC data into sitesData for rendering
-        if (data.sites) {
-            data.sites.forEach(gsc => {
-                const site = sitesData.find(s => s.url === gsc.url || s.id === gsc.site_id);
-                if (site) {
-                    site.gsc_clicks = gsc.clicks;
-                    site.gsc_impressions = gsc.impressions;
-                    site.gsc_clicks_change = gsc.clicks_change;
-                    site.gsc_impressions_change = gsc.impressions_change;
-                }
-            });
-        }
-        filterSites();
-    } catch (e) {
-        // GSC not configured - silently skip
+    // Calculate weighted average changes
+    let clicksChange = 0, impChange = 0;
+    if (totalClicks > 0) {
+        sitesData.forEach(s => {
+            const c = parseInt(s.gsc_clicks) || 0;
+            clicksChange += (parseFloat(s.gsc_clicks_change) || 0) * c;
+        });
+        clicksChange /= totalClicks;
     }
+    if (totalImpressions > 0) {
+        sitesData.forEach(s => {
+            const i = parseInt(s.gsc_impressions) || 0;
+            impChange += (parseFloat(s.gsc_impressions_change) || 0) * i;
+        });
+        impChange /= totalImpressions;
+    }
+
+    const clicksChg = document.getElementById('sumGscClicksChange');
+    const impChg = document.getElementById('sumGscImpressionsChange');
+    if (clicksChg) clicksChg.innerHTML = formatChange(clicksChange);
+    if (impChg) impChg.innerHTML = formatChange(impChange);
+
+    // Show GSC columns in table
+    document.querySelectorAll('.gsc-col').forEach(el => el.style.display = '');
 }
 
 async function refreshDashboardGsc() {
@@ -198,7 +205,12 @@ async function refreshDashboardGsc() {
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Odświeżam...'; }
     try {
         await api('GET', 'api/gsc-data.php?action=refresh');
-        await loadDashboardGsc();
+        // Reload sites data (now includes updated GSC columns)
+        const sites = await api('GET', 'api/sites.php');
+        sitesData = sites;
+        updateDashboardSummary();
+        updateDashboardGscFromSites();
+        filterSites();
         showToast('Dane GSC odświeżone', 'success');
     } catch (e) {
         showToast('Błąd odświeżania GSC: ' + e.message, 'error');
