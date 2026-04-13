@@ -129,6 +129,38 @@ $isAdminUser = isAdmin();
     <?php endif; ?>
 
     <?php if ($isAdminUser): ?>
+    <!-- Telegram -->
+    <div class="col-lg-6">
+        <div class="content-card">
+            <div class="content-card-header">
+                <i class="bi bi-telegram"></i> Telegram Bot
+            </div>
+            <div class="content-card-body">
+                <p class="text-muted small mb-3">Powiadomienia o auto-publikacjach wysyłane na Telegram. Utwórz bota przez <a href="https://t.me/BotFather" target="_blank">@BotFather</a>.</p>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Bot Token</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="telegramBotToken" placeholder="123456:ABC-DEF...">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('telegramBotToken', this)">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Chat ID</label>
+                    <input type="text" class="form-control" id="telegramChatId" placeholder="-1001234567890">
+                    <div class="form-text">ID czatu lub grupy. Możesz użyć <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a> aby poznać swoje ID.</div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="saveTelegramSettings()"><i class="bi bi-check-lg"></i> Zapisz</button>
+                    <button class="btn btn-outline-success" onclick="testTelegram()"><i class="bi bi-send"></i> Testuj</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($isAdminUser): ?>
     <!-- CRON Settings -->
     <div class="col-lg-6">
         <div class="content-card">
@@ -150,10 +182,13 @@ $isAdminUser = isAdmin();
                     <code class="d-block bg-light p-2 rounded small mb-1" id="cronCommandPreview">
                         0 23 * * * curl -s "<?= htmlspecialchars(rtrim(($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'your-app.com'), '/')) ?>/api/cron-status.php?token=YOUR_TOKEN"
                     </code>
-                    <code class="d-block bg-light p-2 rounded small" id="cronGscCommandPreview">
+                    <code class="d-block bg-light p-2 rounded small mb-1" id="cronGscCommandPreview">
                         0 6 * * * curl -s "<?= htmlspecialchars(rtrim(($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'your-app.com'), '/')) ?>/api/cron-gsc.php?token=YOUR_TOKEN"
                     </code>
-                    <div class="form-text">Pierwsza komenda: statusy stron (23:00). Druga: dane GSC (6:00).</div>
+                    <code class="d-block bg-light p-2 rounded small" id="cronAutoPublishCommandPreview">
+                        0 9 * * * curl -s "<?= htmlspecialchars(rtrim(($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'your-app.com'), '/')) ?>/api/cron-auto-publish.php?token=YOUR_TOKEN" --max-time 7200
+                    </code>
+                    <div class="form-text">Statusy stron (23:00), dane GSC (6:00), auto-publikacje (9:00).</div>
                 </div>
             </div>
         </div>

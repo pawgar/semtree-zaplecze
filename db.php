@@ -162,6 +162,53 @@ function migrateSchema(SQLite3 $db): void {
         )
     ');
 
+    // ── Auto-publish tables ──────────────────────────────────
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS auto_publish_config (
+            site_id INTEGER PRIMARY KEY,
+            daily_limit INTEGER NOT NULL DEFAULT 1,
+            use_speed_links INTEGER NOT NULL DEFAULT 0,
+            use_inline_images INTEGER NOT NULL DEFAULT 0,
+            random_author INTEGER NOT NULL DEFAULT 0,
+            lang TEXT NOT NULL DEFAULT "pl",
+            enabled INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+        )
+    ');
+
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS auto_publish_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            main_keyword TEXT NOT NULL DEFAULT "",
+            secondary_keywords TEXT NOT NULL DEFAULT "",
+            category_name TEXT NOT NULL DEFAULT "",
+            notes TEXT NOT NULL DEFAULT "",
+            status TEXT NOT NULL DEFAULT "pending",
+            wp_category_id INTEGER DEFAULT NULL,
+            published_url TEXT DEFAULT NULL,
+            error_message TEXT DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            scheduled_date DATE DEFAULT NULL,
+            published_at DATETIME DEFAULT NULL,
+            FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+        )
+    ');
+    $db->exec('CREATE INDEX IF NOT EXISTS idx_apq_site_status ON auto_publish_queue(site_id, status)');
+
+    $db->exec('
+        CREATE TABLE IF NOT EXISTS auto_publish_category_map (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_id INTEGER NOT NULL,
+            category_name TEXT NOT NULL,
+            wp_category_id INTEGER NOT NULL,
+            wp_category_name TEXT NOT NULL DEFAULT "",
+            UNIQUE(site_id, category_name),
+            FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+        )
+    ');
+
     // Add GSC metric columns to sites table (for instant dashboard loading)
     if (!in_array('gsc_clicks', $siteCols)) {
         $db->exec('ALTER TABLE sites ADD COLUMN gsc_clicks INTEGER DEFAULT NULL');

@@ -50,6 +50,10 @@ switch ($page) {
         requireLogin();
         require __DIR__ . '/pages/gsc-report.php';
         break;
+    case 'auto-publish':
+        requireLogin();
+        require __DIR__ . '/pages/auto-publish.php';
+        break;
     case 'site-card':
         requireLogin();
         require __DIR__ . '/pages/site-card.php';

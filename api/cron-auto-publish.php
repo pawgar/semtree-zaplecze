@@ -1,0 +1,404 @@
+<?php
+/**
+ * CRON: Auto-publish articles from queue.
+ * Runs daily at 9:00 AM. For each enabled site, generates and publishes X articles.
+ * Articles are published with random times between 5:00-8:00 AM.
+ * Sends Telegram report after completion.
+ *
+ * Usage: 0 9 * * * curl -s "https://app.com/api/cron-auto-publish.php?token=SECRET"
+ */
+set_time_limit(7200); // 2 hours max
+ini_set('memory_limit', '512M');
+require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../includes/wp_api.php';
+require_once __DIR__ . '/../includes/article_prompt.php';
+require_once __DIR__ . '/../includes/image_utils.php';
+header('Content-Type: application/json');
+
+// ── Auth ─────────────────────────────────────────────────────
+$db = getDb();
+$tokenRow = $db->querySingle("SELECT value FROM settings WHERE key = 'cron_token'", true);
+$cronToken = $tokenRow ? trim($tokenRow['value']) : '';
+$providedToken = $_GET['token'] ?? '';
+
+if (!$cronToken || $providedToken !== $cronToken) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
+}
+
+// ── Settings ─────────────────────────────────────────────────
+$apiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'anthropic_api_key'", true);
+$anthropicKey = $apiKeyRow ? trim($apiKeyRow['value']) : '';
+
+$modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
+$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-4-6';
+
+$geminiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'gemini_api_key'", true);
+$geminiKey = $geminiKeyRow ? trim($geminiKeyRow['value']) : '';
+
+$speedLinksKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'speedlinks_api_key'", true);
+$speedLinksKey = $speedLinksKeyRow ? trim($speedLinksKeyRow['value']) : '';
+
+$speedLinksMethodRow = $db->querySingle("SELECT value FROM settings WHERE key = 'speedlinks_method'", true);
+$speedLinksMethod = ($speedLinksMethodRow && !empty($speedLinksMethodRow['value'])) ? $speedLinksMethodRow['value'] : 'vip';
+
+if (!$anthropicKey) {
+    echo json_encode(['error' => 'Brak klucza Anthropic API']);
+    exit;
+}
+
+// ── Get enabled sites with pending articles ──────────────────
+$sites = [];
+$result = $db->query('
+    SELECT s.id, s.name, s.url, s.username, s.app_password,
+           apc.daily_limit, apc.use_speed_links, apc.use_inline_images, apc.random_author, apc.lang
+    FROM auto_publish_config apc
+    JOIN sites s ON s.id = apc.site_id
+    WHERE apc.enabled = 1
+    ORDER BY s.name
+');
+while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+    // Check if site has pending articles
+    $pendingStmt = $db->prepare('SELECT COUNT(*) as cnt FROM auto_publish_queue WHERE site_id = :sid AND status = "pending"');
+    $pendingStmt->bindValue(':sid', $row['id'], SQLITE3_INTEGER);
+    $pending = $pendingStmt->execute()->fetchArray(SQLITE3_ASSOC)['cnt'];
+    if ($pending > 0) {
+        $row['pending_count'] = $pending;
+        $sites[] = $row;
+    }
+}
+
+if (empty($sites)) {
+    echo json_encode(['success' => true, 'message' => 'Brak stron z oczekującymi artykułami.', 'published' => 0]);
+    exit;
+}
+
+// ── Process each site ────────────────────────────────────────
+$totalPublished = 0;
+$totalErrors = 0;
+$report = []; // For Telegram
+$speedLinksUrls = [];
+
+foreach ($sites as $site) {
+    $siteId = $site['id'];
+    $limit = max(1, (int)$site['daily_limit']);
+    $lang = $site['lang'] ?: 'pl';
+
+    // Get pending articles (limit by daily_limit)
+    $qStmt = $db->prepare('SELECT * FROM auto_publish_queue WHERE site_id = :sid AND status = "pending" ORDER BY id LIMIT :lim');
+    $qStmt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
+    $qStmt->bindValue(':lim', $limit, SQLITE3_INTEGER);
+    $result = $qStmt->execute();
+    $articles = [];
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) $articles[] = $row;
+
+    if (empty($articles)) continue;
+
+    // Get category mappings for this site
+    $catStmt = $db->prepare('SELECT category_name, wp_category_id FROM auto_publish_category_map WHERE site_id = :sid');
+    $catStmt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
+    $catResult = $catStmt->execute();
+    $catMap = [];
+    while ($row = $catResult->fetchArray(SQLITE3_ASSOC)) {
+        $catMap[mb_strtolower($row['category_name'])] = (int)$row['wp_category_id'];
+    }
+
+    // Get authors if random_author enabled
+    $authors = [];
+    if ($site['random_author']) {
+        try {
+            $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
+            $authors = $wpApi->getAuthors();
+        } catch (Exception $e) {
+            // Fallback: no random author
+        }
+    }
+
+    $sitePublished = 0;
+    $siteErrors = 0;
+    $siteArticles = [];
+
+    foreach ($articles as $article) {
+        $articleId = $article['id'];
+        $articleTitle = $article['title'];
+
+        // Mark as generating
+        $db->exec("UPDATE auto_publish_queue SET status = 'generating' WHERE id = $articleId");
+
+        try {
+            // 1. Generate article content via Claude API
+            $systemPrompt = getArticleSystemPrompt($lang);
+            $userPrompt = buildArticleUserPrompt(
+                $articleTitle,
+                $article['main_keyword'],
+                $article['secondary_keywords'],
+                $article['notes'],
+                $lang
+            );
+
+            $payload = [
+                'model' => $aiModel,
+                'max_tokens' => 16000,
+                'system' => $systemPrompt,
+                'messages' => [['role' => 'user', 'content' => $userPrompt]],
+            ];
+
+            $ch = curl_init('https://api.anthropic.com/v1/messages');
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json',
+                    'x-api-key: ' . $anthropicKey,
+                    'anthropic-version: 2023-06-01',
+                ],
+                CURLOPT_POSTFIELDS => json_encode($payload),
+                CURLOPT_TIMEOUT => 180,
+                CURLOPT_CONNECTTIMEOUT => 30,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if (curl_errno($ch)) throw new RuntimeException('cURL: ' . curl_error($ch));
+            curl_close($ch);
+
+            if ($httpCode >= 400) {
+                $errData = json_decode($response, true);
+                throw new RuntimeException('Claude API HTTP ' . $httpCode . ': ' . ($errData['error']['message'] ?? 'Unknown error'));
+            }
+
+            $data = json_decode($response, true);
+            $markdown = '';
+            foreach (($data['content'] ?? []) as $block) {
+                if (($block['type'] ?? '') === 'text') $markdown .= $block['text'];
+            }
+            if (!$markdown) throw new RuntimeException('Claude API nie zwróciło treści');
+
+            // Remove H1, convert to HTML
+            $markdown = preg_replace('/^#\s+.+\n*/m', '', $markdown, 1);
+            $htmlContent = markdownToHtml($markdown);
+            $htmlContent = sanitizeArticleHtml($htmlContent);
+
+            // Mark as generated
+            $db->exec("UPDATE auto_publish_queue SET status = 'generated' WHERE id = $articleId");
+
+            // 2. Generate featured image via Gemini
+            $featuredMediaId = 0;
+            if ($geminiKey) {
+                try {
+                    $imagePrompt = "Professional blog header image for article titled: \"$articleTitle\". Modern, clean, editorial style. No text on image.";
+                    $imageData = generateGeminiImage($geminiKey, $imagePrompt);
+                    if ($imageData) {
+                        $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
+                        $optimized = optimizeImage(base64_decode($imageData), 'featured.jpg');
+                        $featuredMediaId = $wpApi->uploadMedia($optimized['filename'], $optimized['data'], $optimized['mime']);
+                    }
+                } catch (Exception $e) {
+                    // Continue without image
+                }
+            }
+
+            // 3. Publish to WordPress
+            $db->exec("UPDATE auto_publish_queue SET status = 'publishing' WHERE id = $articleId");
+
+            $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
+
+            // Random publish time: 5:00 - 8:00 AM today
+            $hour = rand(5, 7);
+            $minute = rand(0, 59);
+            $publishDate = date('Y-m-d') . sprintf('T%02d:%02d:00', $hour, $minute);
+
+            $postData = [
+                'title' => $articleTitle,
+                'content' => $htmlContent,
+                'status' => 'publish',
+                'date' => $publishDate,
+            ];
+
+            // Category mapping
+            $wpCatId = $article['wp_category_id'];
+            if (!$wpCatId && $article['category_name']) {
+                $wpCatId = $catMap[mb_strtolower($article['category_name'])] ?? 0;
+            }
+            if ($wpCatId > 0) $postData['categories'] = [$wpCatId];
+
+            // Random author
+            if ($site['random_author'] && !empty($authors)) {
+                $randomAuthor = $authors[array_rand($authors)];
+                $postData['author'] = $randomAuthor['id'];
+            }
+
+            // Featured image
+            if ($featuredMediaId > 0) $postData['featured_media'] = $featuredMediaId;
+
+            $result = $wpApi->createPost($postData);
+            $postUrl = $result['link'] ?? '';
+
+            // Mark as published
+            $upStmt = $db->prepare('UPDATE auto_publish_queue SET status = "published", published_url = :url, published_at = datetime("now") WHERE id = :id');
+            $upStmt->bindValue(':url', $postUrl, SQLITE3_TEXT);
+            $upStmt->bindValue(':id', $articleId, SQLITE3_INTEGER);
+            $upStmt->execute();
+
+            // Record publication (user_id = 0 for CRON)
+            $pubStmt = $db->prepare('INSERT INTO publications (user_id, site_id, post_url, post_title) VALUES (0, :sid, :url, :title)');
+            $pubStmt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
+            $pubStmt->bindValue(':url', $postUrl, SQLITE3_TEXT);
+            $pubStmt->bindValue(':title', $articleTitle, SQLITE3_TEXT);
+            $pubStmt->execute();
+
+            // Collect for Speed Links
+            if ($site['use_speed_links'] && $postUrl) $speedLinksUrls[] = $postUrl;
+
+            $sitePublished++;
+            $totalPublished++;
+            $siteArticles[] = ['title' => $articleTitle, 'url' => $postUrl, 'status' => 'ok'];
+
+            // Delay between articles to avoid rate limits
+            sleep(5);
+
+        } catch (Exception $e) {
+            $errMsg = $e->getMessage();
+            $errStmt = $db->prepare('UPDATE auto_publish_queue SET status = "error", error_message = :err WHERE id = :id');
+            $errStmt->bindValue(':err', $errMsg, SQLITE3_TEXT);
+            $errStmt->bindValue(':id', $articleId, SQLITE3_INTEGER);
+            $errStmt->execute();
+
+            $siteErrors++;
+            $totalErrors++;
+            $siteArticles[] = ['title' => $articleTitle, 'url' => '', 'status' => 'error', 'error' => $errMsg];
+        }
+    }
+
+    $report[] = [
+        'site' => $site['name'],
+        'published' => $sitePublished,
+        'errors' => $siteErrors,
+        'articles' => $siteArticles,
+    ];
+}
+
+// ── Speed Links submission ───────────────────────────────────
+$speedLinksResult = '';
+if (!empty($speedLinksUrls) && $speedLinksKey) {
+    try {
+        $urlList = implode('|', $speedLinksUrls);
+        $slUrl = 'http://speed-links.net/api.php?' . http_build_query([
+            'apikey' => $speedLinksKey,
+            'cmd' => 'submit',
+            'urls' => $urlList,
+            'dripfeed' => 1,
+            'reporturl' => 1,
+            'method' => $speedLinksMethod,
+        ]);
+        $ch = curl_init($slUrl);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30]);
+        $slResponse = curl_exec($ch);
+        curl_close($ch);
+        $speedLinksResult = "Speed Links: " . count($speedLinksUrls) . " URLs submitted";
+    } catch (Exception $e) {
+        $speedLinksResult = "Speed Links error: " . $e->getMessage();
+    }
+}
+
+// ── Telegram report ──────────────────────────────────────────
+sendTelegramReport($db, $report, $totalPublished, $totalErrors, $speedLinksResult);
+
+// ── Response ─────────────────────────────────────────────────
+echo json_encode([
+    'success' => true,
+    'published' => $totalPublished,
+    'errors' => $totalErrors,
+    'report' => $report,
+    'speed_links' => $speedLinksResult,
+]);
+
+// ── Helper: Generate image via Gemini ────────────────────────
+function generateGeminiImage(string $apiKey, string $prompt): ?string {
+    $models = ['gemini-2.0-flash-exp', 'imagen-3.0-generate-002'];
+
+    foreach ($models as $model) {
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey";
+        $payload = [
+            'contents' => [['parts' => [['text' => $prompt]]]],
+            'generationConfig' => ['responseModalities' => ['TEXT', 'IMAGE']],
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200) {
+            $data = json_decode($response, true);
+            $parts = $data['candidates'][0]['content']['parts'] ?? [];
+            foreach ($parts as $part) {
+                if (isset($part['inlineData']['data'])) {
+                    return $part['inlineData']['data'];
+                }
+            }
+        }
+    }
+    return null;
+}
+
+// ── Helper: Send Telegram report ─────────────────────────────
+function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int $totalErrors, string $speedLinksResult): void {
+    $tokenRow = $db->querySingle("SELECT value FROM settings WHERE key = 'telegram_bot_token'", true);
+    $chatRow = $db->querySingle("SELECT value FROM settings WHERE key = 'telegram_chat_id'", true);
+
+    $botToken = $tokenRow ? trim($tokenRow['value']) : '';
+    $chatId = $chatRow ? trim($chatRow['value']) : '';
+
+    if (!$botToken || !$chatId) return;
+
+    $date = date('Y-m-d');
+    $emoji = $totalErrors === 0 ? "\xE2\x9C\x85" : "\xE2\x9A\xA0\xEF\xB8\x8F";
+
+    $msg = "$emoji *Auto-publikacja $date*\n\n";
+    $msg .= "Opublikowano: *$totalPublished* | Błędy: *$totalErrors*\n\n";
+
+    foreach ($report as $r) {
+        $siteEmoji = $r['errors'] === 0 ? "\xE2\x9C\x85" : "\xE2\x9A\xA0\xEF\xB8\x8F";
+        $msg .= "$siteEmoji *{$r['site']}* ({$r['published']}/{$r['errors']})\n";
+        foreach ($r['articles'] as $a) {
+            if ($a['status'] === 'ok') {
+                $msg .= "  \xE2\x80\xA2 {$a['title']}\n";
+            } else {
+                $msg .= "  \xE2\x9D\x8C {$a['title']}: {$a['error']}\n";
+            }
+        }
+        $msg .= "\n";
+    }
+
+    if ($speedLinksResult) $msg .= "\xF0\x9F\x94\x97 $speedLinksResult\n";
+    $msg .= "\n\xF0\x9F\x95\x90 Następna publikacja: jutro o 9:00";
+
+    // Send via Telegram Bot API
+    $url = "https://api.telegram.org/bot$botToken/sendMessage";
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POSTFIELDS => http_build_query([
+            'chat_id' => $chatId,
+            'text' => $msg,
+            'parse_mode' => 'Markdown',
+        ]),
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
+}

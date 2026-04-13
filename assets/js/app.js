@@ -4697,6 +4697,424 @@ function exportGscReportXlsx() {
     showToast('Raport wyeksportowany', 'success');
 }
 
+// ══════════════════════════════════════════════════════════════
+// ── Auto-Publish ─────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+let apSitesData = [];
+let apCurrentSiteId = null;
+let apQueueData = [];
+let apWpCategories = {};
+
+function initAutoPublish() {
+    if (!document.getElementById('apSitesTable')) return;
+    loadAutoPublish();
+}
+
+async function loadAutoPublish() {
+    if (!document.getElementById('apSitesBody')) return;
+    try {
+        const data = await api('GET', 'api/auto-publish.php?action=sites');
+        if (data.error) throw new Error(data.error);
+        apSitesData = data.sites || [];
+        renderApSites();
+        updateApSummary();
+    } catch (e) {
+        showToast('Błąd ładowania: ' + e.message, 'error');
+    }
+}
+
+function updateApSummary() {
+    const el = document.getElementById('apSummary');
+    if (!el) return;
+
+    let totalPublished = 0, totalPending = 0, totalErrors = 0, totalQueued = 0, activeSites = 0;
+    apSitesData.forEach(s => {
+        const q = s.queue || {};
+        totalPublished += (q.published || 0);
+        totalPending += (q.pending || 0);
+        totalErrors += (q.error || 0);
+        totalQueued += (s.queue_total || 0);
+        if (s.enabled) activeSites++;
+    });
+
+    document.getElementById('apTotalPublished').textContent = totalPublished;
+    document.getElementById('apTotalPending').textContent = totalPending;
+    document.getElementById('apTotalErrors').textContent = totalErrors;
+    document.getElementById('apTotalQueued').textContent = totalQueued;
+    document.getElementById('apTotalSites').textContent = activeSites;
+    el.style.display = totalQueued > 0 ? '' : 'none';
+}
+
+function renderApSites() {
+    const tbody = document.getElementById('apSitesBody');
+    if (!tbody) return;
+
+    if (!apSitesData.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">Brak stron zapleczowych</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = apSitesData.map(s => {
+        const q = s.queue || {};
+        const total = s.queue_total || 0;
+        const published = q.published || 0;
+        const pending = q.pending || 0;
+        const errors = q.error || 0;
+        const generating = (q.generating || 0) + (q.generated || 0) + (q.publishing || 0);
+        const pctPublished = total > 0 ? Math.round(published / total * 100) : 0;
+        const pctPending = total > 0 ? Math.round(pending / total * 100) : 0;
+        const pctError = total > 0 ? Math.round(errors / total * 100) : 0;
+        const pctGenerating = total > 0 ? Math.round(generating / total * 100) : 0;
+
+        const dailyLimit = s.daily_limit ?? 1;
+        const useSpeedLinks = s.use_speed_links ?? 0;
+        const useInlineImages = s.use_inline_images ?? 0;
+        const randomAuthor = s.random_author ?? 0;
+        const enabled = s.enabled ?? 1;
+
+        return `<tr data-site-id="${s.id}">
+            <td>
+                <div class="fw-semibold">${esc(s.name)}</div>
+                <small class="text-muted">${esc(s.url)}</small>
+            </td>
+            <td class="text-center">
+                <input type="number" class="form-control form-control-sm text-center ap-daily-limit"
+                    value="${dailyLimit}" min="1" max="50" style="width:60px;margin:0 auto"
+                    data-site-id="${s.id}" onchange="saveApConfig(${s.id})">
+            </td>
+            <td class="text-center">
+                <input type="checkbox" class="form-check-input ap-speed-links" ${useSpeedLinks ? 'checked' : ''}
+                    data-site-id="${s.id}" onchange="saveApConfig(${s.id})">
+            </td>
+            <td class="text-center">
+                <input type="checkbox" class="form-check-input ap-inline-images" ${useInlineImages ? 'checked' : ''}
+                    data-site-id="${s.id}" onchange="saveApConfig(${s.id})">
+            </td>
+            <td class="text-center">
+                <input type="checkbox" class="form-check-input ap-random-author" ${randomAuthor ? 'checked' : ''}
+                    data-site-id="${s.id}" onchange="saveApConfig(${s.id})">
+            </td>
+            <td class="text-center">
+                <div class="form-check form-switch d-flex justify-content-center mb-0">
+                    <input type="checkbox" class="form-check-input ap-enabled" ${enabled ? 'checked' : ''}
+                        data-site-id="${s.id}" onchange="saveApConfig(${s.id})">
+                </div>
+            </td>
+            <td>
+                ${total > 0 ? `
+                    <div class="progress" style="height:18px;cursor:pointer" onclick="showApQueue(${s.id}, '${esc(s.name)}')" title="Kliknij aby zobaczyć kolejkę">
+                        ${pctPublished > 0 ? `<div class="progress-bar bg-success" style="width:${pctPublished}%">${published}</div>` : ''}
+                        ${pctGenerating > 0 ? `<div class="progress-bar bg-info" style="width:${pctGenerating}%">${generating}</div>` : ''}
+                        ${pctPending > 0 ? `<div class="progress-bar bg-warning" style="width:${pctPending}%">${pending}</div>` : ''}
+                        ${pctError > 0 ? `<div class="progress-bar bg-danger" style="width:${pctError}%">${errors}</div>` : ''}
+                    </div>
+                    <small class="text-muted">${published}/${total} opublikowanych</small>
+                ` : '<span class="text-muted small">Brak</span>'}
+            </td>
+            <td>
+                <input type="file" class="form-control form-control-sm" accept=".xlsx"
+                    onchange="uploadApContentPlan(${s.id}, this)" id="apFile${s.id}">
+            </td>
+            <td class="text-center">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="showApQueue(${s.id}, '${esc(s.name)}')" title="Kolejka">
+                        <i class="bi bi-list-check"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="showApCategoryMap(${s.id}, '${esc(s.name)}')" title="Mapowanie kategorii">
+                        <i class="bi bi-diagram-3"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function saveApConfig(siteId) {
+    const row = document.querySelector(`tr[data-site-id="${siteId}"]`);
+    if (!row) return;
+
+    const dailyLimit = parseInt(row.querySelector('.ap-daily-limit').value) || 1;
+    const useSpeedLinks = row.querySelector('.ap-speed-links').checked ? 1 : 0;
+    const useInlineImages = row.querySelector('.ap-inline-images').checked ? 1 : 0;
+    const randomAuthor = row.querySelector('.ap-random-author').checked ? 1 : 0;
+    const enabled = row.querySelector('.ap-enabled').checked ? 1 : 0;
+
+    try {
+        const data = await api('POST', 'api/auto-publish.php?action=save-config', {
+            site_id: siteId,
+            daily_limit: dailyLimit,
+            use_speed_links: useSpeedLinks,
+            use_inline_images: useInlineImages,
+            random_author: randomAuthor,
+            enabled: enabled,
+        });
+        if (data.error) throw new Error(data.error);
+        showToast('Konfiguracja zapisana', 'success');
+    } catch (e) {
+        showToast('Błąd zapisu: ' + e.message, 'error');
+    }
+}
+
+async function uploadApContentPlan(siteId, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('site_id', siteId);
+    formData.append('action', 'upload-plan');
+
+    try {
+        const resp = await fetch('api/auto-publish.php?action=upload-plan', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        showToast(data.message || `Załadowano ${data.inserted} artykułów`, 'success');
+
+        // Reset file input
+        input.value = '';
+
+        // If there are categories, suggest mapping
+        if (data.categories && data.categories.length > 0) {
+            const siteName = apSitesData.find(s => s.id === siteId)?.name || '';
+            showToast(`Znaleziono ${data.categories.length} kategorii — skonfiguruj mapowanie`, 'info');
+        }
+
+        // Reload
+        loadAutoPublish();
+    } catch (e) {
+        showToast('Błąd uploadu: ' + e.message, 'error');
+        input.value = '';
+    }
+}
+
+// ── Queue Modal ─────────────────────────────────────────────
+async function showApQueue(siteId, siteName) {
+    apCurrentSiteId = siteId;
+    document.getElementById('apQueueSiteName').textContent = siteName;
+    document.getElementById('apQueueFilter').value = 'all';
+
+    const modal = new bootstrap.Modal(document.getElementById('apQueueModal'));
+    modal.show();
+
+    await loadApQueue(siteId);
+}
+
+async function loadApQueue(siteId) {
+    const tbody = document.getElementById('apQueueBody');
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></td></tr>';
+
+    try {
+        const data = await api('GET', `api/auto-publish.php?action=queue&site_id=${siteId}`);
+        if (data.error) throw new Error(data.error);
+        apQueueData = data.items || [];
+        renderApQueue();
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${e.message}</td></tr>`;
+    }
+}
+
+function renderApQueue() {
+    const tbody = document.getElementById('apQueueBody');
+    const filter = document.getElementById('apQueueFilter').value;
+
+    const items = filter === 'all' ? apQueueData : apQueueData.filter(i => i.status === filter);
+
+    if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Brak artykułów</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = items.map((item, idx) => {
+        const statusBadge = {
+            pending: '<span class="badge bg-warning">Oczekuje</span>',
+            generating: '<span class="badge bg-info">Generowanie</span>',
+            generated: '<span class="badge bg-primary">Wygenerowany</span>',
+            publishing: '<span class="badge bg-info">Publikacja</span>',
+            published: '<span class="badge bg-success">Opublikowany</span>',
+            error: '<span class="badge bg-danger">Błąd</span>',
+        }[item.status] || `<span class="badge bg-secondary">${item.status}</span>`;
+
+        let urlOrError = '';
+        if (item.status === 'published' && item.published_url) {
+            urlOrError = `<a href="${esc(item.published_url)}" target="_blank" class="small">${esc(item.published_url)}</a>`;
+        } else if (item.status === 'error' && item.error_message) {
+            urlOrError = `<span class="text-danger small">${esc(item.error_message)}</span>`;
+        }
+
+        return `<tr>
+            <td class="text-muted">${item.id}</td>
+            <td>${esc(item.title)}</td>
+            <td class="small">${esc(item.main_keyword)}</td>
+            <td class="small">${esc(item.category_name)}</td>
+            <td class="text-center">${statusBadge}</td>
+            <td>${urlOrError}</td>
+        </tr>`;
+    }).join('');
+}
+
+function filterApQueue() {
+    renderApQueue();
+}
+
+async function clearApQueue(status) {
+    if (!apCurrentSiteId) return;
+    const label = status === 'all' ? 'wszystkie (bez opublikowanych)' : status === 'pending' ? 'oczekujące' : 'z błędami';
+    if (!confirm(`Usunąć ${label} artykuły z kolejki?`)) return;
+
+    try {
+        const data = await api('POST', 'api/auto-publish.php?action=clear-queue', {
+            site_id: apCurrentSiteId,
+            status: status,
+        });
+        if (data.error) throw new Error(data.error);
+        showToast(`Usunięto ${data.deleted} artykułów`, 'success');
+        loadApQueue(apCurrentSiteId);
+        loadAutoPublish();
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    }
+}
+
+// ── Category Mapping Modal ──────────────────────────────────
+async function showApCategoryMap(siteId, siteName) {
+    apCurrentSiteId = siteId;
+    document.getElementById('apCatSiteName').textContent = siteName;
+    document.getElementById('apCatLoading').style.display = '';
+    document.getElementById('apCatContent').style.display = 'none';
+
+    const modal = new bootstrap.Modal(document.getElementById('apCategoryModal'));
+    modal.show();
+
+    try {
+        // Load category map + WP categories in parallel
+        const [mapData, wpCats] = await Promise.all([
+            api('GET', `api/auto-publish.php?action=category-map&site_id=${siteId}`),
+            fetch(`api/wp-data.php?site_id=${siteId}&type=categories`).then(r => r.json()),
+        ]);
+
+        if (mapData.error) throw new Error(mapData.error);
+
+        const mappings = mapData.mappings || [];
+        const unmapped = mapData.unmapped || [];
+        const wpCategories = Array.isArray(wpCats) ? wpCats : [];
+        apWpCategories[siteId] = wpCategories;
+
+        // Combine mapped + unmapped categories
+        const allCats = [];
+        mappings.forEach(m => allCats.push({ name: m.category_name, wpCatId: m.wp_category_id, wpCatName: m.wp_category_name }));
+        unmapped.forEach(name => allCats.push({ name, wpCatId: 0, wpCatName: '' }));
+
+        const tbody = document.getElementById('apCatBody');
+        if (!allCats.length) {
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted">Brak kategorii do zmapowania. Załaduj content plan.</td></tr>';
+        } else {
+            tbody.innerHTML = allCats.map(cat => {
+                const options = wpCategories.map(wc =>
+                    `<option value="${wc.id}" ${wc.id === cat.wpCatId ? 'selected' : ''}>${esc(wc.name)}</option>`
+                ).join('');
+                return `<tr>
+                    <td><strong>${esc(cat.name)}</strong></td>
+                    <td>
+                        <select class="form-select form-select-sm ap-cat-select" data-cat-name="${esc(cat.name)}">
+                            <option value="0">— Wybierz —</option>
+                            ${options}
+                        </select>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        document.getElementById('apCatLoading').style.display = 'none';
+        document.getElementById('apCatContent').style.display = '';
+    } catch (e) {
+        document.getElementById('apCatLoading').innerHTML = `<span class="text-danger">${e.message}</span>`;
+    }
+}
+
+async function saveApCategoryMap() {
+    if (!apCurrentSiteId) return;
+
+    const selects = document.querySelectorAll('.ap-cat-select');
+    const mappings = [];
+    const wpCats = apWpCategories[apCurrentSiteId] || [];
+
+    selects.forEach(sel => {
+        const catName = sel.dataset.catName;
+        const wpCatId = parseInt(sel.value) || 0;
+        if (wpCatId > 0) {
+            const wpCat = wpCats.find(c => c.id === wpCatId);
+            mappings.push({
+                category_name: catName,
+                wp_category_id: wpCatId,
+                wp_category_name: wpCat ? wpCat.name : '',
+            });
+        }
+    });
+
+    if (!mappings.length) {
+        showToast('Nie wybrano żadnych kategorii', 'warning');
+        return;
+    }
+
+    try {
+        const data = await api('POST', 'api/auto-publish.php?action=save-category-map', {
+            site_id: apCurrentSiteId,
+            mappings: mappings,
+        });
+        if (data.error) throw new Error(data.error);
+        showToast(`Zapisano ${mappings.length} mapowań kategorii`, 'success');
+        bootstrap.Modal.getInstance(document.getElementById('apCategoryModal'))?.hide();
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    }
+}
+
+// ── Telegram Settings ───────────────────────────────────────
+async function loadTelegramSettings() {
+    try {
+        const data = await api('GET', 'api/telegram.php?action=get');
+        if (data.bot_token) document.getElementById('telegramBotToken').value = data.bot_token;
+        if (data.chat_id) document.getElementById('telegramChatId').value = data.chat_id;
+    } catch (e) { /* ignore */ }
+}
+
+async function saveTelegramSettings() {
+    const botToken = document.getElementById('telegramBotToken').value.trim();
+    const chatId = document.getElementById('telegramChatId').value.trim();
+
+    try {
+        const data = await api('POST', 'api/telegram.php?action=save', { bot_token: botToken, chat_id: chatId });
+        if (data.error) throw new Error(data.error);
+        showToast('Ustawienia Telegram zapisane', 'success');
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    }
+}
+
+async function testTelegram() {
+    try {
+        const data = await api('POST', 'api/telegram.php?action=test');
+        if (data.error) throw new Error(data.error);
+        showToast(data.message || 'Wiadomość testowa wysłana', 'success');
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    }
+}
+
+// ── Init auto-publish on page load ──────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.location.search.includes('page=auto-publish')) {
+        initAutoPublish();
+    }
+    if (window.location.search.includes('page=settings') && document.getElementById('telegramBotToken')) {
+        loadTelegramSettings();
+    }
+});
+
 function renderSparklineSvg(daily, metric) {
     if (!daily || daily.length < 2) return '<span class="text-muted">—</span>';
 

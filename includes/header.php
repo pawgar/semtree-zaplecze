@@ -44,6 +44,9 @@
                 <a class="sidebar-link <?= ($page ?? '') === 'gsc-report' ? 'active' : '' ?>" href="index.php?page=gsc-report">
                     <i class="bi bi-graph-up"></i><span>Raport GSC</span>
                 </a>
+                <a class="sidebar-link <?= ($page ?? '') === 'auto-publish' ? 'active' : '' ?>" href="index.php?page=auto-publish">
+                    <i class="bi bi-robot"></i><span>Auto publikacje</span>
+                </a>
             </div>
 
             <div class="sidebar-section">
@@ -68,7 +71,7 @@
                 <span class="status-led status-led-unknown" id="claudeStatusLed"></span>
                 <span class="sidebar-status-text" id="claudeStatusLabel">Claude API</span>
             </div>
-            <a href="#" class="sidebar-version" data-bs-toggle="modal" data-bs-target="#changelogModal" title="Changelog i roadmapa">v2.5</a>
+            <a href="#" class="sidebar-version" data-bs-toggle="modal" data-bs-target="#changelogModal" title="Changelog i roadmapa">v2.6</a>
             <a class="sidebar-link sidebar-logout" href="index.php?page=logout">
                 <i class="bi bi-box-arrow-right"></i><span>Wyloguj</span>
             </a>
@@ -90,6 +93,7 @@
                     'import' => '<i class="bi bi-cloud-upload"></i> Import masowy',
                     'links' => '<i class="bi bi-link-45deg"></i> Linki',
                     'gsc-report' => '<i class="bi bi-graph-up"></i> Raport GSC',
+                    'auto-publish' => '<i class="bi bi-robot"></i> Auto publikacje',
                     'site-card' => '<i class="bi bi-card-text"></i> Karta strony',
                     'users' => '<i class="bi bi-people"></i> Użytkownicy',
                     'settings' => '<i class="bi bi-gear"></i> Ustawienia',
@@ -189,6 +193,16 @@
                 </ul>
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="changelogTab">
+
+                        <h6 class="text-primary">v2.6 <small class="text-muted">— kwiecień 2026</small></h6>
+                        <ul class="small">
+                            <li>Auto publikacje — automatyczne generowanie i publikacja artykułów z content planu XLSX</li>
+                            <li>CRON auto-publish z obsługą wielu stron, losowym autorem, grafikami i Speed Links</li>
+                            <li>Mapowanie kategorii z content planu na kategorie WordPress</li>
+                            <li>Integracja Telegram Bot — raporty z auto-publikacji</li>
+                            <li>Raport GSC — ładowanie na żądanie, sortowanie, eksport XLSX</li>
+                            <li>Dashboard GSC — dane z bazy (bez API calls), przycisk odświeżania</li>
+                        </ul>
 
                         <h6 class="text-primary">v2.5 <small class="text-muted">— kwiecień 2026</small></h6>
                         <ul class="small">
