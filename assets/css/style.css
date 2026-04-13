@@ -640,7 +640,8 @@ body {
 }
 
 /* Ensure stat cards in row have equal width */
-#dashboardSummary .col {
+#dashboardSummary .col,
+#gscReportSummary .col {
     min-width: 120px;
     max-width: 180px;
 }

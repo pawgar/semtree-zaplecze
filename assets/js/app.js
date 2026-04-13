@@ -486,7 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Auto-load data based on page
     if (document.getElementById('siteCardContainer')) { loadSiteCard(); }
-    if (document.getElementById('gscReportContainer')) { loadGscReport(); }
+    // GSC report: do NOT auto-load, wait for user click
     if (document.getElementById('sitesBody')) { loadSites(); loadCronToken(); }
     if (document.getElementById('usersBody')) loadUsers();
     if (document.getElementById('profileUserId')) loadProfileStats();
@@ -4475,14 +4475,27 @@ function calcChangeJs(current, previous) {
 // ══ GSC Report Page ═════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════
 
+// ── GSC Report ──────────────────────────────────────────────
+let gscReportData = [];
+let gscReportSortField = 'clicks';
+let gscReportSortAsc = false;
+
 async function loadGscReport(force = false) {
     const range = document.getElementById('gscReportRange')?.value || '28d';
     const forceParam = force ? '&force=1' : '';
     const tbody = document.getElementById('gscReportBody');
     const noData = document.getElementById('gscReportNoData');
+    const initial = document.getElementById('gscReportInitial');
+    const tableCard = document.getElementById('gscReportTableCard');
+    const summary = document.getElementById('gscReportSummary');
+    const genBtn = document.getElementById('gscReportGenerateBtn');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted"><i class="bi bi-arrow-clockwise spin"></i> Ładowanie danych GSC...</td></tr>';
+    // Hide initial message, show loading
+    if (initial) initial.style.display = 'none';
+    if (tableCard) tableCard.style.display = '';
+    if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Generuję...'; }
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted"><i class="bi bi-arrow-clockwise spin"></i> Pobieranie danych GSC...</td></tr>';
 
     try {
         const data = await api('GET', `api/gsc-data.php?action=report&range=${range}${forceParam}`);
@@ -4496,43 +4509,192 @@ async function loadGscReport(force = false) {
         const dateInfo = document.getElementById('gscReportDateInfo');
         if (dateInfo) dateInfo.textContent = `${data.date_from} — ${data.date_to}`;
 
-        const sites = data.sites || [];
-        if (sites.length === 0) {
+        gscReportData = data.sites || [];
+        if (gscReportData.length === 0) {
             tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Brak danych GSC</td></tr>';
             if (noData) noData.style.display = '';
+            if (summary) summary.style.display = 'none';
             return;
         }
         if (noData) noData.style.display = 'none';
 
-        // Sort by clicks descending
-        sites.sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
+        // Show summary cards
+        updateGscReportSummary();
 
-        tbody.innerHTML = sites.map((s, i) => {
-            const sparkline = renderSparklineSvg(s.daily || [], 'clicks');
-            return `
-            <tr>
-                <td>${i + 1}</td>
-                <td><a href="index.php?page=site-card&id=${s.site_id}">${esc(s.name)}</a></td>
-                <td class="text-end fw-bold">${formatNumber(s.clicks)}</td>
-                <td class="text-end">${formatNumber(s.impressions)}</td>
-                <td class="text-end">${(s.ctr || 0).toFixed(1)}%</td>
-                <td class="text-end">${(s.position || 0).toFixed(1)}</td>
-                <td class="text-end">${formatChange(s.clicks_change)}</td>
-                <td class="text-end">${formatChange(s.impressions_change)}</td>
-                <td>${sparkline}</td>
-            </tr>`;
-        }).join('');
+        // Show export button
+        const exportBtn = document.getElementById('gscExportBtn');
+        if (exportBtn) exportBtn.style.display = '';
+
+        // Render table
+        renderGscReportTable();
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Błąd: ${esc(e.message)}</td></tr>`;
         if (noData) noData.style.display = '';
+    } finally {
+        if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<i class="bi bi-play-fill"></i> Generuj raport'; }
     }
 }
 
+function updateGscReportSummary() {
+    const summary = document.getElementById('gscReportSummary');
+    if (!summary || gscReportData.length === 0) return;
+    summary.style.display = '';
+
+    const sites = gscReportData;
+
+    // Best by clicks
+    const bestClicks = sites.reduce((a, b) => (b.clicks || 0) > (a.clicks || 0) ? b : a);
+    document.getElementById('gscRepBestClicks').textContent = formatNumber(bestClicks.clicks || 0);
+    document.getElementById('gscRepBestClicksName').textContent = bestClicks.name;
+
+    // Best trend (highest clicks_change with at least some clicks)
+    const withClicks = sites.filter(s => (s.clicks || 0) > 0);
+    const bestTrend = withClicks.length > 0
+        ? withClicks.reduce((a, b) => (b.clicks_change || 0) > (a.clicks_change || 0) ? b : a)
+        : sites[0];
+    document.getElementById('gscRepBestTrend').innerHTML = formatChange(bestTrend.clicks_change);
+    document.getElementById('gscRepBestTrendName').textContent = bestTrend.name;
+
+    // Best impressions
+    const bestImp = sites.reduce((a, b) => (b.impressions || 0) > (a.impressions || 0) ? b : a);
+    document.getElementById('gscRepBestImpressions').textContent = formatNumber(bestImp.impressions || 0);
+    document.getElementById('gscRepBestImpressionsName').textContent = bestImp.name;
+
+    // Best CTR (min 10 clicks)
+    const withMinClicks = sites.filter(s => (s.clicks || 0) >= 10);
+    const bestCtr = withMinClicks.length > 0
+        ? withMinClicks.reduce((a, b) => (b.ctr || 0) > (a.ctr || 0) ? b : a)
+        : (withClicks.length > 0 ? withClicks.reduce((a, b) => (b.ctr || 0) > (a.ctr || 0) ? b : a) : sites[0]);
+    document.getElementById('gscRepBestCtr').textContent = (bestCtr.ctr || 0).toFixed(1) + '%';
+    document.getElementById('gscRepBestCtrName').textContent = bestCtr.name;
+
+    // Total clicks
+    const totalClicks = sites.reduce((sum, s) => sum + (s.clicks || 0), 0);
+    document.getElementById('gscRepTotalClicks').textContent = formatNumber(totalClicks);
+    // Weighted average clicks change
+    if (totalClicks > 0) {
+        const avgChange = sites.reduce((sum, s) => sum + (s.clicks_change || 0) * (s.clicks || 0), 0) / totalClicks;
+        document.getElementById('gscRepTotalClicksChange').innerHTML = formatChange(avgChange);
+    }
+}
+
+function sortGscReport(field) {
+    if (gscReportSortField === field) {
+        gscReportSortAsc = !gscReportSortAsc;
+    } else {
+        gscReportSortField = field;
+        gscReportSortAsc = field === 'name'; // name ascending, numbers descending
+    }
+    // Update sort indicators
+    document.querySelectorAll('#gscReportTable th.sortable i').forEach(icon => {
+        icon.className = 'bi bi-chevron-expand small';
+    });
+    const th = document.querySelector(`#gscReportTable th[data-sort="${field}"]`);
+    if (th) {
+        th.querySelector('i').className = gscReportSortAsc ? 'bi bi-chevron-up small' : 'bi bi-chevron-down small';
+    }
+    renderGscReportTable();
+}
+
+function renderGscReportTable() {
+    const tbody = document.getElementById('gscReportBody');
+    if (!tbody || gscReportData.length === 0) return;
+
+    const sorted = [...gscReportData].sort((a, b) => {
+        let va = a[gscReportSortField], vb = b[gscReportSortField];
+        if (gscReportSortField === 'name') {
+            va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase();
+            return gscReportSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+        }
+        va = parseFloat(va) || 0; vb = parseFloat(vb) || 0;
+        return gscReportSortAsc ? va - vb : vb - va;
+    });
+
+    tbody.innerHTML = sorted.map((s, i) => {
+        const sparkline = renderSparklineSvg(s.daily || [], 'clicks');
+        return `
+        <tr>
+            <td>${i + 1}</td>
+            <td><a href="index.php?page=site-card&id=${s.site_id}">${esc(s.name)}</a></td>
+            <td class="text-end fw-bold">${formatNumber(s.clicks)}</td>
+            <td class="text-end">${formatNumber(s.impressions)}</td>
+            <td class="text-end">${(s.ctr || 0).toFixed(1)}%</td>
+            <td class="text-end">${(s.position || 0).toFixed(1)}</td>
+            <td class="text-end">${formatChange(s.clicks_change)}</td>
+            <td class="text-end">${formatChange(s.impressions_change)}</td>
+            <td>${sparkline}</td>
+        </tr>`;
+    }).join('');
+}
+
 async function refreshGscReport() {
-    showToast('Odświeżam dane GSC...', 'info');
-    await api('GET', 'api/gsc-data.php?action=refresh');
-    await loadGscReport(true);
-    showToast('Dane GSC odświeżone', 'success');
+    const btn = document.querySelector('[onclick="refreshGscReport()"]');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Odświeżam...'; }
+    try {
+        showToast('Odświeżam dane z GSC API...', 'info');
+        await api('GET', 'api/gsc-data.php?action=refresh');
+        await loadGscReport(true);
+        showToast('Dane GSC odświeżone', 'success');
+    } catch(e) {
+        showToast('Błąd odświeżania: ' + e.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Odśwież dane z GSC'; }
+    }
+}
+
+function exportGscReportXlsx() {
+    if (gscReportData.length === 0) { showToast('Brak danych do eksportu', 'warning'); return; }
+
+    const dateInfo = document.getElementById('gscReportDateInfo')?.textContent || '';
+    const sorted = [...gscReportData].sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
+
+    // Build CSV-like TSV for XLSX (simple approach using Blob)
+    let tsv = 'Lp.\tStrona\tKliknięcia\tWyświetlenia\tCTR (%)\tŚr. pozycja\tKlik. zmiana (%)\tWyśw. zmiana (%)\n';
+    sorted.forEach((s, i) => {
+        tsv += `${i+1}\t${s.name}\t${s.clicks||0}\t${s.impressions||0}\t${(s.ctr||0).toFixed(1)}\t${(s.position||0).toFixed(1)}\t${(s.clicks_change||0).toFixed(1)}\t${(s.impressions_change||0).toFixed(1)}\n`;
+    });
+
+    // Create XLSX-compatible XML (SpreadsheetML)
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<?mso-application progid="Excel.Sheet"?>\n';
+    xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+    xml += '<Styles><Style ss:ID="header"><Font ss:Bold="1"/><Interior ss:Color="#1a1f2e" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF" ss:Bold="1"/></Style>';
+    xml += '<Style ss:ID="num"><NumberFormat ss:Format="0.0"/></Style>';
+    xml += '<Style ss:ID="pct"><NumberFormat ss:Format="0.0&quot;%&quot;"/></Style></Styles>\n';
+    xml += `<Worksheet ss:Name="Raport GSC ${dateInfo}">\n<Table>\n`;
+
+    // Header row
+    const headers = ['#', 'Strona', 'Kliknięcia', 'Wyświetlenia', 'CTR (%)', 'Śr. pozycja', 'Klik. zmiana (%)', 'Wyśw. zmiana (%)'];
+    xml += '<Row>';
+    headers.forEach(h => { xml += `<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`; });
+    xml += '</Row>\n';
+
+    // Data rows
+    sorted.forEach((s, i) => {
+        xml += '<Row>';
+        xml += `<Cell><Data ss:Type="Number">${i+1}</Data></Cell>`;
+        xml += `<Cell><Data ss:Type="String">${s.name}</Data></Cell>`;
+        xml += `<Cell><Data ss:Type="Number">${s.clicks||0}</Data></Cell>`;
+        xml += `<Cell><Data ss:Type="Number">${s.impressions||0}</Data></Cell>`;
+        xml += `<Cell ss:StyleID="num"><Data ss:Type="Number">${(s.ctr||0).toFixed(1)}</Data></Cell>`;
+        xml += `<Cell ss:StyleID="num"><Data ss:Type="Number">${(s.position||0).toFixed(1)}</Data></Cell>`;
+        xml += `<Cell ss:StyleID="num"><Data ss:Type="Number">${(s.clicks_change||0).toFixed(1)}</Data></Cell>`;
+        xml += `<Cell ss:StyleID="num"><Data ss:Type="Number">${(s.impressions_change||0).toFixed(1)}</Data></Cell>`;
+        xml += '</Row>\n';
+    });
+
+    xml += '</Table>\n</Worksheet>\n</Workbook>';
+
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `raport-gsc-${dateInfo.replace(/\s/g, '')}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Raport wyeksportowany', 'success');
 }
 
 function renderSparklineSvg(daily, metric) {
