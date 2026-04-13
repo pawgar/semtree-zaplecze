@@ -114,7 +114,18 @@ function loadSites() {
         updateDashboardSummary();
         updateDashboardGscFromSites();
         filterSites();
+        checkGscConnected();
     });
+}
+
+async function checkGscConnected() {
+    try {
+        const data = await api('GET', 'api/gsc-auth.php?action=status');
+        if (data.connected) {
+            const btn = document.getElementById('refreshGscBtn');
+            if (btn) btn.style.display = '';
+        }
+    } catch(e) {}
 }
 
 function updateDashboardSummary() {
