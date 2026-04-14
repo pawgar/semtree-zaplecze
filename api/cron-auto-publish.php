@@ -210,16 +210,12 @@ foreach ($sites as $site) {
 
             $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
 
-            // Random publish time: 5:00 - 8:00 AM today
-            $hour = rand(5, 7);
-            $minute = rand(0, 59);
-            $publishDate = date('Y-m-d') . sprintf('T%02d:%02d:00', $hour, $minute);
-
+            // Publish immediately — WordPress uses current server time
+            // Random delay 0-180s between articles makes publish times look natural
             $postData = [
                 'title' => $articleTitle,
                 'content' => $htmlContent,
                 'status' => 'publish',
-                'date' => $publishDate,
             ];
 
             // Category mapping
@@ -264,8 +260,8 @@ foreach ($sites as $site) {
             if (!$featuredMediaId) $articleInfo['no_image'] = true;
             $siteArticles[] = $articleInfo;
 
-            // Delay between articles to avoid rate limits
-            sleep(5);
+            // Random delay between articles — avoids rate limits + makes publish times look natural
+            sleep(rand(5, 60));
 
         } catch (Exception $e) {
             $errMsg = $e->getMessage();
@@ -325,13 +321,19 @@ echo json_encode([
 
 // ── Helper: Generate image via Gemini ────────────────────────
 function generateGeminiImage(string $apiKey, string $prompt): ?string {
-    $models = ['gemini-2.0-flash-exp', 'imagen-3.0-generate-002'];
+    // Try Gemini native models first, then Imagen
+    $geminiModels = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview'];
+    $imagenModels = ['imagen-4.0-fast-generate-001', 'imagen-4.0-generate-001'];
 
-    foreach ($models as $model) {
+    // Gemini native (responseModalities: IMAGE only)
+    foreach ($geminiModels as $model) {
         $url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey";
         $payload = [
             'contents' => [['parts' => [['text' => $prompt]]]],
-            'generationConfig' => ['responseModalities' => ['TEXT', 'IMAGE']],
+            'generationConfig' => [
+                'responseModalities' => ['IMAGE'],
+                'imageConfig' => ['aspectRatio' => '16:9'],
+            ],
         ];
 
         $ch = curl_init($url);
@@ -343,7 +345,6 @@ function generateGeminiImage(string $apiKey, string $prompt): ?string {
             CURLOPT_TIMEOUT => 60,
             CURLOPT_SSL_VERIFYPEER => false,
         ]);
-
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
@@ -358,6 +359,37 @@ function generateGeminiImage(string $apiKey, string $prompt): ?string {
             }
         }
     }
+
+    // Imagen fallback (predict endpoint)
+    foreach ($imagenModels as $model) {
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/$model:predict?key=$apiKey";
+        $payload = [
+            'instances' => [['prompt' => $prompt]],
+            'parameters' => ['sampleCount' => 1, 'aspectRatio' => '16:9'],
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200) {
+            $data = json_decode($response, true);
+            $predictions = $data['predictions'] ?? [];
+            if (!empty($predictions[0]['bytesBase64Encoded'])) {
+                return $predictions[0]['bytesBase64Encoded'];
+            }
+        }
+    }
+
     return null;
 }
 
