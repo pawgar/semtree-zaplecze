@@ -221,6 +221,47 @@ try {
             echo json_encode(['success' => true]);
             break;
 
+        // ── Run auto-publish manually ──────────────────────
+        case 'run-manual':
+            if ($method !== 'POST') throw new RuntimeException('POST required');
+            requireAdminApi();
+            $db = getDb();
+            $tokenRow = $db->querySingle("SELECT value FROM settings WHERE key = 'cron_token'", true);
+            $cronToken = $tokenRow ? trim($tokenRow['value']) : '';
+            if (!$cronToken) throw new RuntimeException('Brak tokena CRON — ustaw go w Ustawieniach');
+
+            // Build the URL to cron-auto-publish.php
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $baseDir = dirname($_SERVER['SCRIPT_NAME']);
+            $cronUrl = "$scheme://$host$baseDir/cron-auto-publish.php?token=" . urlencode($cronToken);
+
+            // Call it via cURL with long timeout
+            $ch = curl_init($cronUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 7200,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if (curl_errno($ch)) throw new RuntimeException('Błąd połączenia: ' . curl_error($ch));
+            curl_close($ch);
+
+            $result = json_decode($response, true);
+            if ($httpCode >= 400) {
+                throw new RuntimeException($result['error'] ?? "HTTP $httpCode");
+            }
+
+            echo json_encode([
+                'success' => true,
+                'published' => $result['published'] ?? 0,
+                'errors' => $result['errors'] ?? 0,
+                'message' => sprintf('Opublikowano %d artykułów, %d błędów', $result['published'] ?? 0, $result['errors'] ?? 0),
+            ]);
+            break;
+
         default:
             throw new RuntimeException('Nieznana akcja: ' . $action);
     }

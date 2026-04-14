@@ -63,7 +63,10 @@ requireAdmin();
 <div class="content-card">
     <div class="content-card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-list-ul"></i> Strony zapleczowe</span>
-        <button class="btn btn-sm btn-outline-primary" onclick="loadAutoPublish()"><i class="bi bi-arrow-clockwise"></i> Odśwież</button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-success" id="apRunManualBtn" onclick="runAutoPublishManual()"><i class="bi bi-rocket-takeoff"></i> Uruchom ręcznie</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="loadAutoPublish()"><i class="bi bi-arrow-clockwise"></i> Odśwież</button>
+        </div>
     </div>
     <div class="content-card-body p-0">
         <div class="table-responsive">

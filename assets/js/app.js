@@ -5116,6 +5116,28 @@ async function saveApCategoryMap() {
     }
 }
 
+// ── Run Manual ──────────────────────────────────────────────
+async function runAutoPublishManual() {
+    if (!confirm('Uruchomić auto-publikację teraz? Może to potrwać kilka minut.')) return;
+
+    const btn = document.getElementById('apRunManualBtn');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Publikowanie...';
+
+    try {
+        const data = await api('POST', 'api/auto-publish.php?action=run-manual');
+        if (data.error) throw new Error(data.error);
+        showToast(data.message || 'Zakończono', data.errors > 0 ? 'warning' : 'success');
+        loadAutoPublish();
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+}
+
 // ── Telegram Settings ───────────────────────────────────────
 async function loadTelegramSettings() {
     try {
