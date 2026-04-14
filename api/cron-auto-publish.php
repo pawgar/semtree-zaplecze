@@ -289,20 +289,39 @@ foreach ($sites as $site) {
 $speedLinksResult = '';
 if (!empty($speedLinksUrls) && $speedLinksKey) {
     try {
-        $urlList = implode('|', $speedLinksUrls);
-        $slUrl = 'http://speed-links.net/api.php?' . http_build_query([
-            'apikey' => $speedLinksKey,
-            'cmd' => 'submit',
-            'urls' => $urlList,
-            'dripfeed' => 1,
-            'reporturl' => 1,
-            'method' => $speedLinksMethod,
+        $qstring = 'apikey=' . urlencode($speedLinksKey)
+            . '&cmd=submit'
+            . '&campaign='
+            . '&urls=' . urlencode(implode('|', $speedLinksUrls))
+            . '&dripfeed=1'
+            . '&reporturl=1'
+            . '&method=' . urlencode($speedLinksMethod);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_URL => 'http://speed-links.net/api.php',
+            CURLOPT_HEADER => false,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 40,
+            CURLOPT_POSTFIELDS => $qstring,
         ]);
-        $ch = curl_init($slUrl);
-        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30]);
         $slResponse = curl_exec($ch);
+        $slError = curl_error($ch);
         curl_close($ch);
-        $speedLinksResult = "Speed Links: " . count($speedLinksUrls) . " URLs submitted";
+
+        if ($slError) {
+            $speedLinksResult = "Speed Links error: $slError";
+        } else {
+            $parts = explode('|', $slResponse, 2);
+            $isOk = (strtoupper(trim($parts[0])) === 'OK');
+            if ($isOk) {
+                $speedLinksResult = "Speed Links: " . count($speedLinksUrls) . " URLs wysłano";
+                if (!empty($parts[1])) $speedLinksResult .= " (raport: {$parts[1]})";
+            } else {
+                $speedLinksResult = "Speed Links error: " . trim($slResponse);
+            }
+        }
     } catch (Exception $e) {
         $speedLinksResult = "Speed Links error: " . $e->getMessage();
     }
