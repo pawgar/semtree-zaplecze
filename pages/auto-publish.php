@@ -11,8 +11,8 @@ requireAdmin();
                 <div>
                     <h5 class="mb-1">Auto publikacje</h5>
                     <p class="text-muted small mb-0">
-                        Automatyczna publikacja artykulow na stronach zapleczowych. Zaladuj content plan (XLSX), skonfiguruj ustawienia per strona,
-                        a CRON codziennie wygeneruje i opublikuje artykuly. Raporty sa wysylane na Telegram.
+                        Automatyczna publikacja artykułów na stronach zapleczowych. Załaduj content plan (XLSX), skonfiguruj ustawienia per strona,
+                        a CRON codziennie wygeneruje i opublikuje artykuły. Raporty są wysyłane na Telegram.
                     </p>
                 </div>
             </div>
@@ -33,21 +33,21 @@ requireAdmin();
         <div class="stat-card">
             <div class="stat-card-icon stat-card-icon--primary"><i class="bi bi-hourglass-split"></i></div>
             <div class="stat-card-value" id="apTotalPending">0</div>
-            <div class="stat-card-label">Oczekujace</div>
+            <div class="stat-card-label">Oczekujące</div>
         </div>
     </div>
     <div class="col">
         <div class="stat-card">
             <div class="stat-card-icon stat-card-icon--danger"><i class="bi bi-exclamation-triangle"></i></div>
             <div class="stat-card-value" id="apTotalErrors">0</div>
-            <div class="stat-card-label">Bledy</div>
+            <div class="stat-card-label">Błędy</div>
         </div>
     </div>
     <div class="col">
         <div class="stat-card">
             <div class="stat-card-icon stat-card-icon--info"><i class="bi bi-collection"></i></div>
             <div class="stat-card-value" id="apTotalQueued">0</div>
-            <div class="stat-card-label">Lacznie w kolejce</div>
+            <div class="stat-card-label">Łącznie w kolejce</div>
         </div>
     </div>
     <div class="col">
@@ -63,7 +63,7 @@ requireAdmin();
 <div class="content-card">
     <div class="content-card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-list-ul"></i> Strony zapleczowe</span>
-        <button class="btn btn-sm btn-outline-primary" onclick="loadAutoPublish()"><i class="bi bi-arrow-clockwise"></i> Odswiez</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="loadAutoPublish()"><i class="bi bi-arrow-clockwise"></i> Odśwież</button>
     </div>
     <div class="content-card-body p-0">
         <div class="table-responsive">
@@ -74,7 +74,7 @@ requireAdmin();
                         <th class="text-center" style="width:80px">Dziennie</th>
                         <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-speed-links', this.checked)"> Speed</th>
                         <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-inline-images', this.checked)"> Grafiki</th>
-                        <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-random-author', this.checked)"> Autor</th>
+                        <th class="text-center" style="width:80px" title="Losowy autor — jeśli na WP jest wielu autorów, wpisy będą przypisywane losowo"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-random-author', this.checked)"> Losuj aut.</th>
                         <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-enabled', this.checked)"> Aktywna</th>
                         <th class="text-center" style="width:100px">Status</th>
                         <th style="width:200px">Kolejka</th>
@@ -83,7 +83,7 @@ requireAdmin();
                     </tr>
                 </thead>
                 <tbody id="apSitesBody">
-                    <tr><td colspan="10" class="text-center text-muted py-4"><i class="bi bi-hourglass-split"></i> Ladowanie...</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-4"><i class="bi bi-hourglass-split"></i> Ładowanie...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -100,15 +100,15 @@ requireAdmin();
             </div>
             <div class="modal-body p-0">
                 <div class="p-3 d-flex gap-2 border-bottom">
-                    <button class="btn btn-sm btn-outline-danger" onclick="clearApQueue('pending')"><i class="bi bi-trash"></i> Usun oczekujace</button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="clearApQueue('error')"><i class="bi bi-trash"></i> Usun bledy</button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="clearApQueue('all')"><i class="bi bi-trash"></i> Usun wszystko (bez opublikowanych)</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="clearApQueue('pending')"><i class="bi bi-trash"></i> Usuń oczekujące</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="clearApQueue('error')"><i class="bi bi-trash"></i> Usuń błędy</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="clearApQueue('all')"><i class="bi bi-trash"></i> Usuń wszystko (bez opublikowanych)</button>
                     <div class="ms-auto">
                         <select class="form-select form-select-sm" id="apQueueFilter" onchange="filterApQueue()" style="width:auto">
                             <option value="all">Wszystkie</option>
-                            <option value="pending">Oczekujace</option>
+                            <option value="pending">Oczekujące</option>
                             <option value="published">Opublikowane</option>
-                            <option value="error">Bledy</option>
+                            <option value="error">Błędy</option>
                         </select>
                     </div>
                 </div>
@@ -117,11 +117,11 @@ requireAdmin();
                         <thead>
                             <tr>
                                 <th style="width:40px">#</th>
-                                <th>Tytul</th>
-                                <th>Slowo kluczowe</th>
+                                <th>Tytuł</th>
+                                <th>Słowo kluczowe</th>
                                 <th>Kategoria</th>
                                 <th class="text-center" style="width:100px">Status</th>
-                                <th style="width:200px">URL / Blad</th>
+                                <th style="width:200px">URL / Błąd</th>
                             </tr>
                         </thead>
                         <tbody id="apQueueBody"></tbody>
@@ -144,8 +144,8 @@ requireAdmin();
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted small">Przypisz kategorie z content planu do kategorii WordPress. Nowe kategorie pojawia sie po zaladowaniu content planu.</p>
-                <div id="apCatLoading" class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Ladowanie...</div>
+                <p class="text-muted small">Przypisz kategorie z content planu do kategorii WordPress. Nowe kategorie pojawią się po załadowaniu content planu.</p>
+                <div id="apCatLoading" class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Ładowanie...</div>
                 <div id="apCatContent" style="display:none">
                     <table class="table table-sm">
                         <thead>
