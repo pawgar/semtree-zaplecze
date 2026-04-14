@@ -184,8 +184,9 @@ foreach ($sites as $site) {
             // Mark as generated
             $db->exec("UPDATE auto_publish_queue SET status = 'generated' WHERE id = $articleId");
 
-            // 2. Generate featured image via Gemini
+            // 2. Generate featured image via Gemini (always)
             $featuredMediaId = 0;
+            $imageError = '';
             if ($geminiKey) {
                 try {
                     $imagePrompt = "Professional blog header image for article titled: \"$articleTitle\". Modern, clean, editorial style. No text on image.";
@@ -194,10 +195,14 @@ foreach ($sites as $site) {
                         $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
                         $optimized = optimizeImage(base64_decode($imageData), 'featured.jpg');
                         $featuredMediaId = $wpApi->uploadMedia($optimized['filename'], $optimized['data'], $optimized['mime']);
+                    } else {
+                        $imageError = 'Gemini nie zwróciło obrazu';
                     }
                 } catch (Exception $e) {
-                    // Continue without image
+                    $imageError = $e->getMessage();
                 }
+            } else {
+                $imageError = 'Brak klucza Gemini API';
             }
 
             // 3. Publish to WordPress
@@ -254,7 +259,10 @@ foreach ($sites as $site) {
 
             $sitePublished++;
             $totalPublished++;
-            $siteArticles[] = ['title' => $articleTitle, 'url' => $postUrl, 'status' => 'ok'];
+            $articleInfo = ['title' => $articleTitle, 'url' => $postUrl, 'status' => 'ok'];
+            if ($imageError) $articleInfo['image_error'] = $imageError;
+            if (!$featuredMediaId) $articleInfo['no_image'] = true;
+            $siteArticles[] = $articleInfo;
 
             // Delay between articles to avoid rate limits
             sleep(5);
@@ -374,7 +382,11 @@ function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int
         $msg .= "$siteEmoji *{$r['site']}* ({$r['published']}/{$r['errors']})\n";
         foreach ($r['articles'] as $a) {
             if ($a['status'] === 'ok') {
-                $msg .= "  \xE2\x80\xA2 {$a['title']}\n";
+                $imgWarning = !empty($a['no_image']) ? " \xF0\x9F\x96\xBC\xE2\x9D\x8C" : '';
+                $msg .= "  \xE2\x80\xA2 {$a['title']}{$imgWarning}\n";
+                if (!empty($a['url'])) {
+                    $msg .= "    {$a['url']}\n";
+                }
             } else {
                 $msg .= "  \xE2\x9D\x8C {$a['title']}: {$a['error']}\n";
             }
