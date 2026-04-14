@@ -4850,12 +4850,12 @@ function apSiteStatusBadge(s) {
         return '<span class="badge bg-warning text-dark" title="Brak wgranych artykułów — załaduj content plan"><i class="bi bi-exclamation-triangle"></i> Brak planu</span>';
     }
     if (pending === 0) {
-        return '<span class="badge bg-info" title="Wszystkie artykuły przetworzone, brak oczekujących"><i class="bi bi-check-circle"></i> Wyczerpana</span>';
+        return '<span class="badge bg-info" title="Wszystkie artykuły przetworzone, załaduj nowy content plan"><i class="bi bi-check-circle"></i> Kolejka pusta</span>';
     }
     if (unmapped > 0) {
         return `<span class="badge bg-warning text-dark" title="${unmapped} niezmapowanych kategorii — skonfiguruj mapowanie"><i class="bi bi-diagram-3"></i> Mapuj (${unmapped})</span>`;
     }
-    return '<span class="badge bg-success" title="Strona gotowa — CRON opublikuje artykuły"><i class="bi bi-check-circle"></i> Gotowa</span>';
+    return `<span class="badge bg-success" title="Gotowa — CRON opublikuje ${pending} artykułów"><i class="bi bi-rocket-takeoff"></i> Gotowa (${pending})</span>`;
 }
 
 async function toggleAllApCheckbox(className, checked) {
@@ -5110,6 +5110,7 @@ async function saveApCategoryMap() {
         if (data.error) throw new Error(data.error);
         showToast(`Zapisano ${mappings.length} mapowań kategorii`, 'success');
         bootstrap.Modal.getInstance(document.getElementById('apCategoryModal'))?.hide();
+        loadAutoPublish();
     } catch (e) {
         showToast('Błąd: ' + e.message, 'error');
     }
