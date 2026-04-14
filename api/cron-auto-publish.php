@@ -190,13 +190,14 @@ foreach ($sites as $site) {
             if ($geminiKey) {
                 try {
                     $imagePrompt = "Professional blog header image for article titled: \"$articleTitle\". Modern, clean, editorial style. No text on image.";
-                    $imageData = generateGeminiImage($geminiKey, $imagePrompt);
+                    $geminiErrors = [];
+                    $imageData = generateGeminiImage($geminiKey, $imagePrompt, $geminiErrors);
                     if ($imageData) {
                         $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
                         $optimized = optimizeImage(base64_decode($imageData), 'featured.jpg');
                         $featuredMediaId = $wpApi->uploadMedia($optimized['filename'], $optimized['data'], $optimized['mime']);
                     } else {
-                        $imageError = 'Gemini nie zwróciło obrazu';
+                        $imageError = 'Gemini: ' . implode('; ', $geminiErrors ?: ['brak danych']);
                     }
                 } catch (Exception $e) {
                     $imageError = $e->getMessage();
@@ -320,7 +321,7 @@ echo json_encode([
 ]);
 
 // ── Helper: Generate image via Gemini ────────────────────────
-function generateGeminiImage(string $apiKey, string $prompt): ?string {
+function generateGeminiImage(string $apiKey, string $prompt, array &$errors = []): ?string {
     // Try Gemini native models first, then Imagen
     $geminiModels = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview'];
     $imagenModels = ['imagen-4.0-fast-generate-001', 'imagen-4.0-generate-001'];
@@ -357,6 +358,11 @@ function generateGeminiImage(string $apiKey, string $prompt): ?string {
                     return $part['inlineData']['data'];
                 }
             }
+            $errors[] = "$model: HTTP 200 but no image data";
+        } else {
+            $errData = json_decode($response, true);
+            $errMsg = $errData['error']['message'] ?? "HTTP $httpCode";
+            $errors[] = "$model: $errMsg";
         }
     }
 
@@ -387,6 +393,11 @@ function generateGeminiImage(string $apiKey, string $prompt): ?string {
             if (!empty($predictions[0]['bytesBase64Encoded'])) {
                 return $predictions[0]['bytesBase64Encoded'];
             }
+            $errors[] = "$model: HTTP 200 but no predictions";
+        } else {
+            $errData = json_decode($response, true);
+            $errMsg = $errData['error']['message'] ?? "HTTP $httpCode";
+            $errors[] = "$model: $errMsg";
         }
     }
 
@@ -414,10 +425,13 @@ function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int
         $msg .= "$siteEmoji *{$r['site']}* ({$r['published']}/{$r['errors']})\n";
         foreach ($r['articles'] as $a) {
             if ($a['status'] === 'ok') {
-                $imgWarning = !empty($a['no_image']) ? " \xF0\x9F\x96\xBC\xE2\x9D\x8C" : '';
+                $imgWarning = !empty($a['no_image']) ? " \xF0\x9F\x96\xBC\xE2\x9D\x8C" : " \xF0\x9F\x96\xBC\xE2\x9C\x85";
                 $msg .= "  \xE2\x80\xA2 {$a['title']}{$imgWarning}\n";
                 if (!empty($a['url'])) {
                     $msg .= "    {$a['url']}\n";
+                }
+                if (!empty($a['image_error'])) {
+                    $msg .= "    \xE2\x9A\xA0 Obraz: {$a['image_error']}\n";
                 }
             } else {
                 $msg .= "  \xE2\x9D\x8C {$a['title']}: {$a['error']}\n";
