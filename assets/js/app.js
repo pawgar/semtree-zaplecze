@@ -4750,7 +4750,7 @@ function renderApSites() {
     if (!tbody) return;
 
     if (!apSitesData.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">Brak stron zapleczowych</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Brak stron zapleczowych</td></tr>';
         return;
     }
 
@@ -4800,6 +4800,7 @@ function renderApSites() {
                         data-site-id="${s.id}" onchange="saveApConfig(${s.id})">
                 </div>
             </td>
+            <td class="text-center">${apSiteStatusBadge(s)}</td>
             <td>
                 ${total > 0 ? `
                     <div class="progress" style="height:18px;cursor:pointer" onclick="showApQueue(${s.id}, '${esc(s.name)}')" title="Kliknij aby zobaczyć kolejkę">
@@ -4827,6 +4828,47 @@ function renderApSites() {
             </td>
         </tr>`;
     }).join('');
+
+    // Sync header checkboxes with column state
+    ['ap-speed-links', 'ap-inline-images', 'ap-random-author', 'ap-enabled'].forEach(cls => {
+        const all = document.querySelectorAll(`.${cls}`);
+        const thCb = document.querySelector(`th input[onchange*="${cls}"]`);
+        if (thCb && all.length) thCb.checked = [...all].every(cb => cb.checked);
+    });
+}
+
+function apSiteStatusBadge(s) {
+    const enabled = s.enabled ?? 0;
+    const pending = s.queue?.pending || 0;
+    const unmapped = s.unmapped_categories || 0;
+    const total = s.queue_total || 0;
+
+    if (!enabled) {
+        return '<span class="badge bg-secondary" title="Strona wyłączona z auto-publikacji"><i class="bi bi-pause-circle"></i> Wyłączona</span>';
+    }
+    if (total === 0) {
+        return '<span class="badge bg-warning text-dark" title="Brak wgranych artykułów — załaduj content plan"><i class="bi bi-exclamation-triangle"></i> Brak planu</span>';
+    }
+    if (pending === 0) {
+        return '<span class="badge bg-info" title="Wszystkie artykuły przetworzone, brak oczekujących"><i class="bi bi-check-circle"></i> Wyczerpana</span>';
+    }
+    if (unmapped > 0) {
+        return `<span class="badge bg-warning text-dark" title="${unmapped} niezmapowanych kategorii — skonfiguruj mapowanie"><i class="bi bi-diagram-3"></i> Mapuj (${unmapped})</span>`;
+    }
+    return '<span class="badge bg-success" title="Strona gotowa — CRON opublikuje artykuły"><i class="bi bi-check-circle"></i> Gotowa</span>';
+}
+
+async function toggleAllApCheckbox(className, checked) {
+    const boxes = document.querySelectorAll(`.${className}`);
+    const promises = [];
+    boxes.forEach(cb => {
+        if (cb.checked !== checked) {
+            cb.checked = checked;
+            const siteId = parseInt(cb.dataset.siteId);
+            if (siteId) promises.push(saveApConfig(siteId));
+        }
+    });
+    await Promise.all(promises);
 }
 
 async function saveApConfig(siteId) {

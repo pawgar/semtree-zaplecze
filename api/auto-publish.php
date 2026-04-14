@@ -35,6 +35,21 @@ try {
                 }
                 $row['queue'] = $stats;
                 $row['queue_total'] = array_sum($stats);
+
+                // Count unmapped categories (pending articles with category but no wp_category_id)
+                $umSt = $db->prepare('
+                    SELECT COUNT(DISTINCT category_name) as cnt
+                    FROM auto_publish_queue
+                    WHERE site_id = :sid AND category_name != "" AND wp_category_id IS NULL AND status = "pending"
+                    AND LOWER(category_name) NOT IN (
+                        SELECT LOWER(category_name) FROM auto_publish_category_map WHERE site_id = :sid2
+                    )
+                ');
+                $umSt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
+                $umSt->bindValue(':sid2', $siteId, SQLITE3_INTEGER);
+                $umRes = $umSt->execute()->fetchArray(SQLITE3_ASSOC);
+                $row['unmapped_categories'] = (int)($umRes['cnt'] ?? 0);
+
                 $sites[] = $row;
             }
             echo json_encode(['success' => true, 'sites' => $sites]);

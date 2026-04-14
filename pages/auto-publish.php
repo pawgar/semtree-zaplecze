@@ -72,17 +72,18 @@ requireAdmin();
                     <tr>
                         <th>Strona</th>
                         <th class="text-center" style="width:80px">Dziennie</th>
-                        <th class="text-center" style="width:60px">Speed</th>
-                        <th class="text-center" style="width:60px">Grafiki</th>
-                        <th class="text-center" style="width:60px">Autor</th>
-                        <th class="text-center" style="width:60px">Aktywna</th>
+                        <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-speed-links', this.checked)"> Speed</th>
+                        <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-inline-images', this.checked)"> Grafiki</th>
+                        <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-random-author', this.checked)"> Autor</th>
+                        <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-enabled', this.checked)"> Aktywna</th>
+                        <th class="text-center" style="width:100px">Status</th>
                         <th style="width:200px">Kolejka</th>
                         <th style="width:200px">Content plan</th>
                         <th class="text-center" style="width:120px">Akcje</th>
                     </tr>
                 </thead>
                 <tbody id="apSitesBody">
-                    <tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-hourglass-split"></i> Ladowanie...</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-4"><i class="bi bi-hourglass-split"></i> Ladowanie...</td></tr>
                 </tbody>
             </table>
         </div>
