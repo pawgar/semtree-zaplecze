@@ -10,10 +10,20 @@ requireAdmin();
                 <div class="stat-card-icon stat-card-icon--primary"><i class="bi bi-robot"></i></div>
                 <div>
                     <h5 class="mb-1">Auto publikacje</h5>
-                    <p class="text-muted small mb-0">
+                    <p class="text-muted small mb-2">
                         Automatyczna publikacja artykułów na stronach zapleczowych. Załaduj content plan (XLSX), skonfiguruj ustawienia per strona,
                         a CRON codziennie wygeneruje i opublikuje artykuły. Raporty są wysyłane na Telegram.
                     </p>
+                    <div class="small">
+                        <strong>Jak to działa:</strong>
+                        <ol class="mb-2 ps-3" style="font-size:0.85rem">
+                            <li>Wgraj content plan XLSX (kolumny: Tytuł, Słowo kluczowe, Słowa poboczne, Kategoria, Notatki)</li>
+                            <li>Zmapuj kategorie z planu na kategorie WordPress (ikona <i class="bi bi-diagram-3"></i>)</li>
+                            <li>Ustaw limit dzienny i włącz stronę przełącznikiem "Aktywna"</li>
+                            <li>CRON codziennie o 9:00 generuje artykuły (Claude AI) z grafiką (Gemini) i publikuje na WP</li>
+                        </ol>
+                        <a href="assets/content-plan-wzor.xlsx" download class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i> Pobierz wzór content planu (XLSX)</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -64,25 +74,31 @@ requireAdmin();
     <div class="content-card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-list-ul"></i> Strony zapleczowe</span>
         <div class="d-flex gap-2">
+            <div id="apManualProgress" class="d-none align-items-center gap-2" style="min-width:300px">
+                <div class="progress flex-grow-1" style="height:20px">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" id="apManualProgressBar" style="width:0%"></div>
+                </div>
+                <small class="text-nowrap" id="apManualProgressLabel">0/0</small>
+            </div>
             <button class="btn btn-sm btn-success" id="apRunManualBtn" onclick="runAutoPublishManual()"><i class="bi bi-rocket-takeoff"></i> Uruchom ręcznie</button>
             <button class="btn btn-sm btn-outline-primary" onclick="loadAutoPublish()"><i class="bi bi-arrow-clockwise"></i> Odśwież</button>
         </div>
     </div>
     <div class="content-card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0" id="apSitesTable">
+            <table class="table table-hover mb-0 table-sm" id="apSitesTable" style="table-layout:fixed">
                 <thead>
                     <tr>
-                        <th>Strona</th>
-                        <th class="text-center" style="width:80px">Dziennie</th>
-                        <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-speed-links', this.checked)"> Speed</th>
-                        <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-inline-images', this.checked)"> Grafiki</th>
-                        <th class="text-center" style="width:80px" title="Losowy autor — jeśli na WP jest wielu autorów, wpisy będą przypisywane losowo"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-random-author', this.checked)"> Losuj aut.</th>
-                        <th class="text-center" style="width:60px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-enabled', this.checked)"> Aktywna</th>
+                        <th style="width:180px">Strona</th>
+                        <th class="text-center" style="width:65px">Dziennie</th>
+                        <th class="text-center" style="width:50px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-speed-links', this.checked)"> SL</th>
+                        <th class="text-center" style="width:50px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie — grafiki w treści artykułu" onchange="toggleAllApCheckbox('ap-inline-images', this.checked)"> Img</th>
+                        <th class="text-center" style="width:50px" title="Losowy autor — jeśli na WP jest wielu autorów, wpisy będą przypisywane losowo"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-random-author', this.checked)"> Aut.</th>
+                        <th class="text-center" style="width:55px"><input type="checkbox" class="form-check-input" title="Zaznacz/odznacz wszystkie" onchange="toggleAllApCheckbox('ap-enabled', this.checked)"> On</th>
                         <th class="text-center" style="width:100px">Status</th>
-                        <th style="width:200px">Kolejka</th>
-                        <th style="width:200px">Content plan</th>
-                        <th class="text-center" style="width:120px">Akcje</th>
+                        <th style="width:160px">Kolejka</th>
+                        <th style="width:170px">Content plan</th>
+                        <th class="text-center" style="width:70px">Akcje</th>
                     </tr>
                 </thead>
                 <tbody id="apSitesBody">

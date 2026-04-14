@@ -5118,23 +5118,69 @@ async function saveApCategoryMap() {
 
 // ── Run Manual ──────────────────────────────────────────────
 async function runAutoPublishManual() {
-    if (!confirm('Uruchomić auto-publikację teraz? Może to potrwać kilka minut.')) return;
+    // Count total pending articles to publish
+    let totalPending = 0;
+    apSitesData.forEach(s => {
+        if (s.enabled && s.queue?.pending) {
+            totalPending += Math.min(s.queue.pending, s.daily_limit || 1);
+        }
+    });
+
+    if (!totalPending) {
+        showToast('Brak artykułów do opublikowania', 'warning');
+        return;
+    }
+
+    if (!confirm(`Uruchomić auto-publikację? Do opublikowania: ${totalPending} artykułów. Może to potrwać kilka minut.`)) return;
 
     const btn = document.getElementById('apRunManualBtn');
-    const origHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Publikowanie...';
+    const progressDiv = document.getElementById('apManualProgress');
+    const progressBar = document.getElementById('apManualProgressBar');
+    const progressLabel = document.getElementById('apManualProgressLabel');
+
+    btn.classList.add('d-none');
+    progressDiv.classList.remove('d-none');
+    progressDiv.classList.add('d-flex');
+    progressBar.style.width = '0%';
+    progressLabel.textContent = `0/${totalPending}`;
+
+    // Poll for progress every 8s by reloading sites data
+    let published = 0;
+    const startPublished = apSitesData.reduce((sum, s) => sum + (s.queue?.published || 0), 0);
+    const pollInterval = setInterval(async () => {
+        try {
+            const data = await api('GET', 'api/auto-publish.php?action=sites');
+            if (data.sites) {
+                const nowPublished = data.sites.reduce((sum, s) => sum + (s.queue?.published || 0), 0);
+                published = nowPublished - startPublished;
+                const pct = Math.min(100, Math.round(published / totalPending * 100));
+                progressBar.style.width = pct + '%';
+                progressLabel.textContent = `${published}/${totalPending}`;
+            }
+        } catch (e) { /* ignore polling errors */ }
+    }, 8000);
 
     try {
         const data = await api('POST', 'api/auto-publish.php?action=run-manual');
         if (data.error) throw new Error(data.error);
-        showToast(data.message || 'Zakończono', data.errors > 0 ? 'warning' : 'success');
+
+        progressBar.style.width = '100%';
+        progressBar.classList.remove('progress-bar-animated');
+        progressLabel.textContent = `${data.published || published}/${totalPending}`;
+
+        const msg = `Opublikowano ${data.published || 0} artykułów` + (data.errors ? `, ${data.errors} błędów` : '');
+        showToast(msg, data.errors > 0 ? 'warning' : 'success');
         loadAutoPublish();
     } catch (e) {
         showToast('Błąd: ' + e.message, 'error');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = origHtml;
+        clearInterval(pollInterval);
+        setTimeout(() => {
+            progressDiv.classList.add('d-none');
+            progressDiv.classList.remove('d-flex');
+            progressBar.classList.add('progress-bar-animated');
+            btn.classList.remove('d-none');
+        }, 3000);
     }
 }
 

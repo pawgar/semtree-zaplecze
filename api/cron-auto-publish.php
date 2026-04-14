@@ -435,34 +435,35 @@ function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int
 
     $date = date('Y-m-d');
     $emoji = $totalErrors === 0 ? "\xE2\x9C\x85" : "\xE2\x9A\xA0\xEF\xB8\x8F";
+    $h = fn($s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
-    $msg = "$emoji *Auto-publikacja $date*\n\n";
-    $msg .= "Opublikowano: *$totalPublished* | Błędy: *$totalErrors*\n\n";
+    $msg = "$emoji <b>Auto-publikacja $date</b>\n\n";
+    $msg .= "Opublikowano: <b>$totalPublished</b> | Błędy: <b>$totalErrors</b>\n\n";
 
     foreach ($report as $r) {
         $siteEmoji = $r['errors'] === 0 ? "\xE2\x9C\x85" : "\xE2\x9A\xA0\xEF\xB8\x8F";
-        $msg .= "$siteEmoji *{$r['site']}* ({$r['published']}/{$r['errors']})\n";
+        $msg .= "$siteEmoji <b>{$h($r['site'])}</b> ({$r['published']}/{$r['errors']})\n";
         foreach ($r['articles'] as $a) {
             if ($a['status'] === 'ok') {
-                $imgWarning = !empty($a['no_image']) ? " \xF0\x9F\x96\xBC\xE2\x9D\x8C" : " \xF0\x9F\x96\xBC\xE2\x9C\x85";
-                $msg .= "  \xE2\x80\xA2 {$a['title']}{$imgWarning}\n";
+                $imgIcon = !empty($a['no_image']) ? "\xF0\x9F\x96\xBC\xE2\x9D\x8C" : "\xF0\x9F\x96\xBC\xE2\x9C\x85";
+                $msg .= "  \xE2\x80\xA2 {$h($a['title'])} {$imgIcon}\n";
                 if (!empty($a['url'])) {
-                    $msg .= "    {$a['url']}\n";
+                    $msg .= "    <a href=\"{$h($a['url'])}\">{$h($a['url'])}</a>\n";
                 }
                 if (!empty($a['image_error'])) {
-                    $msg .= "    \xE2\x9A\xA0 Obraz: {$a['image_error']}\n";
+                    $msg .= "    \xE2\x9A\xA0 Obraz: {$h($a['image_error'])}\n";
                 }
             } else {
-                $msg .= "  \xE2\x9D\x8C {$a['title']}: {$a['error']}\n";
+                $msg .= "  \xE2\x9D\x8C {$h($a['title'])}: {$h($a['error'])}\n";
             }
         }
         $msg .= "\n";
     }
 
-    if ($speedLinksResult) $msg .= "\xF0\x9F\x94\x97 $speedLinksResult\n";
+    if ($speedLinksResult) $msg .= "\xF0\x9F\x94\x97 {$h($speedLinksResult)}\n";
     $msg .= "\n\xF0\x9F\x95\x90 Następna publikacja: jutro o 9:00";
 
-    // Send via Telegram Bot API
+    // Send via Telegram Bot API (HTML mode — safe with special chars in titles)
     $url = "https://api.telegram.org/bot$botToken/sendMessage";
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -471,7 +472,8 @@ function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int
         CURLOPT_POSTFIELDS => http_build_query([
             'chat_id' => $chatId,
             'text' => $msg,
-            'parse_mode' => 'Markdown',
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
         ]),
         CURLOPT_TIMEOUT => 15,
         CURLOPT_SSL_VERIFYPEER => false,
