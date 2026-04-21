@@ -283,8 +283,14 @@ foreach ($sites as $site) {
             $upStmt->bindValue(':id', $articleId, SQLITE3_INTEGER);
             $upStmt->execute();
 
-            // Record publication (user_id = 0 for CRON)
-            $pubStmt = $db->prepare('INSERT INTO publications (user_id, site_id, post_url, post_title) VALUES (0, :sid, :url, :title)');
+            // Record publication — use first admin as the CRON "user" (FK to users.id)
+            static $cronUserId = null;
+            if ($cronUserId === null) {
+                $u = $db->querySingle("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1", true);
+                $cronUserId = $u ? (int)$u['id'] : 1;
+            }
+            $pubStmt = $db->prepare('INSERT INTO publications (user_id, site_id, post_url, post_title) VALUES (:uid, :sid, :url, :title)');
+            $pubStmt->bindValue(':uid', $cronUserId, SQLITE3_INTEGER);
             $pubStmt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
             $pubStmt->bindValue(':url', $postUrl, SQLITE3_TEXT);
             $pubStmt->bindValue(':title', $articleTitle, SQLITE3_TEXT);
