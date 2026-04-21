@@ -16,6 +16,11 @@ ignore_user_abort(true); // Keep running even if HTTP client disconnects
 
 $isCli = (PHP_SAPI === 'cli');
 
+// Ignore SIGPIPE so closed output pipe (e.g. `| head`) doesn't kill the process
+if ($isCli && function_exists('pcntl_signal')) {
+    pcntl_signal(SIGPIPE, SIG_IGN);
+}
+
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../includes/wp_api.php';
 require_once __DIR__ . '/../includes/article_prompt.php';
