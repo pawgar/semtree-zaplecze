@@ -221,7 +221,7 @@ try {
             echo json_encode(['success' => true]);
             break;
 
-        // ── Run auto-publish manually ──────────────────────
+        // ── Run auto-publish manually (fire-and-forget via PHP CLI) ─────
         case 'run-manual':
             if ($method !== 'POST') throw new RuntimeException('POST required');
             requireAdminApi();
@@ -230,35 +230,63 @@ try {
             $cronToken = $tokenRow ? trim($tokenRow['value']) : '';
             if (!$cronToken) throw new RuntimeException('Brak tokena CRON — ustaw go w Ustawieniach');
 
-            // Build the URL to cron-auto-publish.php
-            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            $baseDir = dirname($_SERVER['SCRIPT_NAME']);
-            $cronUrl = "$scheme://$host$baseDir/cron-auto-publish.php?token=" . urlencode($cronToken);
+            // Check if already running (lock file)
+            $lockFile = __DIR__ . '/../data/cron-auto-publish.lock';
+            if (file_exists($lockFile) && (time() - filemtime($lockFile)) < 7200) {
+                throw new RuntimeException('Auto-publikacja już działa (lock file). Zaczekaj na zakończenie.');
+            }
 
-            // Call it via cURL with long timeout
-            $ch = curl_init($cronUrl);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 7200,
-                CURLOPT_CONNECTTIMEOUT => 10,
-                CURLOPT_SSL_VERIFYPEER => false,
+            $cronScript = realpath(__DIR__ . '/cron-auto-publish.php');
+            $logFile = realpath(__DIR__ . '/../data') . '/cron-auto-publish.log';
+
+            // Find PHP CLI binary (SeoHost uses /usr/local/php83/bin/php)
+            $phpBin = '/usr/local/php83/bin/php';
+            if (!is_executable($phpBin)) $phpBin = PHP_BINARY;
+            if (!is_executable($phpBin)) $phpBin = 'php';
+
+            // Fire-and-forget: spawn background process via shell
+            $cmd = sprintf(
+                '%s %s --token=%s >> %s 2>&1 &',
+                escapeshellcmd($phpBin),
+                escapeshellarg($cronScript),
+                escapeshellarg($cronToken),
+                escapeshellarg($logFile)
+            );
+
+            // Use nohup to detach from parent and survive script end
+            $fullCmd = "nohup $cmd";
+            exec($fullCmd);
+
+            // Mark as running
+            @file_put_contents($lockFile, (string)time());
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Auto-publikacja uruchomiona w tle. Sprawdzaj postęp w tabeli lub w logach.',
+                'log_file' => $logFile,
+                'running_in_background' => true,
             ]);
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            if (curl_errno($ch)) throw new RuntimeException('Błąd połączenia: ' . curl_error($ch));
-            curl_close($ch);
+            break;
 
-            $result = json_decode($response, true);
-            if ($httpCode >= 400) {
-                throw new RuntimeException($result['error'] ?? "HTTP $httpCode");
+        // ── Get recent log output ───────────────────────────────
+        case 'log-tail':
+            requireAdminApi();
+            $logFile = realpath(__DIR__ . '/../data') . '/cron-auto-publish.log';
+            $lockFile = __DIR__ . '/../data/cron-auto-publish.lock';
+
+            $running = file_exists($lockFile) && (time() - filemtime($lockFile)) < 7200;
+            $log = '';
+            if (file_exists($logFile)) {
+                // Last 50 lines
+                $content = file_get_contents($logFile);
+                $lines = explode("\n", $content);
+                $log = implode("\n", array_slice($lines, -50));
             }
 
             echo json_encode([
                 'success' => true,
-                'published' => $result['published'] ?? 0,
-                'errors' => $result['errors'] ?? 0,
-                'message' => sprintf('Opublikowano %d artykułów, %d błędów', $result['published'] ?? 0, $result['errors'] ?? 0),
+                'running' => $running,
+                'log' => $log,
             ]);
             break;
 

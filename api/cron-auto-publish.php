@@ -2,30 +2,65 @@
 /**
  * CRON: Auto-publish articles from queue.
  * Runs daily at 9:00 AM. For each enabled site, generates and publishes X articles.
- * Articles are published with random times between 5:00-8:00 AM.
  * Sends Telegram report after completion.
  *
- * Usage: 0 9 * * * curl -s "https://app.com/api/cron-auto-publish.php?token=SECRET"
+ * Usage (CLI — recommended, no HTTP timeout):
+ *   php cron-auto-publish.php --token=SECRET
+ *
+ * Usage (HTTP — fallback, may hit server timeout for many sites):
+ *   curl -s "https://app.com/api/cron-auto-publish.php?token=SECRET"
  */
-set_time_limit(7200); // 2 hours max
+set_time_limit(0); // unlimited
 ini_set('memory_limit', '512M');
+ignore_user_abort(true); // Keep running even if HTTP client disconnects
+
+$isCli = (PHP_SAPI === 'cli');
+
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../includes/wp_api.php';
 require_once __DIR__ . '/../includes/article_prompt.php';
 require_once __DIR__ . '/../includes/image_utils.php';
-header('Content-Type: application/json');
+
+if (!$isCli) header('Content-Type: application/json');
+
+// Heartbeat flush to keep LiteSpeed/Apache from killing idle connection.
+// In CLI this just echoes to stdout.
+function cronLog(string $msg): void {
+    global $isCli;
+    $line = '[' . date('H:i:s') . '] ' . $msg . "\n";
+    if ($isCli) {
+        echo $line;
+    } else {
+        echo "<!-- $line -->";
+        @ob_flush();
+        @flush();
+    }
+}
 
 // ── Auth ─────────────────────────────────────────────────────
 $db = getDb();
 $tokenRow = $db->querySingle("SELECT value FROM settings WHERE key = 'cron_token'", true);
 $cronToken = $tokenRow ? trim($tokenRow['value']) : '';
-$providedToken = $_GET['token'] ?? '';
+
+// Read token from CLI argv or HTTP GET
+$providedToken = '';
+if ($isCli) {
+    foreach ($argv ?? [] as $arg) {
+        if (preg_match('/^--token=(.+)$/', $arg, $m)) { $providedToken = $m[1]; break; }
+    }
+} else {
+    $providedToken = $_GET['token'] ?? '';
+}
 
 if (!$cronToken || $providedToken !== $cronToken) {
-    http_response_code(403);
+    if (!$isCli) http_response_code(403);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
+
+// Reset stuck articles from previous crashed runs
+$db->exec("UPDATE auto_publish_queue SET status = 'pending' WHERE status IN ('generating', 'generated', 'publishing')");
+cronLog('CRON start — stuck articles reset');
 
 // ── Settings ─────────────────────────────────────────────────
 $apiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'anthropic_api_key'", true);
@@ -80,10 +115,13 @@ $totalErrors = 0;
 $report = []; // For Telegram
 $speedLinksUrls = [];
 
+cronLog('Sites to process: ' . count($sites));
+
 foreach ($sites as $site) {
     $siteId = $site['id'];
     $limit = max(1, (int)$site['daily_limit']);
     $lang = $site['lang'] ?: 'pl';
+    cronLog("Processing site #$siteId: {$site['name']} (limit: $limit)");
 
     // Get pending articles (limit by daily_limit)
     $qStmt = $db->prepare('SELECT * FROM auto_publish_queue WHERE site_id = :sid AND status = "pending" ORDER BY id LIMIT :lim');
@@ -122,6 +160,7 @@ foreach ($sites as $site) {
     foreach ($articles as $article) {
         $articleId = $article['id'];
         $articleTitle = $article['title'];
+        cronLog("  Article #$articleId: $articleTitle");
 
         // Mark as generating
         $db->exec("UPDATE auto_publish_queue SET status = 'generating' WHERE id = $articleId");
@@ -261,8 +300,9 @@ foreach ($sites as $site) {
             if (!$featuredMediaId) $articleInfo['no_image'] = true;
             $siteArticles[] = $articleInfo;
 
+            cronLog("  Published: $postUrl");
             // Random delay between articles — avoids rate limits + makes publish times look natural
-            sleep(rand(5, 60));
+            sleep(rand(3, 15));
 
         } catch (Exception $e) {
             $errMsg = $e->getMessage();
@@ -328,7 +368,14 @@ if (!empty($speedLinksUrls) && $speedLinksKey) {
 }
 
 // ── Telegram report ──────────────────────────────────────────
-sendTelegramReport($db, $report, $totalPublished, $totalErrors, $speedLinksResult);
+cronLog("Sending Telegram report...");
+$telegramResult = sendTelegramReport($db, $report, $totalPublished, $totalErrors, $speedLinksResult);
+cronLog("Telegram result: $telegramResult");
+cronLog("Speed Links result: $speedLinksResult");
+cronLog("CRON done — published: $totalPublished, errors: $totalErrors");
+
+// Remove lock file
+@unlink(__DIR__ . '/../data/cron-auto-publish.lock');
 
 // ── Response ─────────────────────────────────────────────────
 echo json_encode([
@@ -337,6 +384,11 @@ echo json_encode([
     'errors' => $totalErrors,
     'report' => $report,
     'speed_links' => $speedLinksResult,
+    'speed_links_debug' => [
+        'urls_count' => count($speedLinksUrls),
+        'has_key' => !empty($speedLinksKey),
+    ],
+    'telegram' => $telegramResult,
 ]);
 
 // ── Helper: Generate image via Gemini ────────────────────────
@@ -424,14 +476,14 @@ function generateGeminiImage(string $apiKey, string $prompt, array &$errors = []
 }
 
 // ── Helper: Send Telegram report ─────────────────────────────
-function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int $totalErrors, string $speedLinksResult): void {
+function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int $totalErrors, string $speedLinksResult): string {
     $tokenRow = $db->querySingle("SELECT value FROM settings WHERE key = 'telegram_bot_token'", true);
     $chatRow = $db->querySingle("SELECT value FROM settings WHERE key = 'telegram_chat_id'", true);
 
     $botToken = $tokenRow ? trim($tokenRow['value']) : '';
     $chatId = $chatRow ? trim($chatRow['value']) : '';
 
-    if (!$botToken || !$chatId) return;
+    if (!$botToken || !$chatId) return 'Brak tokena lub chat_id';
 
     $date = date('Y-m-d');
     $emoji = $totalErrors === 0 ? "\xE2\x9C\x85" : "\xE2\x9A\xA0\xEF\xB8\x8F";
@@ -478,6 +530,14 @@ function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int
         CURLOPT_TIMEOUT => 15,
         CURLOPT_SSL_VERIFYPEER => false,
     ]);
-    curl_exec($ch);
+    $response = curl_exec($ch);
+    $curlErr = curl_error($ch);
     curl_close($ch);
+
+    if ($curlErr) return "cURL error: $curlErr";
+    $data = json_decode($response, true);
+    if (!($data['ok'] ?? false)) {
+        return 'Telegram error: ' . ($data['description'] ?? $response);
+    }
+    return 'ok';
 }

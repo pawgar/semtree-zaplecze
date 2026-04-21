@@ -5131,7 +5131,7 @@ async function runAutoPublishManual() {
         return;
     }
 
-    if (!confirm(`Uruchomić auto-publikację? Do opublikowania: ${totalPending} artykułów. Może to potrwać kilka minut.`)) return;
+    if (!confirm(`Uruchomić auto-publikację? Do opublikowania: ${totalPending} artykułów. Proces działa w tle — możesz zamknąć stronę.`)) return;
 
     const btn = document.getElementById('apRunManualBtn');
     const progressDiv = document.getElementById('apManualProgress');
@@ -5144,44 +5144,54 @@ async function runAutoPublishManual() {
     progressBar.style.width = '0%';
     progressLabel.textContent = `0/${totalPending}`;
 
-    // Poll for progress every 8s by reloading sites data
+    try {
+        const data = await api('POST', 'api/auto-publish.php?action=run-manual');
+        if (data.error) throw new Error(data.error);
+        showToast(data.message || 'Uruchomiono w tle', 'info');
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+        progressDiv.classList.add('d-none');
+        progressDiv.classList.remove('d-flex');
+        btn.classList.remove('d-none');
+        return;
+    }
+
+    // Poll every 8s: refresh sites + check if still running
     let published = 0;
     const startPublished = apSitesData.reduce((sum, s) => sum + (s.queue?.published || 0), 0);
     const pollInterval = setInterval(async () => {
         try {
-            const data = await api('GET', 'api/auto-publish.php?action=sites');
-            if (data.sites) {
-                const nowPublished = data.sites.reduce((sum, s) => sum + (s.queue?.published || 0), 0);
+            const [sitesData, logData] = await Promise.all([
+                api('GET', 'api/auto-publish.php?action=sites'),
+                api('GET', 'api/auto-publish.php?action=log-tail'),
+            ]);
+            if (sitesData.sites) {
+                const nowPublished = sitesData.sites.reduce((sum, s) => sum + (s.queue?.published || 0), 0);
                 published = nowPublished - startPublished;
                 const pct = Math.min(100, Math.round(published / totalPending * 100));
                 progressBar.style.width = pct + '%';
                 progressLabel.textContent = `${published}/${totalPending}`;
+                apSitesData = sitesData.sites;
+                renderApSites();
+                updateApSummary();
+            }
+
+            // If CRON finished — stop polling
+            if (logData && !logData.running) {
+                clearInterval(pollInterval);
+                progressBar.style.width = '100%';
+                progressBar.classList.remove('progress-bar-animated');
+                showToast(`Zakończono: opublikowano ${published} artykułów`, published > 0 ? 'success' : 'warning');
+                setTimeout(() => {
+                    progressDiv.classList.add('d-none');
+                    progressDiv.classList.remove('d-flex');
+                    progressBar.classList.add('progress-bar-animated');
+                    btn.classList.remove('d-none');
+                    loadAutoPublish();
+                }, 3000);
             }
         } catch (e) { /* ignore polling errors */ }
     }, 8000);
-
-    try {
-        const data = await api('POST', 'api/auto-publish.php?action=run-manual');
-        if (data.error) throw new Error(data.error);
-
-        progressBar.style.width = '100%';
-        progressBar.classList.remove('progress-bar-animated');
-        progressLabel.textContent = `${data.published || published}/${totalPending}`;
-
-        const msg = `Opublikowano ${data.published || 0} artykułów` + (data.errors ? `, ${data.errors} błędów` : '');
-        showToast(msg, data.errors > 0 ? 'warning' : 'success');
-        loadAutoPublish();
-    } catch (e) {
-        showToast('Błąd: ' + e.message, 'error');
-    } finally {
-        clearInterval(pollInterval);
-        setTimeout(() => {
-            progressDiv.classList.add('d-none');
-            progressDiv.classList.remove('d-flex');
-            progressBar.classList.add('progress-bar-animated');
-            btn.classList.remove('d-none');
-        }, 3000);
-    }
 }
 
 // ── Telegram Settings ───────────────────────────────────────

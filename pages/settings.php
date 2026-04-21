@@ -186,9 +186,9 @@ $isAdminUser = isAdmin();
                         0 6 * * * curl -s "<?= htmlspecialchars(rtrim(($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'your-app.com'), '/')) ?>/api/cron-gsc.php?token=YOUR_TOKEN"
                     </code>
                     <code class="d-block bg-light p-2 rounded small" id="cronAutoPublishCommandPreview">
-                        0 9 * * * curl -s "<?= htmlspecialchars(rtrim(($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'your-app.com'), '/')) ?>/api/cron-auto-publish.php?token=YOUR_TOKEN" --max-time 7200
+                        0 9 * * * /usr/local/php83/bin/php <?= htmlspecialchars(realpath(__DIR__ . '/../api/cron-auto-publish.php') ?: '/PATH/TO/api/cron-auto-publish.php') ?> --token=YOUR_TOKEN >> <?= htmlspecialchars(realpath(__DIR__ . '/../data') ?: '/PATH/TO/data') ?>/cron-auto-publish.log 2>&amp;1
                     </code>
-                    <div class="form-text">Statusy stron (23:00), dane GSC (6:00), auto-publikacje (9:00).</div>
+                    <div class="form-text">Statusy stron (23:00), dane GSC (6:00), auto-publikacje (9:00 — <strong>uruchamiane przez PHP CLI</strong>, bez limitu czasu serwera HTTP).</div>
                 </div>
             </div>
         </div>
