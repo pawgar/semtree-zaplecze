@@ -511,33 +511,69 @@ function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int
     $emoji = $totalErrors === 0 ? "\xE2\x9C\x85" : "\xE2\x9A\xA0\xEF\xB8\x8F";
     $h = fn($s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
-    $msg = "$emoji <b>Auto-publikacja $date</b>\n\n";
-    $msg .= "Opublikowano: <b>$totalPublished</b> | Błędy: <b>$totalErrors</b>\n\n";
+    // ── Part 1: Summary message (always short) ───────────────
+    $sitesCount = count($report);
+    $noImgCount = 0;
+    foreach ($report as $r) {
+        foreach ($r['articles'] as $a) {
+            if (!empty($a['no_image'])) $noImgCount++;
+        }
+    }
+    $summary = "$emoji <b>Auto-publikacja $date</b>\n\n";
+    $summary .= "Opublikowano: <b>$totalPublished</b> | Błędy: <b>$totalErrors</b>\n";
+    $summary .= "Stron: <b>$sitesCount</b>";
+    if ($noImgCount > 0) $summary .= " | Bez obrazu: <b>$noImgCount</b>";
+    $summary .= "\n";
+    if ($speedLinksResult) $summary .= "\n\xF0\x9F\x94\x97 {$h($speedLinksResult)}\n";
 
+    $sendResult = telegramSendMessage($botToken, $chatId, $summary);
+    if ($sendResult !== 'ok') return $sendResult;
+
+    // ── Part 2+: Details chunked into messages under 4096 chars ─
+    $chunks = [];
+    $current = '';
     foreach ($report as $r) {
         $siteEmoji = $r['errors'] === 0 ? "\xE2\x9C\x85" : "\xE2\x9A\xA0\xEF\xB8\x8F";
-        $msg .= "$siteEmoji <b>{$h($r['site'])}</b> ({$r['published']}/{$r['errors']})\n";
+        $siteBlock = "$siteEmoji <b>{$h($r['site'])}</b> ({$r['published']}/{$r['errors']})\n";
         foreach ($r['articles'] as $a) {
             if ($a['status'] === 'ok') {
                 $imgIcon = !empty($a['no_image']) ? "\xF0\x9F\x96\xBC\xE2\x9D\x8C" : "\xF0\x9F\x96\xBC\xE2\x9C\x85";
-                $msg .= "  \xE2\x80\xA2 {$h($a['title'])} {$imgIcon}\n";
+                $siteBlock .= "  \xE2\x80\xA2 {$h($a['title'])} {$imgIcon}\n";
                 if (!empty($a['url'])) {
-                    $msg .= "    <a href=\"{$h($a['url'])}\">{$h($a['url'])}</a>\n";
+                    $siteBlock .= "    <a href=\"{$h($a['url'])}\">{$h($a['url'])}</a>\n";
                 }
                 if (!empty($a['image_error'])) {
-                    $msg .= "    \xE2\x9A\xA0 Obraz: {$h($a['image_error'])}\n";
+                    $siteBlock .= "    \xE2\x9A\xA0 {$h($a['image_error'])}\n";
                 }
             } else {
-                $msg .= "  \xE2\x9D\x8C {$h($a['title'])}: {$h($a['error'])}\n";
+                $siteBlock .= "  \xE2\x9D\x8C {$h($a['title'])}: {$h($a['error'])}\n";
             }
         }
-        $msg .= "\n";
+        $siteBlock .= "\n";
+
+        // If adding this block would exceed 3800 chars (safe margin below 4096), start new chunk
+        if (strlen($current) + strlen($siteBlock) > 3800) {
+            if ($current) $chunks[] = $current;
+            $current = $siteBlock;
+        } else {
+            $current .= $siteBlock;
+        }
+    }
+    if ($current) $chunks[] = $current;
+
+    // Send each chunk with 1s delay to avoid rate limits
+    $totalChunks = count($chunks);
+    foreach ($chunks as $i => $chunk) {
+        $header = "\xF0\x9F\x93\x9D <b>Szczegóły " . ($i + 1) . "/$totalChunks</b>\n\n";
+        $result = telegramSendMessage($botToken, $chatId, $header . $chunk);
+        if ($result !== 'ok') return "Chunk " . ($i + 1) . " failed: $result";
+        if ($i < $totalChunks - 1) sleep(1);
     }
 
-    if ($speedLinksResult) $msg .= "\xF0\x9F\x94\x97 {$h($speedLinksResult)}\n";
-    $msg .= "\n\xF0\x9F\x95\x90 Następna publikacja: jutro o 9:00";
+    return 'ok';
+}
 
-    // Send via Telegram Bot API (HTML mode — safe with special chars in titles)
+function telegramSendMessage(string $botToken, string $chatId, string $text): string {
     $url = "https://api.telegram.org/bot$botToken/sendMessage";
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -545,7 +581,7 @@ function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POSTFIELDS => http_build_query([
             'chat_id' => $chatId,
-            'text' => $msg,
+            'text' => $text,
             'parse_mode' => 'HTML',
             'disable_web_page_preview' => true,
         ]),
@@ -559,7 +595,7 @@ function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int
     if ($curlErr) return "cURL error: $curlErr";
     $data = json_decode($response, true);
     if (!($data['ok'] ?? false)) {
-        return 'Telegram error: ' . ($data['description'] ?? $response);
+        return 'Telegram error: ' . ($data['description'] ?? substr($response ?: '', 0, 200));
     }
     return 'ok';
 }
