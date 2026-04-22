@@ -36,7 +36,7 @@ try {
                 $row['queue'] = $stats;
                 $row['queue_total'] = array_sum($stats);
 
-                // Count unmapped categories (pending articles with category but no wp_category_id)
+                // Count unmapped categories (pending articles with category but no wp_category_id and no mapping)
                 $umSt = $db->prepare('
                     SELECT COUNT(DISTINCT category_name) as cnt
                     FROM auto_publish_queue
@@ -49,6 +49,35 @@ try {
                 $umSt->bindValue(':sid2', $siteId, SQLITE3_INTEGER);
                 $umRes = $umSt->execute()->fetchArray(SQLITE3_ASSOC);
                 $row['unmapped_categories'] = (int)($umRes['cnt'] ?? 0);
+
+                // Count ready pending articles: no category OR wp_category_id set OR category_name is in mapping
+                $readySt = $db->prepare('
+                    SELECT COUNT(*) as cnt
+                    FROM auto_publish_queue
+                    WHERE site_id = :sid AND status = "pending"
+                    AND (
+                        category_name = ""
+                        OR wp_category_id IS NOT NULL
+                        OR LOWER(category_name) IN (SELECT LOWER(category_name) FROM auto_publish_category_map WHERE site_id = :sid2)
+                    )
+                ');
+                $readySt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
+                $readySt->bindValue(':sid2', $siteId, SQLITE3_INTEGER);
+                $readyRes = $readySt->execute()->fetchArray(SQLITE3_ASSOC);
+                $row['ready_pending'] = (int)($readyRes['cnt'] ?? 0);
+
+                // Count blocked pending articles (category not mapped)
+                $blockedSt = $db->prepare('
+                    SELECT COUNT(*) as cnt
+                    FROM auto_publish_queue
+                    WHERE site_id = :sid AND status = "pending"
+                    AND category_name != "" AND wp_category_id IS NULL
+                    AND LOWER(category_name) NOT IN (SELECT LOWER(category_name) FROM auto_publish_category_map WHERE site_id = :sid2)
+                ');
+                $blockedSt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
+                $blockedSt->bindValue(':sid2', $siteId, SQLITE3_INTEGER);
+                $blockedRes = $blockedSt->execute()->fetchArray(SQLITE3_ASSOC);
+                $row['blocked_pending'] = (int)($blockedRes['cnt'] ?? 0);
 
                 $sites[] = $row;
             }

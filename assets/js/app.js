@@ -4841,6 +4841,8 @@ function apSiteStatusBadge(s) {
     const enabled = s.enabled ?? 0;
     const pending = s.queue?.pending || 0;
     const unmapped = s.unmapped_categories || 0;
+    const ready = s.ready_pending ?? pending;
+    const blocked = s.blocked_pending || 0;
     const total = s.queue_total || 0;
 
     if (!enabled) {
@@ -4852,10 +4854,16 @@ function apSiteStatusBadge(s) {
     if (pending === 0) {
         return '<span class="badge bg-info" title="Wszystkie artykuły przetworzone, załaduj nowy content plan"><i class="bi bi-check-circle"></i> Kolejka pusta</span>';
     }
-    if (unmapped > 0) {
-        return `<span class="badge bg-warning text-dark" title="${unmapped} niezmapowanych kategorii — skonfiguruj mapowanie"><i class="bi bi-diagram-3"></i> Mapuj (${unmapped})</span>`;
+    // All pending blocked by unmapped categories
+    if (ready === 0 && unmapped > 0) {
+        return `<span class="badge bg-warning text-dark" title="${unmapped} niezmapowanych kategorii — żaden artykuł nie pójdzie do publikacji"><i class="bi bi-diagram-3"></i> Mapuj (${unmapped})</span>`;
     }
-    return `<span class="badge bg-success" title="Gotowa — CRON opublikuje ${pending} artykułów"><i class="bi bi-rocket-takeoff"></i> Gotowa (${pending})</span>`;
+    // Some articles ready, some blocked — hybrid
+    if (ready > 0 && blocked > 0) {
+        return `<span class="badge bg-success" title="Gotowe do publikacji: ${ready}. Zablokowane przez niezmapowane kategorie: ${blocked} (${unmapped} kategorii). Domapuj aby odblokować resztę."><i class="bi bi-rocket-takeoff"></i> Gotowa (${ready}) <span class="text-warning-emphasis">+${blocked}⚠</span></span>`;
+    }
+    // All pending are ready
+    return `<span class="badge bg-success" title="Gotowa — CRON opublikuje ${ready} artykułów"><i class="bi bi-rocket-takeoff"></i> Gotowa (${ready})</span>`;
 }
 
 async function toggleAllApCheckbox(className, checked) {

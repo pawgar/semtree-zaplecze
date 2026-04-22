@@ -128,9 +128,20 @@ foreach ($sites as $site) {
     $lang = $site['lang'] ?: 'pl';
     cronLog("Processing site #$siteId: {$site['name']} (limit: $limit)");
 
-    // Get pending articles (limit by daily_limit)
-    $qStmt = $db->prepare('SELECT * FROM auto_publish_queue WHERE site_id = :sid AND status = "pending" ORDER BY id LIMIT :lim');
+    // Get pending articles — skip ones with unmapped categories (safer: leave pending, user can map later)
+    // Ready = no category OR wp_category_id set OR category name is in mapping table
+    $qStmt = $db->prepare('
+        SELECT * FROM auto_publish_queue
+        WHERE site_id = :sid AND status = "pending"
+        AND (
+            category_name = ""
+            OR wp_category_id IS NOT NULL
+            OR LOWER(category_name) IN (SELECT LOWER(category_name) FROM auto_publish_category_map WHERE site_id = :sid2)
+        )
+        ORDER BY id LIMIT :lim
+    ');
     $qStmt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
+    $qStmt->bindValue(':sid2', $siteId, SQLITE3_INTEGER);
     $qStmt->bindValue(':lim', $limit, SQLITE3_INTEGER);
     $result = $qStmt->execute();
     $articles = [];
