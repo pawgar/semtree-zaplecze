@@ -5,9 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Logowanie — <?= APP_NAME ?></title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://rsms.me/">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <link href="assets/vendor/tabler/css/tabler.min.css" rel="stylesheet">
     <link href="assets/vendor/tabler-icons/tabler-icons.min.css" rel="stylesheet">
     <script defer src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>

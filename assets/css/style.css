@@ -30,6 +30,14 @@ body {
     overflow-x: hidden;
 }
 
+/* ═══ FIX: user dropdown menu alignment ═══
+   Bootstrap default dropdown-menu-end can still overflow viewport when the
+   toggle is very close to the right edge. Clamp it by forcing right:0. */
+.navbar .nav-item.dropdown .dropdown-menu-end {
+    right: 0 !important;
+    left: auto !important;
+}
+
 /* ═══ BUTTONS ═══ */
 .btn {
     border-radius: var(--btn-radius);
