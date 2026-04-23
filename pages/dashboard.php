@@ -32,6 +32,9 @@ $greetingPrefix = $h < 10 ? 'Dzień dobry' : ($h < 18 ? 'Witaj' : 'Dobry wieczó
                             </div>
                             <div class="small text-success" id="statSuccessText">—</div>
                         </div>
+                        <div class="col-12 mt-2">
+                            <div class="text-secondary small" id="welcomeStatusInfo">—</div>
+                        </div>
                     </div>
                 </div>
                 <img src="https://tabler.io/assets/illustrations/undraw_elements.svg" alt="" style="max-height:150px;opacity:0.9" onerror="this.style.display='none'">
@@ -199,9 +202,7 @@ $greetingPrefix = $h < 10 ? 'Dzień dobry' : ($h < 18 ? 'Witaj' : 'Dobry wieczó
                     <i class="ti ti-chart-line me-1"></i> Odśwież GSC
                 </button>
             </div>
-            <div class="col-auto">
-                <span class="text-secondary small" id="lastStatusCheck" title="Ostatnie odświeżenie statusów"></span>
-            </div>
+            <span id="lastStatusCheck" style="display:none"></span>
             <div class="col-auto ms-auto">
                 <div class="btn-list">
                     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSiteModal">
@@ -252,6 +253,76 @@ $greetingPrefix = $h < 10 ? 'Dzień dobry' : ($h < 18 ? 'Witaj' : 'Dobry wieczó
                 </td></tr>
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- ═══ CRON activity section ═══ -->
+<div class="card mt-3">
+    <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-clock-hour-9 me-2"></i>Aktywność CRON</h3>
+        <div class="card-subtitle text-secondary">Status automatycznych zadań w tle</div>
+    </div>
+    <div class="card-body">
+        <div class="row row-cards">
+            <!-- CRON 1: Statusy stron (23:00) -->
+            <div class="col-md-4">
+                <div class="card card-sm border">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="bg-blue text-white avatar me-2"><i class="ti ti-activity"></i></span>
+                            <div class="flex-fill">
+                                <div class="fw-semibold">Statusy stron</div>
+                                <div class="text-secondary small">codziennie o 23:00</div>
+                            </div>
+                            <span id="cronStatusBadge"></span>
+                        </div>
+                        <div class="text-secondary small">
+                            <div>Ostatni run: <span id="cronStatusLast">—</span></div>
+                            <div>Następny: <span id="cronStatusNext">—</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- CRON 2: GSC (6:00) -->
+            <div class="col-md-4">
+                <div class="card card-sm border">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="bg-orange text-white avatar me-2"><i class="ti ti-chart-line"></i></span>
+                            <div class="flex-fill">
+                                <div class="fw-semibold">Dane Google Search Console</div>
+                                <div class="text-secondary small">codziennie o 06:00</div>
+                            </div>
+                            <span id="cronGscBadge"></span>
+                        </div>
+                        <div class="text-secondary small">
+                            <div>Ostatni run: <span id="cronGscLast">—</span></div>
+                            <div>Następny: <span id="cronGscNext">—</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- CRON 3: Auto-publish (9:00) -->
+            <div class="col-md-4">
+                <div class="card card-sm border">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="bg-green text-white avatar me-2"><i class="ti ti-robot"></i></span>
+                            <div class="flex-fill">
+                                <div class="fw-semibold">Auto-publikacje</div>
+                                <div class="text-secondary small">codziennie o 09:00</div>
+                            </div>
+                            <span id="cronApBadge"></span>
+                        </div>
+                        <div class="text-secondary small">
+                            <div>Ostatni run: <span id="cronApLast">—</span></div>
+                            <div>Następny: <span id="cronApNext">—</span></div>
+                            <div class="mt-1">Dziś: <strong id="cronApToday">0</strong> opublikowanych · <strong class="text-danger" id="cronApErrors">0</strong> błędów</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

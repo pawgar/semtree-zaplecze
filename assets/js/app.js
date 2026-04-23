@@ -299,10 +299,11 @@ function renderSites(sites) {
     sites.forEach(s => {
         if (s.last_status_check && s.last_status_check > latestCheck) latestCheck = s.last_status_check;
     });
+    const statusText = latestCheck ? `Statusy stron odświeżone: ${formatDateLocal(latestCheck)}` : 'Statusy stron: nigdy nie odświeżane';
     const checkEl = document.getElementById('lastStatusCheck');
-    if (checkEl) {
-        checkEl.textContent = latestCheck ? `Statusy z: ${formatDateLocal(latestCheck)}` : 'Statusy: nigdy nie odświeżane';
-    }
+    if (checkEl) checkEl.textContent = statusText;
+    const welcomeStatus = document.getElementById('welcomeStatusInfo');
+    if (welcomeStatus) welcomeStatus.innerHTML = '<i class="ti ti-refresh me-1"></i>' + statusText;
 
     tbody.innerHTML = sites.map((s, i) => {
         const postCount = s.post_count !== null && s.post_count !== undefined ? s.post_count : '-';
@@ -5335,9 +5336,11 @@ async function loadDashboardStats() {
     setHTML('statGscClicksChange', pct(data.gsc.clicks_change));
     setHTML('statGscImpressionsChange', pct(data.gsc.impressions_change));
 
-    // Links aggregate from sitesData (already loaded)
-    const totalLinks = (window.sitesData || []).reduce((s, x) => s + (x.link_count || 0), 0);
-    setText('statLinks', fmt(totalLinks));
+    // Links total from API (atomic, independent of sitesData load order)
+    setText('statLinks', fmt(data.total_links || 0));
+
+    // CRON activity section
+    if (data.cron) renderCronActivity(data.cron);
 
     // Publications daily total
     const pubsTotal = (data.pubs_daily || []).reduce((s, x) => s + x.count, 0);
@@ -5435,4 +5438,36 @@ function renderHealthGauge(elId, net, textElId) {
 
     const txt = document.getElementById(textElId);
     if (txt) txt.textContent = `${ok} / ${total} stron OK (HTTP + API)`;
+}
+
+// ── CRON activity card rendering ─────────────────────────
+function renderCronActivity(cron) {
+    const fmtDate = (iso) => {
+        if (!iso) return 'nigdy';
+        const d = new Date(iso.replace(' ', 'T'));
+        if (isNaN(d)) return iso;
+        return d.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    };
+    const statusBadge = (lastRun, freshWindow) => {
+        if (!lastRun) return statusDot('secondary', 'Nigdy');
+        const ago = (Date.now() - new Date(lastRun.replace(' ', 'T')).getTime()) / 3600000;
+        if (ago <= freshWindow) return statusDot('green', 'OK');
+        if (ago <= freshWindow * 2) return statusDot('orange', 'Opóźniony');
+        return statusDot('red', 'Nieaktualny');
+    };
+
+    // Status CRON runs daily (24h window)
+    setHTML('cronStatusBadge', statusBadge(cron.status.last_run, 26));
+    setText('cronStatusLast', fmtDate(cron.status.last_run));
+    setText('cronStatusNext', fmtDate(cron.status.next_run));
+
+    setHTML('cronGscBadge', statusBadge(cron.gsc.last_run, 26));
+    setText('cronGscLast', fmtDate(cron.gsc.last_run));
+    setText('cronGscNext', fmtDate(cron.gsc.next_run));
+
+    setHTML('cronApBadge', statusBadge(cron.auto_publish.last_run, 26));
+    setText('cronApLast', fmtDate(cron.auto_publish.last_run));
+    setText('cronApNext', fmtDate(cron.auto_publish.next_run));
+    setText('cronApToday', cron.auto_publish.published_today || 0);
+    setText('cronApErrors', cron.auto_publish.errors_total || 0);
 }

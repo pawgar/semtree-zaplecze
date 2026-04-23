@@ -38,6 +38,33 @@ try {
     $pubsDailyArr = [];
     foreach ($pubsDaily as $d => $c) $pubsDailyArr[] = ['date' => $d, 'count' => $c];
 
+    // ── Links total ───────────────────────────────────────
+    $totalLinks = (int)($db->querySingle("SELECT COUNT(*) FROM links") ?: 0);
+
+    // ── CRON activity (last runs + effects) ──────────────
+    $cron = [
+        'status' => [
+            'last_run' => $db->querySingle("SELECT MAX(last_status_check) FROM sites"),
+            'next_run' => date('Y-m-d 23:00:00', strtotime(date('H') >= '23' ? 'tomorrow' : 'today')),
+            'label' => 'Statusy stron (HTTP + API)',
+        ],
+        'gsc' => [
+            'last_run' => $db->querySingle("SELECT MAX(gsc_last_update) FROM sites"),
+            'next_run' => date('Y-m-d 06:00:00', strtotime(date('H') >= '6' ? 'tomorrow' : 'today')),
+            'label' => 'Odświeżanie danych Google Search Console',
+        ],
+        'auto_publish' => [
+            'last_run' => $tblExists ? $db->querySingle("SELECT MAX(published_at) FROM auto_publish_queue WHERE status='published'") : null,
+            'next_run' => date('Y-m-d 09:00:00', strtotime(date('H') >= '9' ? 'tomorrow' : 'today')),
+            'label' => 'Automatyczne publikacje artykułów',
+            'published_today' => $infoBoxes['today_auto_pubs'],
+            'errors_total' => $infoBoxes['errors'],
+        ],
+    ];
+
+    // Publications 7-day sparkline for CRON card
+    $pubs7 = array_slice($pubsDailyArr, -7);
+
     // ── Network health ───────────────────────────────────
     $netRow = $db->querySingle("
         SELECT
@@ -147,6 +174,8 @@ try {
         ],
         'pubs_daily' => $pubsDailyArr,
         'info_boxes' => $infoBoxes,
+        'total_links' => $totalLinks,
+        'cron' => $cron,
     ]);
 } catch (Exception $e) {
     http_response_code(500);
