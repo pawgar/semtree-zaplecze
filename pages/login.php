@@ -1,21 +1,20 @@
 <?php require_once __DIR__ . '/../config.php'; ?>
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="pl" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Logowanie — <?= APP_NAME ?></title>
     <link href="assets/vendor/tabler/css/tabler.min.css" rel="stylesheet">
     <link href="assets/vendor/tabler-icons/tabler-icons.min.css" rel="stylesheet">
-    <script src="assets/vendor/tabler/js/tabler-theme.min.js"></script>
     <script defer src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </head>
-<body class="d-flex flex-column bg-light">
+<body class="d-flex flex-column">
 <div class="page page-center">
     <div class="container container-tight py-4">
         <div class="text-center mb-4">
             <a href="." class="navbar-brand navbar-brand-autodark">
-                <span class="text-dark fw-bold fs-2">Sem<span class="text-success">tree</span></span>
+                <span class="text-body fw-bold fs-2">Sem<span class="text-success">tree</span></span>
                 <div class="text-secondary mt-1">Panel Zaplecza</div>
             </a>
         </div>

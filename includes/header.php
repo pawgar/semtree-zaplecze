@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pl" data-bs-theme="light">
+<html lang="pl" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -12,8 +12,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <!-- Project custom styles -->
     <link href="assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>" rel="stylesheet">
-    <!-- Tabler theme toggle (loaded early to avoid FOUC) -->
-    <script src="assets/vendor/tabler/js/tabler-theme.min.js"></script>
 </head>
 <body>
 
@@ -41,15 +39,6 @@
                             <span class="status-indicator status-gray" id="claudeStatusLed"></span>
                             <span class="ms-2 text-secondary small" id="claudeStatusLabel">Claude API</span>
                         </div>
-                    </div>
-                    <!-- Theme toggle -->
-                    <div class="nav-item d-none d-md-flex me-2">
-                        <a href="#" class="nav-link px-0 hide-theme-dark" onclick="event.preventDefault(); setTablerTheme('dark')" title="Tryb ciemny" data-bs-toggle="tooltip">
-                            <i class="ti ti-moon"></i>
-                        </a>
-                        <a href="#" class="nav-link px-0 hide-theme-light" onclick="event.preventDefault(); setTablerTheme('light')" title="Tryb jasny" data-bs-toggle="tooltip">
-                            <i class="ti ti-sun"></i>
-                        </a>
                     </div>
                     <!-- Version / changelog -->
                     <div class="nav-item d-none d-md-flex me-3">
@@ -123,22 +112,6 @@
                 </div>
             </div>
         </header>
-
-        <script>
-        // Theme switcher — persists across pages via localStorage, applies data-bs-theme to <html>
-        function setTablerTheme(theme) {
-            document.documentElement.setAttribute('data-bs-theme', theme);
-            try { localStorage.setItem('tabler-theme', theme); } catch (e) {}
-        }
-        (function() {
-            try {
-                const saved = localStorage.getItem('tabler-theme');
-                if (saved === 'dark' || saved === 'light') {
-                    document.documentElement.setAttribute('data-bs-theme', saved);
-                }
-            } catch (e) {}
-        })();
-        </script>
 
         <script>
         const squidwardFacts = [
