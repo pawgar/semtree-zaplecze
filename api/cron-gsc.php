@@ -33,7 +33,7 @@ if (!$gsc->isConnected()) {
 // Clear all cache and refetch for 28d range
 GscApi::invalidateCache();
 
-$dateTo = date('Y-m-d', strtotime('-3 days'));
+$dateTo = date('Y-m-d', strtotime('-2 days')); // GSC data delay ~2 days (stable)
 $dateFrom = date('Y-m-d', strtotime('-31 days'));
 $prevDays = (strtotime($dateTo) - strtotime($dateFrom)) / 86400;
 $prevTo = date('Y-m-d', strtotime($dateFrom) - 86400);

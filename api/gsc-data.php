@@ -210,7 +210,7 @@ function getReportData(GscApi $gsc, string $dateFrom, string $dateTo, string $pr
 
 function refreshGscData(GscApi $gsc, string $siteUrl = ''): void {
     $db = getDb();
-    $dateTo = date('Y-m-d', strtotime('-3 days'));
+    $dateTo = date('Y-m-d', strtotime('-2 days'));
     $dateFrom = date('Y-m-d', strtotime('-31 days'));
     $prevDays = (strtotime($dateTo) - strtotime($dateFrom)) / 86400;
     $prevTo = date('Y-m-d', strtotime($dateFrom) - 86400);
@@ -274,7 +274,7 @@ function refreshAndStoreSiteGsc(GscApi $gsc, SQLite3 $db, array $site, string $d
 // ── Helpers ───────────────────────────────────────────────
 
 function getDateRange(string $range): array {
-    $dateTo = date('Y-m-d', strtotime('-3 days')); // GSC data has ~3 day delay
+    $dateTo = date('Y-m-d', strtotime('-2 days')); // GSC data has ~3 day delay
     $dateFrom = match ($range) {
         '7d' => date('Y-m-d', strtotime('-10 days')),
         '28d' => date('Y-m-d', strtotime('-31 days')),
