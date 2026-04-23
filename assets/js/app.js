@@ -5353,7 +5353,7 @@ async function loadDashboardStats() {
     renderSparkline('chartGscImpressions',
         (data.gsc.daily || []).map(d => d.impressions),
         (data.gsc.daily || []).map(d => d.date),
-        '#fd7e14', 48);
+        '#fd7e14', 100);
 
     // GSC Clicks sparkline (row 2)
     renderSparkline('chartGscClicks',

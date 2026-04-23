@@ -53,7 +53,7 @@ $greetingPrefix = $h < 10 ? 'Dzień dobry' : ($h < 18 ? 'Witaj' : 'Dobry wieczó
                         <div class="text-end mt-1" id="statGscImpressionsChange">—</div>
                     </div>
                 </div>
-                <div id="chartGscImpressions" style="min-height:48px;margin-top:8px"></div>
+                <div id="chartGscImpressions" style="min-height:100px;margin-top:12px"></div>
             </div>
         </div>
     </div>
