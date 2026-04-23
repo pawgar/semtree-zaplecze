@@ -115,6 +115,7 @@ function loadSites() {
         updateDashboardGscFromSites();
         filterSites();
         checkGscConnected();
+        loadDashboardStats();
     });
 }
 
@@ -5285,4 +5286,147 @@ function renderSparklineSvg(daily, metric) {
     return `<svg width="${width}" height="${height}" style="display:block">
         <polyline points="${points}" fill="none" stroke="${trend}" stroke-width="1.5" />
     </svg>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── Dashboard Redesign: stats + ApexCharts ──────────────────
+// ══════════════════════════════════════════════════════════════
+async function loadDashboardStats() {
+    if (!document.getElementById('statTodayPubs')) return; // only on dashboard
+
+    let data;
+    try {
+        data = await api('GET', 'api/dashboard-stats.php');
+        if (!data.success) throw new Error(data.error || 'Błąd');
+    } catch (e) {
+        console.warn('[dashboard-stats]', e);
+        return;
+    }
+
+    const fmt = n => new Intl.NumberFormat('pl-PL').format(n);
+    const pct = (v, goodIfPositive = true) => {
+        if (v == null) return '';
+        const sign = v >= 0 ? '↑' : '↓';
+        const cls = (v >= 0 ? goodIfPositive : !goodIfPositive) ? 'text-success' : 'text-danger';
+        return `<span class="${cls} small">${sign}${Math.abs(Math.round(v))}%</span>`;
+    };
+
+    // Greeting row
+    setText('statTodayPubs', fmt(data.today_pubs));
+    setText('statWeekPubs', fmt(data.week_pubs));
+    if (data.success_rate !== null) {
+        setText('statSuccessText', data.success_rate + '% (ostatnie 30 dni)');
+        const bar = document.getElementById('statSuccessBar');
+        if (bar) bar.style.width = data.success_rate + '%';
+    } else {
+        setText('statSuccessText', 'brak danych');
+    }
+
+    // GSC totals + sparklines
+    setText('statGscClicks', fmt(data.gsc.total_clicks));
+    setText('statGscImpressions', fmt(data.gsc.total_impressions));
+    setText('statKeywords', fmt(data.gsc.total_keywords));
+    setHTML('statGscClicksChange', pct(data.gsc.clicks_change));
+    setHTML('statGscImpressionsChange', pct(data.gsc.impressions_change));
+
+    // Links aggregate from sitesData (already loaded)
+    const totalLinks = (window.sitesData || []).reduce((s, x) => s + (x.link_count || 0), 0);
+    setText('statLinks', fmt(totalLinks));
+
+    // Publications daily total
+    const pubsTotal = (data.pubs_daily || []).reduce((s, x) => s + x.count, 0);
+    setText('statPubsTotal', fmt(pubsTotal));
+
+    // Info boxes
+    setText('statTodayAutoPubs', fmt(data.info_boxes.today_auto_pubs));
+    setText('statPendingQueue', fmt(data.info_boxes.pending_queue));
+    setText('statAutoErrors', fmt(data.info_boxes.errors));
+    setText('statNextCron', data.info_boxes.next_cron);
+
+    // ApexCharts — only if loaded
+    if (typeof ApexCharts === 'undefined') {
+        console.warn('ApexCharts not loaded — charts skipped');
+        return;
+    }
+
+    // GSC Impressions sparkline (row 1)
+    renderSparkline('chartGscImpressions',
+        (data.gsc.daily || []).map(d => d.impressions),
+        (data.gsc.daily || []).map(d => d.date),
+        '#fd7e14', 48);
+
+    // GSC Clicks sparkline (row 2)
+    renderSparkline('chartGscClicks',
+        (data.gsc.daily || []).map(d => d.clicks),
+        (data.gsc.daily || []).map(d => d.date),
+        '#206bc4', 35);
+
+    // Publications daily bar chart (row 2)
+    renderBarChart('chartPubsDaily',
+        (data.pubs_daily || []).map(d => d.count),
+        (data.pubs_daily || []).map(d => d.date),
+        '#2fb344');
+
+    // Network health radial gauge (row 1)
+    renderHealthGauge('chartNetwork', data.network, 'statNetworkText');
+}
+
+function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+function setHTML(id, v) { const el = document.getElementById(id); if (el) el.innerHTML = v; }
+
+function renderSparkline(elId, data, cats, color, height) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = '';
+    new ApexCharts(el, {
+        chart: { type: 'area', height: height || 40, sparkline: { enabled: true }, animations: { enabled: false } },
+        series: [{ name: '', data }],
+        xaxis: { categories: cats, crosshairs: { width: 1 } },
+        stroke: { curve: 'smooth', width: 2 },
+        fill: { opacity: 0.2 },
+        colors: [color],
+        tooltip: { theme: 'dark', fixed: { enabled: false }, x: { show: true }, y: { formatter: v => new Intl.NumberFormat('pl-PL').format(v) }, marker: { show: false } },
+    }).render();
+}
+
+function renderBarChart(elId, data, cats, color) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = '';
+    new ApexCharts(el, {
+        chart: { type: 'bar', height: 40, sparkline: { enabled: true }, animations: { enabled: false } },
+        series: [{ name: 'Publikacje', data }],
+        xaxis: { categories: cats },
+        colors: [color],
+        plotOptions: { bar: { columnWidth: '60%', borderRadius: 2 } },
+        tooltip: { theme: 'dark', fixed: { enabled: false }, x: { show: true }, y: { formatter: v => v + ' publikacji' }, marker: { show: false } },
+    }).render();
+}
+
+function renderHealthGauge(elId, net, textElId) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const total = net.total_sites || 1;
+    const ok = Math.min(net.http_ok || 0, net.api_ok || 0);
+    const pct = Math.round(ok / total * 100);
+    el.innerHTML = '';
+    new ApexCharts(el, {
+        chart: { type: 'radialBar', height: 140, animations: { enabled: false }, sparkline: { enabled: true } },
+        series: [pct],
+        colors: [pct > 90 ? '#2fb344' : pct > 70 ? '#fd7e14' : '#d63939'],
+        plotOptions: {
+            radialBar: {
+                hollow: { size: '55%' },
+                track: { background: 'rgba(255,255,255,0.08)' },
+                dataLabels: {
+                    name: { show: false },
+                    value: { fontSize: '22px', fontWeight: 700, offsetY: 6, color: '#fff', formatter: v => Math.round(v) + '%' }
+                }
+            }
+        },
+        stroke: { lineCap: 'round' },
+    }).render();
+
+    const txt = document.getElementById(textElId);
+    if (txt) txt.textContent = `${ok} / ${total} stron OK (HTTP + API)`;
 }

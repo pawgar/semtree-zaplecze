@@ -1,9 +1,181 @@
 <?php
 require_once __DIR__ . '/../includes/header.php';
 $isAdminUser = isAdmin();
+
+// Polish greeting by hour
+$h = (int)date('H');
+$greetingPrefix = $h < 10 ? 'Dzień dobry' : ($h < 18 ? 'Witaj' : 'Dobry wieczór');
 ?>
 
-<!-- Page header: filters + actions -->
+<!-- ═══ ROW 1: Welcome + GSC totals + Network health gauge ═══ -->
+<div class="row row-cards mb-3" id="dashboardSummary">
+    <!-- Welcome card -->
+    <div class="col-md-6 col-lg-5">
+        <div class="card h-100" style="background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%)">
+            <div class="card-body d-flex flex-column flex-sm-row align-items-center gap-3">
+                <div class="flex-fill">
+                    <h2 class="h3 mb-1 text-white"><?= $greetingPrefix ?>, <?= htmlspecialchars($_SESSION['username']) ?></h2>
+                    <p class="text-secondary mb-3 small">Podsumowanie dzisiejszej aktywności</p>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <div class="text-secondary small mb-1">Publikacje dziś</div>
+                            <div class="h2 mb-0 text-white" id="statTodayPubs">—</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-secondary small mb-1">Ostatnie 7 dni</div>
+                            <div class="h2 mb-0 text-white" id="statWeekPubs">—</div>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <div class="text-secondary small mb-1">Sukces auto-publikacji (30 dni)</div>
+                            <div class="progress progress-sm mb-1" style="background:rgba(255,255,255,0.08)">
+                                <div class="progress-bar bg-success" id="statSuccessBar" style="width:0%"></div>
+                            </div>
+                            <div class="small text-success" id="statSuccessText">—</div>
+                        </div>
+                    </div>
+                </div>
+                <img src="https://tabler.io/assets/illustrations/undraw_elements.svg" alt="" style="max-height:150px;opacity:0.9" onerror="this.style.display='none'">
+            </div>
+        </div>
+    </div>
+
+    <!-- GSC Impressions with sparkline -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100" id="gscImpressionsCard">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div>
+                        <div class="subheader text-secondary small">Wyświetlenia GSC (28 dni)</div>
+                        <div class="h1 m-0" id="statGscImpressions">—</div>
+                    </div>
+                    <div class="ms-auto lh-1">
+                        <span class="text-secondary small">vs poprzednie 28d</span>
+                        <div class="text-end mt-1" id="statGscImpressionsChange">—</div>
+                    </div>
+                </div>
+                <div id="chartGscImpressions" style="min-height:48px;margin-top:8px"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network health gauge -->
+    <div class="col-md-12 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="subheader text-secondary small mb-2">Kondycja sieci</div>
+                <div id="chartNetwork" style="height:140px"></div>
+                <div class="mt-2 small text-secondary" id="statNetworkText">—</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ ROW 2: GSC clicks / Publications / Keywords / Links (sparkline cards) ═══ -->
+<div class="row row-cards mb-3">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader text-secondary small">Kliknięcia GSC</div>
+                    <div class="ms-auto small" id="statGscClicksChange">—</div>
+                </div>
+                <div class="h1 mb-3 mt-1" id="statGscClicks">—</div>
+                <div id="chartGscClicks" style="min-height:35px"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader text-secondary small">Publikacje (30 dni)</div>
+                </div>
+                <div class="h1 mb-3 mt-1" id="statPubsTotal">—</div>
+                <div id="chartPubsDaily" style="min-height:40px"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader text-secondary small">Słowa kluczowe</div>
+                </div>
+                <div class="h1 mb-3 mt-1" id="statKeywords">—</div>
+                <div class="text-secondary small">Unikalne frazy rankujące</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader text-secondary small">Linki do klientów</div>
+                </div>
+                <div class="h1 mb-3 mt-1" id="statLinks">—</div>
+                <div class="text-secondary small">Łącznie na wszystkich stronach</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ ROW 3: Auto-publish info boxes ═══ -->
+<div class="row row-cards mb-3">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card card-sm">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto"><span class="bg-green text-white avatar"><i class="ti ti-circle-check"></i></span></div>
+                    <div class="col">
+                        <div class="font-weight-medium"><span id="statTodayAutoPubs">0</span> dziś</div>
+                        <div class="text-secondary small">Auto-publikacje</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card card-sm">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto"><span class="bg-orange text-white avatar"><i class="ti ti-clock"></i></span></div>
+                    <div class="col">
+                        <div class="font-weight-medium"><span id="statPendingQueue">0</span> w kolejce</div>
+                        <div class="text-secondary small">Oczekuje na publikację</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card card-sm">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto"><span class="bg-red text-white avatar"><i class="ti ti-alert-triangle"></i></span></div>
+                    <div class="col">
+                        <div class="font-weight-medium"><span id="statAutoErrors">0</span> błędów</div>
+                        <div class="text-secondary small">Auto-publikacje</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card card-sm">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto"><span class="bg-primary text-white avatar"><i class="ti ti-robot"></i></span></div>
+                    <div class="col">
+                        <div class="font-weight-medium" id="statNextCron">—</div>
+                        <div class="text-secondary small">Następny CRON</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Page header: filters + actions (after stats, kept compact) -->
 <div class="card mb-3">
     <div class="card-body py-2">
         <div class="row g-2 align-items-center">
@@ -48,113 +220,13 @@ $isAdminUser = isAdmin();
     </div>
 </div>
 
-<!-- Summary cards -->
-<div class="row row-cards mb-3" id="dashboardSummary" style="display:none">
-    <div class="col-sm-6 col-lg">
-        <div class="card card-sm">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <span class="bg-primary text-white avatar"><i class="ti ti-world"></i></span>
-                    </div>
-                    <div class="col">
-                        <div class="h2 mb-0" id="sumSites">0</div>
-                        <div class="text-secondary small">Stron</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-lg">
-        <div class="card card-sm">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <span class="bg-green text-white avatar"><i class="ti ti-file-text"></i></span>
-                    </div>
-                    <div class="col">
-                        <div class="h2 mb-0" id="sumPosts">0</div>
-                        <div class="text-secondary small">Wpisów</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-lg">
-        <div class="card card-sm">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <span class="bg-azure text-white avatar"><i class="ti ti-link"></i></span>
-                    </div>
-                    <div class="col">
-                        <div class="h2 mb-0" id="sumLinks">0</div>
-                        <div class="text-secondary small">Linków</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-lg" id="sumErrorsCard">
-        <div class="card card-sm">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <span class="bg-red text-white avatar"><i class="ti ti-alert-triangle"></i></span>
-                    </div>
-                    <div class="col">
-                        <div class="h2 mb-0" id="sumErrors">0</div>
-                        <div class="text-secondary small">Błędy</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-lg" id="gscClicksCard" style="display:none">
-        <div class="card card-sm">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <span class="bg-blue text-white avatar"><i class="ti ti-click"></i></span>
-                    </div>
-                    <div class="col">
-                        <div class="h2 mb-0" id="sumGscClicks">0</div>
-                        <div class="text-secondary small">Kliknięcia <span id="sumGscClicksChange"></span></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-lg" id="gscImpressionsCard" style="display:none">
-        <div class="card card-sm">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <span class="bg-orange text-white avatar"><i class="ti ti-eye"></i></span>
-                    </div>
-                    <div class="col">
-                        <div class="h2 mb-0" id="sumGscImpressions">0</div>
-                        <div class="text-secondary small">Wyświetlenia <span id="sumGscImpressionsChange"></span></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-lg" id="gscKeywordsCard" style="display:none">
-        <div class="card card-sm">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <span class="bg-teal text-white avatar"><i class="ti ti-search"></i></span>
-                    </div>
-                    <div class="col">
-                        <div class="h2 mb-0" id="sumGscKeywords">0</div>
-                        <div class="text-secondary small">Słowa kluczowe</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- Legacy hidden IDs kept for app.js compatibility (updateDashboardSummary) -->
+<div style="display:none">
+    <span id="sumSites"></span><span id="sumPosts"></span><span id="sumLinks"></span>
+    <span id="sumErrors"></span><span id="sumErrorsCard"></span>
+    <span id="sumGscClicks"></span><span id="sumGscClicksChange"></span><span id="gscClicksCard"></span>
+    <span id="sumGscImpressions"></span><span id="sumGscImpressionsChange"></span>
+    <span id="sumGscKeywords"></span><span id="gscKeywordsCard"></span>
 </div>
 
 <!-- Sites table -->
