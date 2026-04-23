@@ -26,8 +26,22 @@
 /* ═══ GLOBAL ═══ */
 /* Note: body background is controlled by Tabler (--tblr-body-bg) to support dark mode.
    Don't override with a fixed color here. */
+html[data-bs-theme="dark"] {
+    /* Tell browser to render native form controls (select options, scrollbars,
+       date pickers) in dark mode. Without this, <select><option> dropdowns
+       have light background even when the page is dark. */
+    color-scheme: dark;
+}
 body {
     overflow-x: hidden;
+}
+
+/* Explicit dark styling for <select> options (fallback for browsers that
+   don't honor color-scheme, e.g. older Safari on macOS). */
+html[data-bs-theme="dark"] select option,
+html[data-bs-theme="dark"] select optgroup {
+    background-color: #1a2032;
+    color: #e5e7eb;
 }
 
 /* ═══ FIX: user dropdown menu alignment ═══

@@ -20,6 +20,19 @@ requireLoginApi();
 $db = getDb();
 $username = $_SESSION['username'] ?? 'Użytkowniku';
 
+/**
+ * SQLite stores timestamps in UTC (default), but PHP/display uses Europe/Warsaw.
+ * Convert UTC ISO string ("2026-04-23 08:21:39") to local time ("2026-04-23 10:21:39").
+ */
+function utcToLocal(?string $utc): ?string {
+    if (!$utc) return null;
+    try {
+        $dt = new DateTime($utc, new DateTimeZone('UTC'));
+        $dt->setTimezone(new DateTimeZone('Europe/Warsaw'));
+        return $dt->format('Y-m-d H:i:s');
+    } catch (Exception $e) { return $utc; }
+}
+
 try {
     // ── Publications counts ──────────────────────────────
     $todayPubs = (int)($db->querySingle("SELECT COUNT(*) FROM publications WHERE DATE(created_at) = DATE('now','localtime')") ?: 0);
@@ -134,20 +147,22 @@ try {
     }
 
     // ── CRON activity (last runs + effects) ──────────────
-    // Defined AFTER info_boxes so auto_publish values are correctly filled
+    // Defined AFTER info_boxes so auto_publish values are correctly filled.
+    // last_run values come from SQLite (UTC) — convert to Europe/Warsaw for display.
+    // next_run values come from PHP date() which is already Europe/Warsaw.
     $cron = [
         'status' => [
-            'last_run' => $db->querySingle("SELECT MAX(last_status_check) FROM sites"),
+            'last_run' => utcToLocal($db->querySingle("SELECT MAX(last_status_check) FROM sites")),
             'next_run' => date('Y-m-d 23:00:00', strtotime((int)date('H') >= 23 ? 'tomorrow' : 'today')),
             'label' => 'Statusy stron (HTTP + API)',
         ],
         'gsc' => [
-            'last_run' => $db->querySingle("SELECT MAX(gsc_last_update) FROM sites"),
+            'last_run' => utcToLocal($db->querySingle("SELECT MAX(gsc_last_update) FROM sites")),
             'next_run' => date('Y-m-d 06:00:00', strtotime((int)date('H') >= 6 ? 'tomorrow' : 'today')),
             'label' => 'Odświeżanie danych Google Search Console',
         ],
         'auto_publish' => [
-            'last_run' => $tblExists ? $db->querySingle("SELECT MAX(published_at) FROM auto_publish_queue WHERE status='published'") : null,
+            'last_run' => $tblExists ? utcToLocal($db->querySingle("SELECT MAX(published_at) FROM auto_publish_queue WHERE status='published'")) : null,
             'next_run' => date('Y-m-d 09:00:00', strtotime((int)date('H') >= 9 ? 'tomorrow' : 'today')),
             'label' => 'Automatyczne publikacje artykułów',
             'published_today' => $infoBoxes['today_auto_pubs'],
