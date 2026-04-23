@@ -8,6 +8,7 @@
     <link href="assets/vendor/tabler/css/tabler.min.css" rel="stylesheet">
     <link href="assets/vendor/tabler-icons/tabler-icons.min.css" rel="stylesheet">
     <script src="assets/vendor/tabler/js/tabler-theme.min.js"></script>
+    <script defer src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </head>
 <body class="d-flex flex-column bg-light">
 <div class="page page-center">

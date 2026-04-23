@@ -28,7 +28,9 @@
     </div><!-- /.page-wrapper -->
 </div><!-- /.page -->
 
-<!-- Tabler JS + Bootstrap (bundled in tabler.min.js) -->
+<!-- Bootstrap 5 bundle (Modal, Dropdown, Tooltip, Collapse) — required before Tabler -->
+<script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<!-- Tabler JS (extends Bootstrap with custom plugins) -->
 <script src="assets/vendor/tabler/js/tabler.min.js"></script>
 <!-- ApexCharts (lazy — only pages that use it) -->
 <script src="assets/vendor/tabler/libs/apexcharts/dist/apexcharts.min.js" defer></script>
