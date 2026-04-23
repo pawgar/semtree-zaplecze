@@ -258,9 +258,9 @@ $greetingPrefix = $h < 10 ? 'Dzień dobry' : ($h < 18 ? 'Witaj' : 'Dobry wieczó
 
 <!-- ═══ CRON activity section ═══ -->
 <div class="card mt-3">
-    <div class="card-header">
-        <h3 class="card-title"><i class="ti ti-clock-hour-9 me-2"></i>Aktywność CRON</h3>
-        <div class="card-subtitle text-secondary">Status automatycznych zadań w tle</div>
+    <div class="card-header d-block">
+        <h3 class="card-title mb-1"><i class="ti ti-clock-hour-9 me-2"></i>Aktywność CRON</h3>
+        <div class="text-secondary small">Status automatycznych zadań w tle</div>
     </div>
     <div class="card-body">
         <div class="row row-cards">
