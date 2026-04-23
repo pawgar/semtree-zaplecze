@@ -1,119 +1,145 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="pl" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?= APP_NAME ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Tabler core + icons -->
+    <link href="assets/vendor/tabler/css/tabler.min.css" rel="stylesheet">
+    <link href="assets/vendor/tabler/css/tabler-vendors.min.css" rel="stylesheet">
+    <link href="assets/vendor/tabler-icons/tabler-icons.min.css" rel="stylesheet">
+    <!-- Keep Bootstrap Icons during gradual migration (used in pages/ and app.js) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Project custom styles -->
     <link href="assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>" rel="stylesheet">
+    <!-- Tabler theme toggle (loaded early to avoid FOUC) -->
+    <script src="assets/vendor/tabler/js/tabler-theme.min.js"></script>
 </head>
 <body>
-<?php if (isLoggedIn()): ?>
-<div class="app-layout">
-    <!-- ═══ SIDEBAR ═══ -->
-    <aside class="sidebar" id="appSidebar">
-        <div class="sidebar-header">
-            <a href="index.php" class="sidebar-brand">
-                <img src="https://semtree.pl/wp-content/uploads/2023/06/logo.svg" alt="Semtree" height="26" class="sidebar-logo">
-                <span class="sidebar-brand-text">Zaplecze</span>
-            </a>
-            <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Zwiń/rozwiń menu">
-                <i class="bi bi-list"></i>
+
+<?php if (!isLoggedIn()) return; ?>
+
+<div class="page">
+    <!-- ═══ TOP NAVBAR (horizontal layout) ═══ -->
+    <header class="navbar navbar-expand-md d-print-none">
+        <div class="container-xl">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
             </button>
-        </div>
-
-        <nav class="sidebar-nav">
-            <div class="sidebar-section">
-                <span class="sidebar-section-label">Menu</span>
-                <a class="sidebar-link <?= ($page ?? '') === '' ? 'active' : '' ?>" href="index.php">
-                    <i class="bi bi-grid"></i><span>Dashboard</span>
+            <!-- Logo (shown on md+) -->
+            <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
+                <a href="index.php" class="text-decoration-none">
+                    <span class="text-body fw-bold fs-3">Sem<span class="text-success">tree</span></span>
+                    <span class="text-secondary ms-1 small">Zaplecze</span>
                 </a>
-                <a class="sidebar-link <?= ($page ?? '') === 'order' ? 'active' : '' ?>" href="index.php?page=order">
-                    <i class="bi bi-magic"></i><span>Zamów i opublikuj</span>
-                </a>
-                <a class="sidebar-link <?= ($page ?? '') === 'publish' ? 'active' : '' ?>" href="index.php?page=publish">
-                    <i class="bi bi-pencil-square"></i><span>Publikuj artykuły</span>
-                </a>
-                <a class="sidebar-link <?= ($page ?? '') === 'import' ? 'active' : '' ?>" href="index.php?page=import">
-                    <i class="bi bi-cloud-upload"></i><span>Import masowy</span>
-                </a>
-                <a class="sidebar-link <?= ($page ?? '') === 'links' ? 'active' : '' ?>" href="index.php?page=links">
-                    <i class="bi bi-link-45deg"></i><span>Linki</span>
-                </a>
-                <a class="sidebar-link <?= ($page ?? '') === 'gsc-report' ? 'active' : '' ?>" href="index.php?page=gsc-report">
-                    <i class="bi bi-graph-up"></i><span>Raport GSC</span>
-                </a>
-                <a class="sidebar-link <?= ($page ?? '') === 'auto-publish' ? 'active' : '' ?>" href="index.php?page=auto-publish">
-                    <i class="bi bi-robot"></i><span>Auto publikacje</span>
-                </a>
+            </h1>
+            <div class="navbar-nav flex-row order-md-last">
+                <div class="navbar-nav flex-row order-md-last">
+                    <!-- Claude API status indicator -->
+                    <div class="nav-item d-none d-md-flex me-3">
+                        <div class="d-flex align-items-center" id="claudeStatusIndicator" title="Status Claude API">
+                            <span class="status-indicator status-gray" id="claudeStatusLed"></span>
+                            <span class="ms-2 text-secondary small" id="claudeStatusLabel">Claude API</span>
+                        </div>
+                    </div>
+                    <!-- Theme toggle -->
+                    <div class="nav-item d-none d-md-flex me-2">
+                        <a href="#" class="nav-link px-0 hide-theme-dark" onclick="event.preventDefault(); setTablerTheme('dark')" title="Tryb ciemny" data-bs-toggle="tooltip">
+                            <i class="ti ti-moon"></i>
+                        </a>
+                        <a href="#" class="nav-link px-0 hide-theme-light" onclick="event.preventDefault(); setTablerTheme('light')" title="Tryb jasny" data-bs-toggle="tooltip">
+                            <i class="ti ti-sun"></i>
+                        </a>
+                    </div>
+                    <!-- Version / changelog -->
+                    <div class="nav-item d-none d-md-flex me-3">
+                        <a href="#" class="nav-link px-0" data-bs-toggle="modal" data-bs-target="#changelogModal" title="Changelog i roadmapa">
+                            <span class="badge bg-blue-lt">v2.6</span>
+                        </a>
+                    </div>
+                    <!-- User dropdown -->
+                    <div class="nav-item dropdown">
+                        <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Otwórz menu użytkownika">
+                            <span class="avatar avatar-sm bg-<?= isAdmin() ? 'red' : 'secondary' ?>-lt"><?= strtoupper(mb_substr($_SESSION['username'] ?? 'U', 0, 2)) ?></span>
+                            <div class="d-none d-xl-block ps-2">
+                                <div><?= htmlspecialchars($_SESSION['username']) ?></div>
+                                <div class="mt-1 small text-secondary"><?= $_SESSION['role'] ?></div>
+                            </div>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                            <a href="index.php?page=profile" class="dropdown-item">
+                                <i class="ti ti-user-circle me-2"></i> Profil
+                            </a>
+                            <a href="index.php?page=settings" class="dropdown-item">
+                                <i class="ti ti-settings me-2"></i> Ustawienia
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a href="index.php?page=logout" class="dropdown-item">
+                                <i class="ti ti-logout me-2"></i> Wyloguj
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
+        </header>
 
-            <div class="sidebar-section">
-                <span class="sidebar-section-label">System</span>
-                <?php if (isAdmin()): ?>
-                <a class="sidebar-link <?= ($page ?? '') === 'users' ? 'active' : '' ?>" href="index.php?page=users">
-                    <i class="bi bi-people"></i><span>Użytkownicy</span>
-                </a>
-                <?php endif; ?>
-                <a class="sidebar-link <?= ($page ?? '') === 'settings' ? 'active' : '' ?>" href="index.php?page=settings">
-                    <i class="bi bi-gear"></i><span>Ustawienia</span>
-                </a>
-                <a class="sidebar-link <?= ($page ?? '') === 'profile' ? 'active' : '' ?>" href="index.php?page=profile">
-                    <i class="bi bi-person-circle"></i><span><?= htmlspecialchars($_SESSION['username']) ?></span>
-                    <span class="badge bg-<?= isAdmin() ? 'danger' : 'secondary' ?> ms-auto sidebar-badge"><?= $_SESSION['role'] ?></span>
-                </a>
+        <!-- ═══ HORIZONTAL NAV MENU ═══ -->
+        <header class="navbar-expand-md">
+            <div class="collapse navbar-collapse" id="navbar-menu">
+                <div class="navbar">
+                    <div class="container-xl">
+                        <ul class="navbar-nav">
+                            <li class="nav-item <?= ($page ?? '') === '' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php"><span class="nav-link-icon"><i class="ti ti-layout-dashboard"></i></span><span class="nav-link-title">Dashboard</span></a>
+                            </li>
+                            <li class="nav-item <?= ($page ?? '') === 'order' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=order"><span class="nav-link-icon"><i class="ti ti-wand"></i></span><span class="nav-link-title">Zamów i opublikuj</span></a>
+                            </li>
+                            <li class="nav-item <?= ($page ?? '') === 'publish' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=publish"><span class="nav-link-icon"><i class="ti ti-edit"></i></span><span class="nav-link-title">Publikuj</span></a>
+                            </li>
+                            <li class="nav-item <?= ($page ?? '') === 'import' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=import"><span class="nav-link-icon"><i class="ti ti-cloud-upload"></i></span><span class="nav-link-title">Import</span></a>
+                            </li>
+                            <li class="nav-item <?= ($page ?? '') === 'links' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=links"><span class="nav-link-icon"><i class="ti ti-link"></i></span><span class="nav-link-title">Linki</span></a>
+                            </li>
+                            <li class="nav-item <?= ($page ?? '') === 'gsc-report' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=gsc-report"><span class="nav-link-icon"><i class="ti ti-chart-line"></i></span><span class="nav-link-title">Raport GSC</span></a>
+                            </li>
+                            <li class="nav-item <?= ($page ?? '') === 'auto-publish' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=auto-publish"><span class="nav-link-icon"><i class="ti ti-robot"></i></span><span class="nav-link-title">Auto publikacje</span></a>
+                            </li>
+                            <?php if (isAdmin()): ?>
+                            <li class="nav-item <?= ($page ?? '') === 'users' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=users"><span class="nav-link-icon"><i class="ti ti-users"></i></span><span class="nav-link-title">Użytkownicy</span></a>
+                            </li>
+                            <?php endif; ?>
+                            <li class="nav-item <?= ($page ?? '') === 'settings' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=settings"><span class="nav-link-icon"><i class="ti ti-settings"></i></span><span class="nav-link-title">Ustawienia</span></a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
             </div>
-        </nav>
+        </header>
 
-        <div class="sidebar-footer">
-            <div class="sidebar-status" id="claudeStatusIndicator" title="Sprawdzanie statusu API...">
-                <span class="status-led status-led-unknown" id="claudeStatusLed"></span>
-                <span class="sidebar-status-text" id="claudeStatusLabel">Claude API</span>
-            </div>
-            <a href="#" class="sidebar-version" data-bs-toggle="modal" data-bs-target="#changelogModal" title="Changelog i roadmapa">v2.6</a>
-            <a class="sidebar-link sidebar-logout" href="index.php?page=logout">
-                <i class="bi bi-box-arrow-right"></i><span>Wyloguj</span>
-            </a>
-        </div>
-    </aside>
+        <script>
+        // Theme switcher — persists across pages via localStorage, applies data-bs-theme to <html>
+        function setTablerTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            try { localStorage.setItem('tabler-theme', theme); } catch (e) {}
+        }
+        (function() {
+            try {
+                const saved = localStorage.getItem('tabler-theme');
+                if (saved === 'dark' || saved === 'light') {
+                    document.documentElement.setAttribute('data-bs-theme', saved);
+                }
+            } catch (e) {}
+        })();
+        </script>
 
-    <!-- ═══ MAIN CONTENT ═══ -->
-    <main class="main-content" id="mainContent">
-        <!-- Top bar -->
-        <div class="topbar">
-            <button class="sidebar-toggle-mobile" id="sidebarToggleMobile" onclick="toggleSidebar()">
-                <i class="bi bi-list"></i>
-            </button>
-            <div class="topbar-breadcrumb">
-                <?php
-                $pageTitle = match($page ?? '') {
-                    'order' => '<i class="bi bi-magic"></i> Zamów i opublikuj',
-                    'publish' => '<i class="bi bi-pencil-square"></i> Publikuj artykuły',
-                    'import' => '<i class="bi bi-cloud-upload"></i> Import masowy',
-                    'links' => '<i class="bi bi-link-45deg"></i> Linki',
-                    'gsc-report' => '<i class="bi bi-graph-up"></i> Raport GSC',
-                    'auto-publish' => '<i class="bi bi-robot"></i> Auto publikacje',
-                    'site-card' => '<i class="bi bi-card-text"></i> Karta strony',
-                    'users' => '<i class="bi bi-people"></i> Użytkownicy',
-                    'settings' => '<i class="bi bi-gear"></i> Ustawienia',
-                    'profile' => '<i class="bi bi-person-circle"></i> Profil',
-                    default => '<i class="bi bi-grid"></i> Dashboard',
-                };
-                echo $pageTitle;
-                ?>
-            </div>
-        </div>
-
-        <!-- Fun Fact Bar -->
-        <div id="funFactBar" class="fun-fact-bar" onclick="nextFunFact()" title="Kliknij po następną ciekawostkę">
-            <div class="fun-fact-content">
-                <span class="fun-fact-icon">💡</span>
-                <span class="fun-fact-label">Czy wiesz, że...</span>
-                <span id="funFactText" class="fun-fact-text"></span>
-            </div>
-            <button class="fun-fact-close" onclick="event.stopPropagation(); document.getElementById('funFactBar').style.display='none'" title="Zamknij">&times;</button>
-        </div>
         <script>
         const squidwardFacts = [
             "Skalmar Obłynos jest ośmiornicą, nie kalmarem — mimo że jego angielskie imię zawiera słowo \"squid\" (kalmar). Potwierdzono to oficjalnie w odcinku \"Feral Friends\".",
@@ -162,29 +188,37 @@
             if (!el) return;
             el.style.opacity = 0;
             setTimeout(() => {
-                el.textContent = squidwardFacts[Math.floor(Math.random() * squidwardFacts.length)];
+                el.textContent = ' ' + squidwardFacts[Math.floor(Math.random() * squidwardFacts.length)];
                 el.style.opacity = 1;
             }, 300);
         }
         document.addEventListener('DOMContentLoaded', () => {
             const el = document.getElementById('funFactText');
-            if (el) el.textContent = squidwardFacts[Math.floor(Math.random() * squidwardFacts.length)];
+            if (el) el.textContent = ' ' + squidwardFacts[Math.floor(Math.random() * squidwardFacts.length)];
         });
         </script>
 
-        <!-- Page content container -->
-        <div class="content-container">
-<?php endif; ?>
+        <!-- Page content starts here -->
+        <div class="page-body">
+            <div class="container-xl">
 
-<?php if (!isLoggedIn()) return; ?>
+                <!-- Fun fact banner (dismissable) -->
+                <div id="funFactBar" class="alert alert-info alert-dismissible d-flex align-items-center mb-3" role="alert" style="cursor:pointer" onclick="nextFunFact()" title="Kliknij po następną ciekawostkę">
+                    <i class="ti ti-bulb me-2 fs-3"></i>
+                    <div class="flex-fill">
+                        <strong>Czy wiesz, że...</strong>
+                        <span id="funFactText"></span>
+                    </div>
+                    <a href="#" class="btn-close" data-bs-dismiss="alert" aria-label="Zamknij" onclick="event.stopPropagation()"></a>
+                </div>
 
 <!-- Changelog Modal -->
 <div class="modal fade" id="changelogModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-journal-text"></i> Semtree Zaplecze — Changelog & Roadmapa</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title"><i class="ti ti-notebook me-2"></i>Semtree Zaplecze — Changelog & Roadmapa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
             </div>
             <div class="modal-body">
                 <ul class="nav nav-tabs mb-3" role="tablist">
@@ -269,14 +303,14 @@
                     </div>
                     <div class="tab-pane fade" id="roadmapTab">
 
-                        <h6><span class="badge bg-danger">v2.6</span> — w przygotowaniu</h6>
+                        <h6><span class="badge bg-danger">v2.7</span> — w przygotowaniu</h6>
                         <ul class="small">
-                            <li><strong>Integracja Google Search Console</strong> — kliknięcia i wyświetlenia per domena na dashboardzie (ostatnie 30 dni)</li>
-                            <li>Metryki jakościowe stron zapleczowych z GSC</li>
-                            <li>Automatyczne odświeżanie danych GSC (CRON)</li>
+                            <li><strong>Redesign UI</strong> — przejście na framework Tabler (branża admin panel)</li>
+                            <li>ApexCharts zamiast Chart.js — lepsze wykresy GSC</li>
+                            <li>Dark mode toggle</li>
                         </ul>
 
-                        <h6><span class="badge bg-warning text-dark">v2.7</span> — planowane</h6>
+                        <h6><span class="badge bg-warning text-dark">v2.8</span> — planowane</h6>
                         <ul class="small">
                             <li>Panel statystyk admina (blog > linkowana domena > artykuł > data > worker)</li>
                             <li>Rozszerzone statystyki profilu (miesięczna historia, wykresy)</li>
@@ -294,7 +328,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Zamknij</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zamknij</button>
             </div>
         </div>
     </div>

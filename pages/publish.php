@@ -4,15 +4,15 @@
 <!-- Step 1: Select site -->
 <div class="card mb-3">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-1-circle"></i> Wybierz stronę</h6>
+        <h6 class="card-title"><i class="ti ti-circle-number-1"></i> Wybierz stronę</h6>
         <div class="d-flex align-items-center gap-3">
             <select class="form-select" id="publishSiteSelect" style="max-width:400px">
                 <option value="">-- wybierz stronę --</option>
             </select>
             <button class="btn btn-primary btn-sm" onclick="loadWpData()">
-                <i class="bi bi-arrow-clockwise"></i> Załaduj kategorie i autorów
+                <i class="ti ti-refresh"></i> Załaduj kategorie i autorów
             </button>
-            <span id="wpDataStatus" class="text-muted small"></span>
+            <span id="wpDataStatus" class="text-secondary small"></span>
         </div>
     </div>
 </div>
@@ -20,23 +20,23 @@
 <!-- Step 2: Add articles -->
 <div class="card mb-3">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-2-circle"></i> Dodaj artykuły</h6>
+        <h6 class="card-title"><i class="ti ti-circle-number-2"></i> Dodaj artykuły</h6>
         <div class="d-flex gap-2">
             <button class="btn btn-outline-warning btn-sm" id="btnOrderSingleArticle" onclick="goToOrderWithSite()" style="display:none">
-                <i class="bi bi-magic"></i> Zamów pojedynczy artykuł
+                <i class="ti ti-wand"></i> Zamów pojedynczy artykuł
             </button>
             <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('docxFiles').click()">
-                <i class="bi bi-file-earmark-word"></i> Wgraj DOCX
+                <i class="ti ti-file-word"></i> Wgraj DOCX
             </button>
             <input type="file" id="docxFiles" accept=".docx" multiple style="display:none" onchange="uploadDocxFiles(this)">
             <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#manualArticleModal">
-                <i class="bi bi-plus-lg"></i> Dodaj ręcznie
+                <i class="ti ti-plus"></i> Dodaj ręcznie
             </button>
             <button class="btn btn-outline-info btn-sm" onclick="bulkGenerateImages()">
-                <i class="bi bi-stars"></i> Generuj obrazki AI
+                <i class="ti ti-sparkles"></i> Generuj obrazki AI
             </button>
-            <span id="geminiStatus" class="text-muted small align-self-center"></span>
-            <span id="articleCount" class="text-muted small align-self-center"></span>
+            <span id="geminiStatus" class="text-secondary small align-self-center"></span>
+            <span id="articleCount" class="text-secondary small align-self-center"></span>
         </div>
     </div>
 </div>
@@ -44,43 +44,43 @@
 <!-- Step 3: Articles table -->
 <div class="card mb-3">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-3-circle"></i> Lista artykułów</h6>
+        <h6 class="card-title"><i class="ti ti-circle-number-3"></i> Lista artykułów</h6>
 
         <!-- Bulk operations -->
         <div class="d-flex gap-3 mb-2 flex-wrap align-items-center">
             <div class="d-flex align-items-center gap-1">
-                <label class="small text-muted text-nowrap">Kategoria wszystkim:</label>
+                <label class="small text-secondary text-nowrap">Kategoria wszystkim:</label>
                 <select class="form-select form-select-sm" id="bulkCategory" style="width:180px" onchange="setBulkCategory(this.value)">
                     <option value="">--</option>
                 </select>
             </div>
             <div class="d-flex align-items-center gap-1">
-                <label class="small text-muted text-nowrap">Autor wszystkim:</label>
+                <label class="small text-secondary text-nowrap">Autor wszystkim:</label>
                 <select class="form-select form-select-sm" id="bulkAuthor" style="width:180px" onchange="setBulkAuthor(this.value)">
                     <option value="">--</option>
                 </select>
             </div>
             <div class="d-flex align-items-center gap-1">
-                <label class="small text-muted text-nowrap">Status:</label>
+                <label class="small text-secondary text-nowrap">Status:</label>
                 <select class="form-select form-select-sm" id="bulkStatus" style="width:130px" onchange="setBulkStatus(this.value)">
                     <option value="draft">Szkic</option>
                     <option value="publish">Publikuj</option>
                 </select>
             </div>
             <div class="d-flex align-items-center gap-1">
-                <label class="small text-muted text-nowrap">Losowe daty:</label>
+                <label class="small text-secondary text-nowrap">Losowe daty:</label>
                 <input type="datetime-local" class="form-control form-control-sm" id="randomDateFrom" style="width:170px">
-                <span class="small text-muted">-</span>
+                <span class="small text-secondary">-</span>
                 <input type="datetime-local" class="form-control form-control-sm" id="randomDateTo" style="width:170px">
                 <button class="btn btn-outline-secondary btn-sm" onclick="setRandomDates()" title="Wylosuj daty publikacji">
-                    <i class="bi bi-shuffle"></i> Losuj
+                    <i class="ti ti-arrows-shuffle"></i> Losuj
                 </button>
             </div>
         </div>
 
         <div class="table-responsive">
             <table class="table table-striped table-sm" id="articlesTable">
-                <thead class="table-dark">
+                <thead>
                     <tr>
                         <th style="width:30px">#</th>
                         <th>Tytuł</th>
@@ -93,7 +93,7 @@
                     </tr>
                 </thead>
                 <tbody id="articlesBody">
-                    <tr><td colspan="8" class="text-center text-muted">Brak artykułów. Wgraj DOCX lub dodaj ręcznie.</td></tr>
+                    <tr><td colspan="8" class="text-center text-secondary">Brak artykułów. Wgraj DOCX lub dodaj ręcznie.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -103,24 +103,24 @@
 <!-- Step 4: Publish -->
 <div class="card mb-3">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-4-circle"></i> Publikuj</h6>
+        <h6 class="card-title"><i class="ti ti-circle-number-4"></i> Publikuj</h6>
         <div class="d-flex align-items-center gap-3 flex-wrap">
             <button class="btn btn-success" id="btnPublishAll" onclick="publishAllArticles()">
-                <i class="bi bi-send"></i> Publikuj wszystkie
+                <i class="ti ti-send"></i> Publikuj wszystkie
             </button>
             <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="speedLinksCheck">
                 <label class="form-check-label small" for="speedLinksCheck">Wyślij do indeksacji (Speed-Links)</label>
             </div>
             <button class="btn btn-outline-info btn-sm" onclick="exportArticlesJson()">
-                <i class="bi bi-download"></i> Zapisz stan (JSON)
+                <i class="ti ti-download"></i> Zapisz stan (JSON)
             </button>
             <button class="btn btn-outline-info btn-sm" onclick="document.getElementById('importJsonFile').click()">
-                <i class="bi bi-upload"></i> Wczytaj stan (JSON)
+                <i class="ti ti-upload"></i> Wczytaj stan (JSON)
             </button>
             <input type="file" id="importJsonFile" accept=".json" style="display:none" onchange="importArticlesJson(this)">
             <button class="btn btn-outline-secondary btn-sm" onclick="clearArticles()">
-                <i class="bi bi-trash"></i> Wyczyść listę
+                <i class="ti ti-trash"></i> Wyczyść listę
             </button>
         </div>
         <div class="progress mt-3 d-none" id="publishProgress" style="height:24px">
@@ -132,10 +132,10 @@
 <!-- Step 5: Report -->
 <div class="card mb-3 d-none" id="publishReport">
     <div class="card-body">
-        <h6 class="card-title"><i class="bi bi-5-circle"></i> Raport</h6>
+        <h6 class="card-title"><i class="ti ti-circle-number-5"></i> Raport</h6>
         <div id="publishReportLog"></div>
         <button class="btn btn-outline-primary btn-sm mt-2" onclick="copyPublishedUrls()">
-            <i class="bi bi-clipboard"></i> Kopiuj linki
+            <i class="ti ti-clipboard"></i> Kopiuj linki
         </button>
     </div>
 </div>
@@ -162,7 +162,7 @@
                     <div class="d-flex gap-2 align-items-start">
                         <input type="file" class="form-control" id="manualImage" accept="image/*">
                         <button class="btn btn-outline-info btn-sm text-nowrap" onclick="generateManualImage()" type="button">
-                            <i class="bi bi-stars"></i> Generuj AI
+                            <i class="ti ti-sparkles"></i> Generuj AI
                         </button>
                     </div>
                     <div id="manualImagePreview" class="mt-2"></div>

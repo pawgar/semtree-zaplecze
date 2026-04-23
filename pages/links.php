@@ -6,27 +6,27 @@ require_once __DIR__ . '/../includes/header.php';
 <ul class="nav nav-tabs mb-3" id="linksTabs" role="tablist">
     <li class="nav-item">
         <button class="nav-link active" id="tab-overview" data-bs-toggle="tab" data-bs-target="#pane-overview" type="button">
-            <i class="bi bi-grid-3x3-gap"></i> Przegląd
+            <i class="ti ti-layout-grid"></i> Przegląd
         </button>
     </li>
     <li class="nav-item">
         <button class="nav-link" id="tab-clients" data-bs-toggle="tab" data-bs-target="#pane-clients" type="button">
-            <i class="bi bi-people"></i> Klienci
+            <i class="ti ti-users"></i> Klienci
         </button>
     </li>
     <li class="nav-item">
         <button class="nav-link" id="tab-history" data-bs-toggle="tab" data-bs-target="#pane-history" type="button">
-            <i class="bi bi-clock-history"></i> Historia
+            <i class="ti ti-clock-hour-9"></i> Historia
         </button>
     </li>
     <li class="nav-item">
         <button class="nav-link" id="tab-report" data-bs-toggle="tab" data-bs-target="#pane-report" type="button">
-            <i class="bi bi-file-earmark-bar-graph"></i> Raport
+            <i class="ti ti-file-bar-graph"></i> Raport
         </button>
     </li>
     <li class="nav-item">
         <button class="nav-link" id="tab-removelinks" data-bs-toggle="tab" data-bs-target="#pane-removelinks" type="button">
-            <i class="bi bi-link-45deg text-danger"></i> Usuń linki
+            <i class="ti ti-link text-danger"></i> Usuń linki
         </button>
     </li>
 </ul>
@@ -36,13 +36,13 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="tab-pane fade show active" id="pane-overview">
         <div class="d-flex gap-2 mb-3">
             <button class="btn btn-outline-primary btn-sm" onclick="scanAllSitesLinks()">
-                <i class="bi bi-search"></i> Skanuj wszystkie strony
+                <i class="ti ti-search"></i> Skanuj wszystkie strony
             </button>
-            <span id="scanAllStatus" class="text-muted small align-self-center"></span>
+            <span id="scanAllStatus" class="text-secondary small align-self-center"></span>
         </div>
         <div class="table-responsive">
             <table class="table table-striped table-sm">
-                <thead class="table-dark">
+                <thead>
                     <tr>
                         <th>#</th>
                         <th>Strona</th>
@@ -53,7 +53,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </tr>
                 </thead>
                 <tbody id="linksOverviewBody">
-                    <tr><td colspan="6" class="text-center text-muted">Ładowanie...</td></tr>
+                    <tr><td colspan="6" class="text-center text-secondary">Ładowanie...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -63,14 +63,14 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="tab-pane fade" id="pane-clients">
         <div class="d-flex gap-2 mb-3">
             <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#clientModal" onclick="resetClientModal()">
-                <i class="bi bi-plus-lg"></i> Dodaj klienta
+                <i class="ti ti-plus"></i> Dodaj klienta
             </button>
             <button class="btn btn-outline-info btn-sm" onclick="document.getElementById('clientsCsvFile').click()">
-                <i class="bi bi-upload"></i> Importuj CSV
+                <i class="ti ti-upload"></i> Importuj CSV
             </button>
             <input type="file" id="clientsCsvFile" accept=".csv" style="display:none" onchange="importClientsCsv(this)">
             <button class="btn btn-outline-secondary btn-sm" onclick="exportClientsCsv()">
-                <i class="bi bi-download"></i> Eksportuj CSV
+                <i class="ti ti-download"></i> Eksportuj CSV
             </button>
         </div>
         <div class="mb-3" style="max-width:300px">
@@ -80,7 +80,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="col-md-5">
                 <div class="table-responsive">
                     <table class="table table-striped table-sm">
-                        <thead class="table-dark">
+                        <thead>
                             <tr>
                                 <th>Klient</th>
                                 <th>Domena</th>
@@ -90,7 +90,7 @@ require_once __DIR__ . '/../includes/header.php';
                             </tr>
                         </thead>
                         <tbody id="clientsBody">
-                            <tr><td colspan="5" class="text-center text-muted">Ładowanie...</td></tr>
+                            <tr><td colspan="5" class="text-center text-secondary">Ładowanie...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -98,9 +98,9 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="col-md-7" id="clientLinksPanel" style="display:none">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span id="clientLinksTitle"><i class="bi bi-link-45deg"></i> Linki klienta</span>
+                        <span id="clientLinksTitle"><i class="ti ti-link"></i> Linki klienta</span>
                         <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('clientLinksPanel').style.display='none'">
-                            <i class="bi bi-x"></i>
+                            <i class="ti ti-x"></i>
                         </button>
                     </div>
                     <div class="card-body p-0">
@@ -135,19 +135,19 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="">Wszystkie strony</option>
             </select>
             <input type="date" class="form-control form-control-sm" id="historyDateFrom" style="width:150px" onchange="loadLinksHistory()">
-            <span class="small text-muted">-</span>
+            <span class="small text-secondary">-</span>
             <input type="date" class="form-control form-control-sm" id="historyDateTo" style="width:150px" onchange="loadLinksHistory()">
             <button class="btn btn-outline-secondary btn-sm" onclick="exportLinksCsv()">
-                <i class="bi bi-download"></i> CSV
+                <i class="ti ti-download"></i> CSV
             </button>
             <button class="btn btn-outline-danger btn-sm" onclick="clearAllLinks()">
-                <i class="bi bi-trash"></i> Wyczyść wszystko
+                <i class="ti ti-trash"></i> Wyczyść wszystko
             </button>
-            <span id="historyCount" class="text-muted small"></span>
+            <span id="historyCount" class="text-secondary small"></span>
         </div>
         <div class="table-responsive">
             <table class="table table-striped table-sm">
-                <thead class="table-dark">
+                <thead>
                     <tr>
                         <th>#</th>
                         <th>Data</th>
@@ -161,7 +161,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </tr>
                 </thead>
                 <tbody id="linksHistoryBody">
-                    <tr><td colspan="9" class="text-center text-muted">Ładowanie...</td></tr>
+                    <tr><td colspan="9" class="text-center text-secondary">Ładowanie...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -174,16 +174,16 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="">-- wybierz klienta --</option>
             </select>
             <input type="date" class="form-control form-control-sm" id="reportDateFrom" style="width:150px">
-            <span class="small text-muted">-</span>
+            <span class="small text-secondary">-</span>
             <input type="date" class="form-control form-control-sm" id="reportDateTo" style="width:150px">
             <button class="btn btn-primary btn-sm" onclick="generateReport()">
-                <i class="bi bi-file-earmark-bar-graph"></i> Generuj raport
+                <i class="ti ti-file-bar-graph"></i> Generuj raport
             </button>
             <button class="btn btn-outline-secondary btn-sm d-none" id="btnCopyReport" onclick="copyReportToClipboard()">
-                <i class="bi bi-clipboard"></i> Kopiuj
+                <i class="ti ti-clipboard"></i> Kopiuj
             </button>
             <button class="btn btn-outline-secondary btn-sm d-none" id="btnExportReportCsv" onclick="exportReportCsv()">
-                <i class="bi bi-download"></i> CSV
+                <i class="ti ti-download"></i> CSV
             </button>
         </div>
         <div id="reportContent"></div>
@@ -196,18 +196,18 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="">-- wybierz klienta --</option>
             </select>
             <button class="btn btn-outline-danger btn-sm" id="btnRemoveSelected" onclick="removeSelectedLinks()" disabled>
-                <i class="bi bi-trash"></i> Usuń zaznaczone linki z wpisów
+                <i class="ti ti-trash"></i> Usuń zaznaczone linki z wpisów
             </button>
-            <span id="removeLinksStatus" class="text-muted small"></span>
+            <span id="removeLinksStatus" class="text-secondary small"></span>
         </div>
         <div class="alert alert-info small">
-            <i class="bi bi-info-circle"></i>
+            <i class="ti ti-info-circle"></i>
             Usuwanie linku oznacza: tekst anchora pozostaje we wpisie, ale tag <code>&lt;a&gt;</code> zostaje usunięty.
             Wpis blogowy NIE jest kasowany.
         </div>
         <div class="table-responsive">
             <table class="table table-striped table-sm">
-                <thead class="table-dark">
+                <thead>
                     <tr>
                         <th><input type="checkbox" id="removeLinksCheckAll" onchange="toggleRemoveCheckAll(this)"></th>
                         <th>Strona</th>
@@ -219,7 +219,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </tr>
                 </thead>
                 <tbody id="removeLinksBody">
-                    <tr><td colspan="7" class="text-center text-muted">Wybierz klienta</td></tr>
+                    <tr><td colspan="7" class="text-center text-secondary">Wybierz klienta</td></tr>
                 </tbody>
             </table>
         </div>

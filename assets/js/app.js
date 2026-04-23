@@ -169,9 +169,9 @@ function updateDashboardSummary() {
 
     const errCard = document.getElementById('sumErrorsCard');
     if (errCard) {
-        const statCard = errCard.querySelector('.stat-card');
-        if (statCard) {
-            statCard.style.boxShadow = errors > 0 ? '0 0 0 2px rgba(239,68,68,0.5)' : '';
+        const card = errCard.querySelector('.card') || errCard.querySelector('.stat-card');
+        if (card) {
+            card.style.boxShadow = errors > 0 ? '0 0 0 2px rgba(239,68,68,0.5)' : '';
         }
     }
 }
