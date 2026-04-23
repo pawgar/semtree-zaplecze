@@ -257,11 +257,13 @@ function formatNumber(n) {
     return n.toString();
 }
 
+// Tabler-style trend indicator: bold % + tiny SVG arrow icon
 function formatChange(pct) {
     if (pct === null || pct === undefined) return '';
-    const cls = pct > 0 ? 'text-success' : pct < 0 ? 'text-danger' : 'text-muted';
-    const icon = pct > 0 ? 'arrow-up' : pct < 0 ? 'arrow-down' : 'dash';
-    return `<span class="${cls} change-inline"><i class="bi bi-${icon}"></i>${Math.round(Math.abs(pct))}%</span>`;
+    const cls = pct > 0 ? 'text-green' : pct < 0 ? 'text-red' : 'text-secondary';
+    const ti = pct > 0 ? 'ti-trending-up' : pct < 0 ? 'ti-trending-down' : 'ti-minus';
+    const rounded = Math.round(Math.abs(pct));
+    return `<span class="${cls} d-inline-flex align-items-center lh-1 ms-1"><strong>${rounded}%</strong> <i class="ti ${ti} ms-1"></i></span>`;
 }
 
 function sortSites(field) {
@@ -3849,12 +3851,12 @@ function renderBulkOrderTable() {
     const tbody = document.querySelector('#bulkOrderTable tbody');
     tbody.innerHTML = bulkOrderItems.map((item, i) => {
         const statusBadge = {
-            pending: '<span class="badge bg-secondary">Oczekuje</span>',
-            skipped: '<span class="badge bg-light text-dark">Pominieto</span>',
-            generating: '<span class="badge bg-primary">Generowanie...</span>',
-            publishing: '<span class="badge bg-info">Publikowanie...</span>',
-            done: '<span class="badge bg-success">Gotowe</span>',
-            error: `<span class="badge bg-danger">Blad</span>`,
+            pending: statusDot('secondary', 'Oczekuje'),
+            skipped: statusDot('secondary', 'Pominięto'),
+            generating: statusDot('blue', 'Generowanie...', true),
+            publishing: statusDot('blue', 'Publikowanie...', true),
+            done: statusDot('green', 'Gotowe'),
+            error: statusDot('red', 'Błąd'),
         }[item.status] || '';
         let catOptions = '<option value="">-- brak --</option>' + bulkOrderCategories.map(c => {
             const sel = (item.category_id && item.category_id == c.id) ? ' selected' : '';
@@ -4860,6 +4862,13 @@ function renderApSites() {
     });
 }
 
+// Tabler status with dot — consistent with tabler.io preview style
+// color: green|orange|red|blue|azure|secondary|yellow|purple
+function statusDot(color, label, animated = false) {
+    const dotClass = 'status-dot' + (animated ? ' status-dot-animated' : '');
+    return `<span class="status status-${color}"><span class="${dotClass}"></span>${label}</span>`;
+}
+
 function apSiteStatusBadge(s) {
     const enabled = s.enabled ?? 0;
     const pending = s.queue?.pending || 0;
@@ -4869,24 +4878,21 @@ function apSiteStatusBadge(s) {
     const total = s.queue_total || 0;
 
     if (!enabled) {
-        return '<span class="badge bg-secondary" title="Strona wyłączona z auto-publikacji"><i class="bi bi-pause-circle"></i> Wyłączona</span>';
+        return `<span class="status status-secondary" title="Strona wyłączona"><span class="status-dot"></span>Wyłączona</span>`;
     }
     if (total === 0) {
-        return '<span class="badge bg-warning text-dark" title="Brak wgranych artykułów — załaduj content plan"><i class="bi bi-exclamation-triangle"></i> Brak planu</span>';
+        return `<span class="status status-orange" title="Brak wgranych artykułów — załaduj content plan"><span class="status-dot"></span>Brak planu</span>`;
     }
     if (pending === 0) {
-        return '<span class="badge bg-info" title="Wszystkie artykuły przetworzone, załaduj nowy content plan"><i class="bi bi-check-circle"></i> Kolejka pusta</span>';
+        return `<span class="status status-azure" title="Wszystkie artykuły przetworzone"><span class="status-dot"></span>Kolejka pusta</span>`;
     }
-    // All pending blocked by unmapped categories
     if (ready === 0 && unmapped > 0) {
-        return `<span class="badge bg-warning text-dark" title="${unmapped} niezmapowanych kategorii — żaden artykuł nie pójdzie do publikacji"><i class="bi bi-diagram-3"></i> Mapuj (${unmapped})</span>`;
+        return `<span class="status status-orange" title="${unmapped} niezmapowanych kategorii — żaden artykuł nie pójdzie do publikacji"><span class="status-dot"></span>Mapuj (${unmapped})</span>`;
     }
-    // Some articles ready, some blocked — hybrid
     if (ready > 0 && blocked > 0) {
-        return `<span class="badge bg-success" title="Gotowe do publikacji: ${ready}. Zablokowane przez niezmapowane kategorie: ${blocked} (${unmapped} kategorii). Domapuj aby odblokować resztę."><i class="bi bi-rocket-takeoff"></i> Gotowa (${ready}) <span class="text-warning-emphasis">+${blocked}⚠</span></span>`;
+        return `<span class="status status-green" title="Gotowe do publikacji: ${ready}. Zablokowane: ${blocked}"><span class="status-dot status-dot-animated"></span>Gotowa (${ready}) <small class="text-warning ms-1">+${blocked}</small></span>`;
     }
-    // All pending are ready
-    return `<span class="badge bg-success" title="Gotowa — CRON opublikuje ${ready} artykułów"><i class="bi bi-rocket-takeoff"></i> Gotowa (${ready})</span>`;
+    return `<span class="status status-green" title="Gotowa — CRON opublikuje ${ready} artykułów"><span class="status-dot status-dot-animated"></span>Gotowa (${ready})</span>`;
 }
 
 async function toggleAllApCheckbox(className, checked) {
@@ -5003,13 +5009,13 @@ function renderApQueue() {
 
     tbody.innerHTML = items.map((item, idx) => {
         const statusBadge = {
-            pending: '<span class="badge bg-warning">Oczekuje</span>',
-            generating: '<span class="badge bg-info">Generowanie</span>',
-            generated: '<span class="badge bg-primary">Wygenerowany</span>',
-            publishing: '<span class="badge bg-info">Publikacja</span>',
-            published: '<span class="badge bg-success">Opublikowany</span>',
-            error: '<span class="badge bg-danger">Błąd</span>',
-        }[item.status] || `<span class="badge bg-secondary">${item.status}</span>`;
+            pending: statusDot('orange', 'Oczekuje'),
+            generating: statusDot('blue', 'Generowanie', true),
+            generated: statusDot('azure', 'Wygenerowany'),
+            publishing: statusDot('blue', 'Publikacja', true),
+            published: statusDot('green', 'Opublikowany'),
+            error: statusDot('red', 'Błąd'),
+        }[item.status] || statusDot('secondary', item.status);
 
         let urlOrError = '';
         if (item.status === 'published' && item.published_url) {
@@ -5304,11 +5310,11 @@ async function loadDashboardStats() {
     }
 
     const fmt = n => new Intl.NumberFormat('pl-PL').format(n);
-    const pct = (v, goodIfPositive = true) => {
+    const pct = (v) => {
         if (v == null) return '';
-        const sign = v >= 0 ? '↑' : '↓';
-        const cls = (v >= 0 ? goodIfPositive : !goodIfPositive) ? 'text-success' : 'text-danger';
-        return `<span class="${cls} small">${sign}${Math.abs(Math.round(v))}%</span>`;
+        const cls = v > 0 ? 'text-green' : v < 0 ? 'text-red' : 'text-secondary';
+        const ti = v > 0 ? 'ti-trending-up' : v < 0 ? 'ti-trending-down' : 'ti-minus';
+        return `<span class="${cls} d-inline-flex align-items-center lh-1"><strong>${Math.abs(Math.round(v))}%</strong><i class="ti ${ti} ms-1"></i></span>`;
     };
 
     // Greeting row

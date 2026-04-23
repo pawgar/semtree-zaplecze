@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?= APP_NAME ?></title>
+    <!-- Inter font (used by Tabler; preconnect to speed it up) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Tabler core + icons -->
     <link href="assets/vendor/tabler/css/tabler.min.css" rel="stylesheet">
     <link href="assets/vendor/tabler/css/tabler-vendors.min.css" rel="stylesheet">
@@ -20,7 +24,7 @@
 <div class="page">
     <!-- ═══ TOP NAVBAR (horizontal layout) ═══ -->
     <header class="navbar navbar-expand-md d-print-none">
-        <div class="container-xl">
+        <div class="container-xxl">
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -76,7 +80,7 @@
         <header class="navbar-expand-md">
             <div class="collapse navbar-collapse" id="navbar-menu">
                 <div class="navbar">
-                    <div class="container-xl">
+                    <div class="container-xxl">
                         <ul class="navbar-nav">
                             <li class="nav-item <?= ($page ?? '') === '' ? 'active' : '' ?>">
                                 <a class="nav-link" href="index.php"><span class="nav-link-icon"><i class="ti ti-layout-dashboard"></i></span><span class="nav-link-title">Dashboard</span></a>
@@ -173,7 +177,7 @@
 
         <!-- Page content starts here -->
         <div class="page-body">
-            <div class="container-xl">
+            <div class="container-xxl">
 
                 <!-- Fun fact banner (dismissable) -->
                 <div id="funFactBar" class="alert alert-info alert-dismissible d-flex align-items-center mb-3" role="alert" style="cursor:pointer" onclick="nextFunFact()" title="Kliknij po następną ciekawostkę">
