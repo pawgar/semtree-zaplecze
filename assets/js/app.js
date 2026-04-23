@@ -125,7 +125,27 @@ async function checkGscConnected() {
             const btn = document.getElementById('refreshGscBtn');
             if (btn) btn.style.display = '';
         }
+        if (data.revoked) showGscRevokedBanner(data.revoked_at);
     } catch(e) {}
+}
+
+function showGscRevokedBanner(revokedAt) {
+    if (document.getElementById('gscRevokedBanner')) return;
+    const container = document.querySelector('.content-container') || document.body;
+    const banner = document.createElement('div');
+    banner.id = 'gscRevokedBanner';
+    banner.className = 'alert alert-danger d-flex align-items-center justify-content-between mb-3';
+    banner.innerHTML = `
+        <div>
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Token Google Search Console został odwołany.</strong>
+            Dane GSC nie są aktualizowane od ${revokedAt || '—'}. Połącz ponownie aby odblokować dane.
+        </div>
+        <a href="index.php?page=settings" class="btn btn-sm btn-danger">
+            <i class="bi bi-arrow-repeat"></i> Przejdź do Ustawień
+        </a>
+    `;
+    container.insertBefore(banner, container.firstChild);
 }
 
 function updateDashboardSummary() {

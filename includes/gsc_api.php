@@ -108,8 +108,23 @@ class GscApi {
         $result = $this->httpPost(self::TOKEN_URL, http_build_query($payload), 'application/x-www-form-urlencoded');
 
         if (isset($result['error'])) {
-            throw new RuntimeException('Token refresh error: ' . ($result['error_description'] ?? $result['error']));
+            // If token was revoked by Google, flag it so UI can show reconnect banner
+            $errDesc = $result['error_description'] ?? $result['error'];
+            $isRevoked = stripos($errDesc, 'revoked') !== false
+                || stripos($errDesc, 'expired') !== false
+                || ($result['error'] ?? '') === 'invalid_grant';
+            if ($isRevoked) {
+                $db = getDb();
+                $stmt = $db->prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("gsc_token_revoked", :v)');
+                $stmt->bindValue(':v', date('Y-m-d H:i:s'), SQLITE3_TEXT);
+                $stmt->execute();
+            }
+            throw new RuntimeException('Token refresh error: ' . $errDesc);
         }
+
+        // Successful refresh — clear revoked flag if set
+        $db = getDb();
+        $db->exec('DELETE FROM settings WHERE key = "gsc_token_revoked"');
 
         $db = getDb();
         $this->accessToken = $result['access_token'] ?? '';

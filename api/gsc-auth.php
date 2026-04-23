@@ -11,9 +11,13 @@ $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 if ($action === 'status') {
     $gsc = new GscApi();
+    $db = getDb();
+    $revokedRow = $db->querySingle("SELECT value FROM settings WHERE key = 'gsc_token_revoked'", true);
     echo json_encode([
         'configured' => $gsc->isConfigured(),
         'connected' => $gsc->isConnected(),
+        'revoked' => !empty($revokedRow),
+        'revoked_at' => $revokedRow ? $revokedRow['value'] : null,
     ]);
     exit;
 }
