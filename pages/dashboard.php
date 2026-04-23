@@ -160,23 +160,22 @@ $isAdminUser = isAdmin();
 <!-- Sites table -->
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-vcenter card-table table-striped table-hover" id="sitesTable">
+        <table class="table table-vcenter card-table table-nowrap" id="sitesTable">
             <thead>
                 <tr>
-                    <th class="w-1">#</th>
-                    <th class="sortable" data-sort="name" onclick="sortSites('name')" style="cursor:pointer">Nazwa <i class="ti ti-arrows-sort text-secondary"></i></th>
-                    <th>Kategorie</th>
-                    <th class="sortable" data-sort="post_count" onclick="sortSites('post_count')" style="cursor:pointer">Wpisy <i class="ti ti-arrows-sort text-secondary"></i></th>
-                    <th class="sortable" data-sort="link_count" onclick="sortSites('link_count')" style="cursor:pointer">Linki <i class="ti ti-arrows-sort text-secondary"></i></th>
-                    <th class="gsc-col sortable" data-sort="gsc_clicks" onclick="sortSites('gsc_clicks')" style="display:none; cursor:pointer">Klik. <i class="ti ti-arrows-sort text-secondary"></i></th>
-                    <th class="gsc-col sortable" data-sort="gsc_impressions" onclick="sortSites('gsc_impressions')" style="display:none; cursor:pointer">Wyśw. <i class="ti ti-arrows-sort text-secondary"></i></th>
-                    <th class="text-center">HTTP</th>
-                    <th class="text-center">API</th>
-                    <th class="text-center">Akcje</th>
+                    <th class="w-1 text-secondary small text-uppercase">#</th>
+                    <th class="sortable text-secondary small text-uppercase" data-sort="name" onclick="sortSites('name')" style="cursor:pointer">Nazwa <i class="ti ti-arrows-sort"></i></th>
+                    <th class="sortable text-secondary small text-uppercase" data-sort="post_count" onclick="sortSites('post_count')" style="cursor:pointer">Wpisy <i class="ti ti-arrows-sort"></i></th>
+                    <th class="sortable text-secondary small text-uppercase" data-sort="link_count" onclick="sortSites('link_count')" style="cursor:pointer">Linki <i class="ti ti-arrows-sort"></i></th>
+                    <th class="gsc-col sortable text-end text-secondary small text-uppercase" data-sort="gsc_clicks" onclick="sortSites('gsc_clicks')" style="display:none; cursor:pointer">Klik. <i class="ti ti-arrows-sort"></i></th>
+                    <th class="gsc-col sortable text-end text-secondary small text-uppercase" data-sort="gsc_impressions" onclick="sortSites('gsc_impressions')" style="display:none; cursor:pointer">Wyśw. <i class="ti ti-arrows-sort"></i></th>
+                    <th class="text-center text-secondary small text-uppercase">HTTP</th>
+                    <th class="text-center text-secondary small text-uppercase">API</th>
+                    <th class="text-end text-secondary small text-uppercase">Akcje</th>
                 </tr>
             </thead>
             <tbody id="sitesBody">
-                <tr><td colspan="10" class="text-center text-secondary py-4">
+                <tr><td colspan="9" class="text-center text-secondary py-4">
                     <div class="spinner-border spinner-border-sm me-2"></div>Ładowanie...
                 </td></tr>
             </tbody>

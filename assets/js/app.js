@@ -285,9 +285,9 @@ function renderSites(sites) {
     const tbody = document.getElementById('sitesBody');
     if (!tbody) return;
 
-    const colSpan = gscDashboardData ? 10 : 8;
+    const colSpan = gscDashboardData ? 9 : 7;
     if (sites.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center text-muted">Brak stron. Dodaj pierwsza strone.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center text-secondary py-4">Brak stron. Dodaj pierwszą stronę.</td></tr>`;
         return;
     }
 
@@ -298,14 +298,10 @@ function renderSites(sites) {
     });
     const checkEl = document.getElementById('lastStatusCheck');
     if (checkEl) {
-        checkEl.textContent = latestCheck ? `Statusy z: ${formatDateLocal(latestCheck)}` : 'Statusy: nigdy nie odswiezane';
+        checkEl.textContent = latestCheck ? `Statusy z: ${formatDateLocal(latestCheck)}` : 'Statusy: nigdy nie odświeżane';
     }
 
     tbody.innerHTML = sites.map((s, i) => {
-        const cats = (s.categories || '').split(',').map(c => c.trim()).filter(c => c);
-        const badges = cats.map(c => `<span class="badge bg-secondary category-badge">${esc(c)}</span>`).join(' ');
-
-        // Post count from DB
         const postCount = s.post_count !== null && s.post_count !== undefined ? s.post_count : '-';
 
         // HTTP status LED
@@ -319,39 +315,45 @@ function renderSites(sites) {
             ? `<span class="status-led status-led-${s.api_ok ? 'ok' : 'error'}" title="${s.api_ok ? 'API OK' : 'API Failed'}"></span>`
             : '<span class="status-led status-led-unknown" title="Nie sprawdzono"></span>';
 
-        // Row highlighting for errors
         const hasError = s.last_status_check && (!httpOk || !s.api_ok);
         const rowClass = hasError ? 'class="table-danger"' : '';
 
         return `
         <tr data-id="${s.id}" ${rowClass}>
-            <td>${i + 1}</td>
-            <td><a href="index.php?page=site-card&id=${s.id}" title="Karta strony">${esc(s.name)}</a></td>
-            <td>${badges}</td>
-            <td id="posts-${s.id}">${postCount}</td>
-            <td><a href="#" onclick="goToLinks(${s.id}); return false;" title="Pokaz linki">${s.link_count || 0}</a></td>
+            <td class="text-secondary">${i + 1}</td>
+            <td><a href="index.php?page=site-card&id=${s.id}" class="text-reset" title="Karta strony">${esc(s.name)}</a></td>
+            <td class="text-secondary" id="posts-${s.id}">${postCount}</td>
+            <td><a href="#" class="text-reset" onclick="goToLinks(${s.id}); return false;" title="Pokaż linki">${s.link_count || 0}</a></td>
             ${gscDashboardData ? `
-            <td class="gsc-col text-end text-nowrap">${s.gsc_clicks != null ? formatNumber(s.gsc_clicks) : '-'} ${s.gsc_clicks_change != null ? formatChange(s.gsc_clicks_change) : ''}</td>
-            <td class="gsc-col text-end text-nowrap">${s.gsc_impressions != null ? formatNumber(s.gsc_impressions) : '-'} ${s.gsc_impressions_change != null ? formatChange(s.gsc_impressions_change) : ''}</td>
+            <td class="text-end text-nowrap gsc-col">${s.gsc_clicks != null ? formatNumber(s.gsc_clicks) : '-'} ${s.gsc_clicks_change != null ? formatChange(s.gsc_clicks_change) : ''}</td>
+            <td class="text-end text-nowrap gsc-col">${s.gsc_impressions != null ? formatNumber(s.gsc_impressions) : '-'} ${s.gsc_impressions_change != null ? formatChange(s.gsc_impressions_change) : ''}</td>
             ` : ''}
             <td class="text-center" id="status-${s.id}">${httpLed}</td>
             <td class="text-center" id="api-${s.id}">${apiLed}</td>
-            <td class="text-nowrap">
-                <a href="${esc(s.url)}" target="_blank" class="btn btn-sm btn-outline-info me-1" title="Otwórz stronę">
-                    <i class="bi bi-eye"></i>
-                </a>
-                <button class="btn btn-sm btn-outline-success me-1" onclick="goToPublish(${s.id})" title="Publikuj">
-                    <i class="bi bi-send"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary me-1" id="refresh-btn-${s.id}" onclick="refreshSiteStatus(${s.id})" title="Odswiez status">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="editSite(${s.id})" title="Edytuj">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteSite(${s.id}, '${esc(s.name)}')" title="Usun">
-                    <i class="bi bi-trash"></i>
-                </button>
+            <td class="text-end">
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-ghost-secondary" data-bs-toggle="dropdown" aria-expanded="false" title="Akcje">
+                        <i class="ti ti-dots-vertical"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="${esc(s.url)}" target="_blank" rel="noopener">
+                            <i class="ti ti-external-link me-2"></i>Otwórz stronę
+                        </a>
+                        <button class="dropdown-item" type="button" onclick="goToPublish(${s.id})">
+                            <i class="ti ti-send me-2"></i>Publikuj artykuł
+                        </button>
+                        <button class="dropdown-item" type="button" onclick="refreshSiteStatus(${s.id})">
+                            <i class="ti ti-refresh me-2"></i>Odśwież status
+                        </button>
+                        <button class="dropdown-item" type="button" onclick="editSite(${s.id})">
+                            <i class="ti ti-pencil me-2"></i>Edytuj
+                        </button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item text-danger" type="button" onclick="deleteSite(${s.id}, '${esc(s.name)}')">
+                            <i class="ti ti-trash me-2"></i>Usuń
+                        </button>
+                    </div>
+                </div>
             </td>
         </tr>`;
     }).join('');
