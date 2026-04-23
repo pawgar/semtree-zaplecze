@@ -1133,19 +1133,19 @@ function renderProfileTopClients(clients) {
     if (!container) return;
 
     if (!clients.length) {
-        container.innerHTML = '<div class="text-muted small text-center">Brak danych</div>';
+        container.innerHTML = '<div class="text-secondary small text-center py-2">Brak danych</div>';
         return;
     }
 
     const max = clients[0]?.link_count || 1;
     container.innerHTML = clients.map(c => `
         <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge" style="background:${c.color || '#6c757d'};min-width:8px;height:8px;padding:0;border-radius:50%"></span>
-            <span class="small flex-fill text-truncate" title="${esc(c.domain)}">${esc(c.name)}</span>
-            <div class="progress flex-fill" style="height:6px;max-width:100px">
-                <div class="progress-bar" style="width:${(c.link_count / max) * 100}%;background:${c.color || 'var(--primary)'}"></div>
+            <span class="status-dot" style="background:${c.color || '#6c757d'}"></span>
+            <span class="small flex-fill text-truncate text-body" title="${esc(c.domain)}">${esc(c.name)}</span>
+            <div class="progress flex-grow-0" style="height:6px;width:80px">
+                <div class="progress-bar" style="width:${(c.link_count / max) * 100}%;background:${c.color || 'var(--tblr-primary)'}"></div>
             </div>
-            <span class="badge bg-secondary">${c.link_count}</span>
+            <strong class="text-body small" style="min-width:24px;text-align:right">${c.link_count}</strong>
         </div>
     `).join('');
 }
@@ -1155,19 +1155,19 @@ function renderProfileTopSites(sites) {
     if (!container) return;
 
     if (!sites.length) {
-        container.innerHTML = '<div class="text-muted small text-center">Brak danych</div>';
+        container.innerHTML = '<div class="text-secondary small text-center py-2">Brak danych</div>';
         return;
     }
 
     const max = sites[0]?.pub_count || 1;
     container.innerHTML = sites.map(s => `
         <div class="d-flex align-items-center gap-2 mb-2">
-            <i class="bi bi-globe2 text-muted small"></i>
-            <span class="small flex-fill text-truncate" title="${esc(s.url)}">${esc(s.name)}</span>
-            <div class="progress flex-fill" style="height:6px;max-width:100px">
-                <div class="progress-bar bg-info" style="width:${(s.pub_count / max) * 100}%"></div>
+            <i class="ti ti-world text-secondary"></i>
+            <span class="small flex-fill text-truncate text-body" title="${esc(s.url)}">${esc(s.name)}</span>
+            <div class="progress flex-grow-0" style="height:6px;width:80px">
+                <div class="progress-bar bg-blue" style="width:${(s.pub_count / max) * 100}%"></div>
             </div>
-            <span class="badge bg-secondary">${s.pub_count}</span>
+            <strong class="text-body small" style="min-width:24px;text-align:right">${s.pub_count}</strong>
         </div>
     `).join('');
 }
