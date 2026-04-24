@@ -429,13 +429,15 @@ th.sortable:hover {
     left: 0;
     right: 0;
     z-index: 1050;
-    max-height: 250px;
+    max-height: 280px;
     overflow-y: auto;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 0 0 var(--btn-radius) var(--btn-radius);
-    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+    background: var(--tblr-card-bg, #1a2032);
+    border: 1px solid var(--tblr-border-color, #232b3e);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    box-shadow: 0 6px 16px rgba(0,0,0,.4);
     display: none;
+    padding: 4px 0;
 }
 
 .searchable-select.open .ss-dropdown {
@@ -449,12 +451,13 @@ th.sortable:hover {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: background 0.1s;
+    transition: background 0.1s, color 0.1s;
+    color: var(--tblr-body-color, #e5e7eb);
 }
 
 .searchable-select .ss-option:hover,
 .searchable-select .ss-option.active {
-    background: var(--primary);
+    background: var(--tblr-primary, #206bc4);
     color: #fff;
 }
 
