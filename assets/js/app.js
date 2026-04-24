@@ -28,6 +28,20 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSettingsPage();
 });
 
+// ── Global dropdown toggle handler ────────────────────────────
+// Bootstrap's own event delegation for [data-bs-toggle="dropdown"] is silently
+// swallowed by Tabler JS on this site. Wire it up manually: on every click,
+// walk up to find a dropdown toggle and call Bootstrap's Dropdown.toggle().
+// Works for static HTML + dynamically rendered rows (renderSites etc.).
+document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-bs-toggle="dropdown"]');
+    if (!toggle || toggle.hasAttribute('data-manual-dropdown')) return;
+    if (typeof bootstrap === 'undefined' || !bootstrap.Dropdown) return;
+    e.preventDefault();
+    e.stopPropagation();
+    bootstrap.Dropdown.getOrCreateInstance(toggle).toggle();
+}, true); // capture phase — fire before any other listener
+
 // ── Toast Notifications ──────────────────────────────────────
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');

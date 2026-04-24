@@ -49,11 +49,11 @@
                             <span class="badge bg-blue-lt">v2.6</span>
                         </a>
                     </div>
-                    <!-- User dropdown -->
+                    <!-- User dropdown (global click handler in app.js triggers toggle) -->
                     <div class="nav-item dropdown">
-                        <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Otwórz menu użytkownika" onclick="event.preventDefault(); bootstrap.Dropdown.getOrCreateInstance(this).toggle(); return false;">
-                            <span class="avatar avatar-sm bg-<?= isAdmin() ? 'red' : 'secondary' ?>-lt" style="pointer-events:none"><?= strtoupper(mb_substr($_SESSION['username'] ?? 'U', 0, 2)) ?></span>
-                            <div class="d-none d-xl-block ps-2" style="pointer-events:none">
+                        <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Otwórz menu użytkownika">
+                            <span class="avatar avatar-sm bg-<?= isAdmin() ? 'red' : 'secondary' ?>-lt"><?= strtoupper(mb_substr($_SESSION['username'] ?? 'U', 0, 2)) ?></span>
+                            <div class="d-none d-xl-block ps-2">
                                 <div><?= htmlspecialchars($_SESSION['username']) ?></div>
                                 <div class="mt-1 small text-secondary"><?= $_SESSION['role'] ?></div>
                             </div>
