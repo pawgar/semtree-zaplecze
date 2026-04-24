@@ -336,7 +336,7 @@ function renderSites(sites) {
             <td class="text-center" id="api-${s.id}">${apiLed}</td>
             <td class="text-end">
                 <div class="dropdown">
-                    <button class="btn btn-sm btn-ghost-secondary" data-bs-toggle="dropdown" aria-expanded="false" title="Akcje">
+                    <button class="btn btn-sm btn-ghost-secondary" data-bs-toggle="dropdown" aria-expanded="false" data-bs-strategy="fixed" data-bs-boundary="viewport" title="Akcje">
                         <i class="ti ti-dots-vertical"></i>
                     </button>
                     <div class="dropdown-menu dropdown-menu-end">

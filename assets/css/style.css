@@ -52,6 +52,14 @@ html[data-bs-theme="dark"] select optgroup {
     left: auto !important;
 }
 
+/* ═══ FIX: dropdown w tabeli (Akcje) nie przycięty przez overflow:hidden ═══
+   Tabler daje .table-responsive { overflow: auto } i table { overflow: hidden }
+   które przycinają popovers/dropdowns. strategy=fixed na buttonie wypycha je
+   poza flow, ale musimy dać im wyższy z-index niż sticky headers. */
+.table-responsive .dropdown-menu {
+    z-index: 1070 !important;
+}
+
 /* ═══ BUTTONS ═══ */
 .btn {
     border-radius: var(--btn-radius);
