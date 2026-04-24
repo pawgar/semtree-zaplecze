@@ -151,9 +151,26 @@ $isAdminUser = isAdmin();
                     <input type="text" class="form-control" id="telegramChatId" placeholder="-1001234567890">
                     <small class="form-hint">ID czatu lub grupy. Możesz użyć <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> aby poznać swoje ID.</small>
                 </div>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 mb-3">
                     <button class="btn btn-primary" onclick="saveTelegramSettings()"><i class="ti ti-check me-1"></i>Zapisz</button>
                     <button class="btn btn-outline-success" onclick="testTelegram()"><i class="ti ti-send me-1"></i>Testuj</button>
+                </div>
+
+                <hr>
+
+                <div class="mt-3">
+                    <label class="form-label d-flex align-items-center gap-2">
+                        <i class="ti ti-fish" style="font-size:1.2em;color:#9b59b6"></i>
+                        <strong>Skalmar</strong> <span class="text-secondary small">— bot odpowiada gdy wspomnisz go w wiadomości</span>
+                    </label>
+                    <p class="text-secondary small mb-2">
+                        Aktywuj webhook Telegram, a bot będzie odpowiadał losową ciekawostką, gdy ktoś na czacie/grupie napisze wiadomość zawierającą słowo <strong>Skalmar</strong>.
+                    </p>
+                    <div id="skalmarStatus" class="small mb-2 text-secondary">Sprawdzam status...</div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success" id="skalmarEnableBtn" onclick="enableSkalmar()"><i class="ti ti-plug-connected me-1"></i>Aktywuj Skalmara</button>
+                        <button class="btn btn-outline-danger" id="skalmarDisableBtn" onclick="disableSkalmar()" style="display:none"><i class="ti ti-plug-x me-1"></i>Wyłącz</button>
+                    </div>
                 </div>
             </div>
         </div>

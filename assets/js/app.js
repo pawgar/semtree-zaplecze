@@ -5264,6 +5264,56 @@ async function testTelegram() {
     }
 }
 
+// ── Skalmar webhook (bot reply on mention) ──────────────────
+async function loadSkalmarStatus() {
+    const statusEl = document.getElementById('skalmarStatus');
+    const enableBtn = document.getElementById('skalmarEnableBtn');
+    const disableBtn = document.getElementById('skalmarDisableBtn');
+    if (!statusEl) return;
+
+    try {
+        const data = await api('GET', 'api/telegram.php?action=webhook-status');
+        if (data.error) throw new Error(data.error);
+        if (data.enabled) {
+            statusEl.innerHTML = `<span class="status status-green"><span class="status-dot status-dot-animated"></span>Skalmar aktywny</span> <span class="text-secondary">→ ${esc(data.url)}</span>`;
+            enableBtn.style.display = 'none';
+            disableBtn.style.display = '';
+        } else {
+            statusEl.innerHTML = '<span class="status status-secondary"><span class="status-dot"></span>Skalmar nieaktywny</span>';
+            enableBtn.style.display = '';
+            disableBtn.style.display = 'none';
+        }
+        if (data.last_error_message) {
+            statusEl.innerHTML += `<div class="text-danger small mt-1"><i class="ti ti-alert-triangle me-1"></i>Ostatni błąd: ${esc(data.last_error_message)}</div>`;
+        }
+    } catch (e) {
+        statusEl.innerHTML = '<span class="text-danger small">Błąd: ' + esc(e.message) + '</span>';
+    }
+}
+
+async function enableSkalmar() {
+    try {
+        const data = await api('POST', 'api/telegram.php?action=webhook-enable');
+        if (data.error) throw new Error(data.error);
+        showToast('Skalmar aktywowany! Napisz coś z "Skalmar" w grupie.', 'success');
+        loadSkalmarStatus();
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    }
+}
+
+async function disableSkalmar() {
+    if (!confirm('Wyłączyć Skalmara? Bot przestanie odpowiadać na wiadomości.')) return;
+    try {
+        const data = await api('POST', 'api/telegram.php?action=webhook-disable');
+        if (data.error) throw new Error(data.error);
+        showToast('Skalmar wyłączony', 'info');
+        loadSkalmarStatus();
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    }
+}
+
 // ── Init auto-publish on page load ──────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     if (window.location.search.includes('page=auto-publish')) {
@@ -5271,6 +5321,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (window.location.search.includes('page=settings') && document.getElementById('telegramBotToken')) {
         loadTelegramSettings();
+        loadSkalmarStatus();
     }
 });
 

@@ -77,6 +77,92 @@ try {
             echo json_encode(['success' => true, 'message' => 'Wiadomość testowa wysłana']);
             break;
 
+        // ── Webhook status (czy Skalmar aktywny) ───────────
+        case 'webhook-status':
+            $tokenRow = $db->querySingle("SELECT value FROM settings WHERE key = 'telegram_bot_token'", true);
+            $botToken = $tokenRow ? trim($tokenRow['value']) : '';
+            if (!$botToken) {
+                echo json_encode(['success' => true, 'enabled' => false, 'url' => '']);
+                break;
+            }
+            $ch = curl_init("https://api.telegram.org/bot$botToken/getWebhookInfo");
+            curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_SSL_VERIFYPEER => false]);
+            $resp = curl_exec($ch);
+            curl_close($ch);
+            $data = json_decode($resp, true);
+            $info = $data['result'] ?? [];
+            echo json_encode([
+                'success' => true,
+                'enabled' => !empty($info['url']),
+                'url' => $info['url'] ?? '',
+                'pending_update_count' => $info['pending_update_count'] ?? 0,
+                'last_error_message' => $info['last_error_message'] ?? null,
+            ]);
+            break;
+
+        // ── Aktywuj webhook "Skalmar" ──────────────────────
+        case 'webhook-enable':
+            $tokenRow = $db->querySingle("SELECT value FROM settings WHERE key = 'telegram_bot_token'", true);
+            $botToken = $tokenRow ? trim($tokenRow['value']) : '';
+            if (!$botToken) throw new RuntimeException('Najpierw zapisz Bot Token');
+
+            // Generuj losowy secret jeśli jeszcze go nie ma
+            $secretRow = $db->querySingle("SELECT value FROM settings WHERE key = 'telegram_webhook_secret'", true);
+            $secret = ($secretRow && !empty($secretRow['value'])) ? trim($secretRow['value']) : bin2hex(random_bytes(32));
+            $stmt = $db->prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("telegram_webhook_secret", :v)');
+            $stmt->bindValue(':v', $secret, SQLITE3_TEXT);
+            $stmt->execute();
+
+            // Zbuduj URL webhooka
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'];
+            $baseDir = dirname($_SERVER['SCRIPT_NAME']);
+            $webhookUrl = "$scheme://$host$baseDir/telegram-webhook.php";
+
+            // setWebhook w Telegram API
+            $ch = curl_init("https://api.telegram.org/bot$botToken/setWebhook");
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POSTFIELDS => http_build_query([
+                    'url' => $webhookUrl,
+                    'secret_token' => $secret,
+                    'allowed_updates' => json_encode(['message']),
+                ]),
+                CURLOPT_TIMEOUT => 15,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            $resp = curl_exec($ch);
+            curl_close($ch);
+            $data = json_decode($resp, true);
+            if (!($data['ok'] ?? false)) {
+                throw new RuntimeException('Telegram: ' . ($data['description'] ?? 'Unknown'));
+            }
+            echo json_encode(['success' => true, 'url' => $webhookUrl, 'description' => $data['description'] ?? 'Webhook aktywowany']);
+            break;
+
+        // ── Wyłącz webhook ─────────────────────────────────
+        case 'webhook-disable':
+            $tokenRow = $db->querySingle("SELECT value FROM settings WHERE key = 'telegram_bot_token'", true);
+            $botToken = $tokenRow ? trim($tokenRow['value']) : '';
+            if (!$botToken) throw new RuntimeException('Brak Bot Tokena');
+
+            $ch = curl_init("https://api.telegram.org/bot$botToken/deleteWebhook");
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            $resp = curl_exec($ch);
+            curl_close($ch);
+            $data = json_decode($resp, true);
+            if (!($data['ok'] ?? false)) {
+                throw new RuntimeException('Telegram: ' . ($data['description'] ?? 'Unknown'));
+            }
+            echo json_encode(['success' => true, 'description' => $data['description'] ?? 'Webhook usunięty']);
+            break;
+
         default:
             throw new RuntimeException('Nieznana akcja');
     }
