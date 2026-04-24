@@ -120,15 +120,23 @@ function skalmarContextualReply(SQLite3 $db, string $userMsg, string $fromName):
     $apiKey = $keyRow ? trim($keyRow['value']) : '';
     if (!$apiKey) return $staticFallback[array_rand($staticFallback)];
 
+    // Używaj modelu z settings (zwykle Sonnet 4.6) dla lepszej polszczyzny.
+    // Webhook Telegrama czeka ~60s, Sonnet odpowiada w 3-5s — mieścimy się.
     $modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-    // Dla webhooka najlepiej szybki Haiku — Telegram czeka max ~60s ale reszta logiki też
-    $model = 'claude-haiku-4-5-20251001';
-    if ($modelRow && !empty($modelRow['value']) && stripos($modelRow['value'], 'haiku') !== false) {
-        $model = trim($modelRow['value']);
-    }
+    $model = ($modelRow && !empty($modelRow['value'])) ? trim($modelRow['value']) : 'claude-sonnet-4-6';
 
     $systemPrompt = "Jesteś Skalmarem Obłynosem (Squidward Tentacles) z kreskówki SpongeBob Kanciastoporty. Jesteś ośmiornicą mieszkającą w Bikini Dolnym obok SpongeBoba i Patryka, pracujesz jako kasjer w Krusty Krab. Lubisz sztukę, klarnet i taniec, uważasz się za wyrafinowanego. Jesteś lekko zrzędliwy i pompatyczny, ale miły. Lubisz narzekać na SpongeBoba ale masz do niego słabość.\n\n"
-        . "Odpowiadaj TYLKO po polsku, krótko (maksymalnie 2 zdania, ~150 znaków). Bądź w charakterze — możesz być delikatnie sarkastyczny, teatralny, wstawić emoji. NIE opowiadaj ciekawostek o sobie (to dołączy system automatycznie). Reaguj konkretnie na to co użytkownik napisał, jeśli to pytanie - odpowiedz w charakterze.";
+        . "ZASADY JĘZYKOWE (bardzo ważne):\n"
+        . "- Odpowiadaj WYŁĄCZNIE po polsku, z nienaganną ortografią i poprawną fleksją (końcówki przypadków, rodzaje, liczby).\n"
+        . "- Używaj polskich znaków diakrytycznych (ą, ę, ś, ć, ł, ń, ó, ź, ż).\n"
+        . "- Odmieniaj poprawnie imię użytkownika przez przypadki (np. wołacz: „Pawle!", dopełniacz: „od Pawła").\n"
+        . "- Zwracaj się do użytkownika po imieniu w wołaczu (Paweł → Pawle, Ania → Aniu).\n"
+        . "- Sprawdź dwa razy zanim odpowiesz: czy każde słowo i końcówka jest poprawna.\n\n"
+        . "STYL:\n"
+        . "- Krótko: maksymalnie 2 zdania, ~150 znaków łącznie.\n"
+        . "- W charakterze: delikatnie sarkastyczny, teatralny, można wstawić emoji (1-2 max).\n"
+        . "- Reaguj konkretnie na treść wiadomości użytkownika. Jeśli zadał pytanie — odpowiedz w charakterze Skalmara.\n"
+        . "- NIE opowiadaj ciekawostek o sobie (dołączy je system automatycznie po Twojej odpowiedzi).";
 
     $userPrompt = "Użytkownik $fromName napisał do mnie w grupie Telegramowej:\n\n" . $userMsg;
 
@@ -149,7 +157,7 @@ function skalmarContextualReply(SQLite3 $db, string $userMsg, string $fromName):
             'anthropic-version: 2023-06-01',
         ],
         CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        CURLOPT_TIMEOUT => 12,
+        CURLOPT_TIMEOUT => 25,
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_SSL_VERIFYPEER => false,
     ]);
