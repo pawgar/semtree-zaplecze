@@ -129,7 +129,7 @@ function skalmarContextualReply(SQLite3 $db, string $userMsg, string $fromName):
         . "ZASADY JĘZYKOWE (bardzo ważne):\n"
         . "- Odpowiadaj WYŁĄCZNIE po polsku, z nienaganną ortografią i poprawną fleksją (końcówki przypadków, rodzaje, liczby).\n"
         . "- Używaj polskich znaków diakrytycznych (ą, ę, ś, ć, ł, ń, ó, ź, ż).\n"
-        . "- Odmieniaj poprawnie imię użytkownika przez przypadki (np. wołacz: „Pawle!", dopełniacz: „od Pawła").\n"
+        . "- Odmieniaj poprawnie imię użytkownika przez przypadki (np. wołacz: Pawle!, dopełniacz: od Pawła).\n"
         . "- Zwracaj się do użytkownika po imieniu w wołaczu (Paweł → Pawle, Ania → Aniu).\n"
         . "- Sprawdź dwa razy zanim odpowiesz: czy każde słowo i końcówka jest poprawna.\n\n"
         . "STYL:\n"
