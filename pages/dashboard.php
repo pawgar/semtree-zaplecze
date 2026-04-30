@@ -9,25 +9,25 @@ $greetingPrefix = $h < 10 ? 'Dzień dobry' : ($h < 18 ? 'Witaj' : 'Dobry wieczó
 
 <!-- ═══ ROW 1: Welcome + GSC totals + Network health gauge ═══ -->
 <div class="row row-cards mb-3" id="dashboardSummary">
-    <!-- Welcome card -->
+    <!-- Welcome card (theme-aware: uses Tabler card variables, works in dark + light) -->
     <div class="col-md-6 col-lg-5">
-        <div class="card h-100" style="background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%)">
+        <div class="card h-100 welcome-card">
             <div class="card-body d-flex flex-column flex-sm-row align-items-center gap-3">
                 <div class="flex-fill">
-                    <h2 class="h3 mb-1 text-white"><?= $greetingPrefix ?>, <?= htmlspecialchars($_SESSION['username']) ?></h2>
+                    <h2 class="h3 mb-1"><?= $greetingPrefix ?>, <?= htmlspecialchars($_SESSION['username']) ?></h2>
                     <p class="text-secondary mb-3 small">Podsumowanie dzisiejszej aktywności</p>
                     <div class="row g-3">
                         <div class="col-6">
                             <div class="text-secondary small mb-1">Publikacje dziś</div>
-                            <div class="h2 mb-0 text-white" id="statTodayPubs">—</div>
+                            <div class="h2 mb-0" id="statTodayPubs">—</div>
                         </div>
                         <div class="col-6">
                             <div class="text-secondary small mb-1">Ostatnie 7 dni</div>
-                            <div class="h2 mb-0 text-white" id="statWeekPubs">—</div>
+                            <div class="h2 mb-0" id="statWeekPubs">—</div>
                         </div>
                         <div class="col-12 mt-2">
                             <div class="text-secondary small mb-1">Sukces auto-publikacji (30 dni)</div>
-                            <div class="progress progress-sm mb-1" style="background:rgba(255,255,255,0.08)">
+                            <div class="progress progress-sm mb-1">
                                 <div class="progress-bar bg-success" id="statSuccessBar" style="width:0%"></div>
                             </div>
                             <div class="small text-success" id="statSuccessText">—</div>

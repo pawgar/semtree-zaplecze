@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="pl" data-bs-theme="dark">
 <head>
+    <!-- Restore theme from localStorage BEFORE any CSS loads, to avoid FOUC.
+         Default: dark. Only switches to light if user explicitly chose it. -->
+    <script>(function(){try{var t=localStorage.getItem('tabler-theme');if(t==='light')document.documentElement.setAttribute('data-bs-theme','light');}catch(e){}})();</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?= APP_NAME ?></title>
@@ -42,6 +45,15 @@
                             <span class="status-indicator status-gray" id="claudeStatusLed"></span>
                             <span class="ms-2 text-secondary small" id="claudeStatusLabel">Claude API</span>
                         </div>
+                    </div>
+                    <!-- Theme toggle (sun/moon) -->
+                    <div class="nav-item d-none d-md-flex me-2 align-items-center">
+                        <a href="#" class="nav-link px-2 py-0 hide-theme-dark" onclick="event.preventDefault(); setTablerTheme('dark');" title="Tryb ciemny">
+                            <i class="ti ti-moon"></i>
+                        </a>
+                        <a href="#" class="nav-link px-2 py-0 hide-theme-light" onclick="event.preventDefault(); setTablerTheme('light');" title="Tryb jasny">
+                            <i class="ti ti-sun"></i>
+                        </a>
                     </div>
                     <!-- Version / changelog -->
                     <div class="nav-item d-none d-md-flex me-3 align-items-center">
@@ -118,6 +130,11 @@
 
         <?php require_once __DIR__ . '/squidward_facts.php'; ?>
         <script>
+        // Theme switcher — Tabler stock CSS shows correct sun/moon via .hide-theme-* classes
+        function setTablerTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            try { localStorage.setItem('tabler-theme', theme); } catch (e) {}
+        }
         const squidwardFacts = <?= json_encode(getSquidwardFacts(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
         function nextFunFact() {
             const el = document.getElementById('funFactText');

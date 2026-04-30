@@ -52,6 +52,17 @@ html[data-bs-theme="dark"] select optgroup {
     left: auto !important;
 }
 
+/* ═══ Welcome card — subtle gradient, theme-aware ═══ */
+html[data-bs-theme="dark"] .welcome-card {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-color: #232b3e;
+}
+html[data-bs-theme="light"] .welcome-card,
+html:not([data-bs-theme="dark"]) .welcome-card {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    border-color: #e2e8f0;
+}
+
 /* ═══ FIX: dropdown w tabeli (Akcje) nie przycięty przez overflow:hidden ═══
    Tabler daje .table-responsive { overflow: auto } i table { overflow: hidden }
    które przycinają popovers/dropdowns. strategy=fixed na buttonie wypycha je
