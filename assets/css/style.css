@@ -442,11 +442,11 @@ th.sortable:hover {
     z-index: 1050;
     max-height: 280px;
     overflow-y: auto;
-    background: var(--tblr-card-bg, #1a2032);
-    border: 1px solid var(--tblr-border-color, #232b3e);
+    background: var(--tblr-bg-surface, #fff);
+    border: 1px solid var(--tblr-border-color, #e5e7eb);
     border-top: none;
     border-radius: 0 0 6px 6px;
-    box-shadow: 0 6px 16px rgba(0,0,0,.4);
+    box-shadow: 0 6px 16px rgba(0,0,0,.25);
     display: none;
     padding: 4px 0;
 }
