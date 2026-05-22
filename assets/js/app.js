@@ -2218,9 +2218,105 @@ function initLinksPage() {
             if (target === '#pane-overview') loadLinksOverview();
             if (target === '#pane-clients') loadClients();
             if (target === '#pane-history') loadLinksHistory();
+            if (target === '#pane-articles') loadArticlesHistory();
             if (target === '#pane-removelinks') initSearchableSelects();
         });
     });
+}
+
+// ── Articles history ─────────────────────────────────────────
+let articlesData = [];
+let articlesSortField = 'created_at';
+let articlesSortAsc = false;
+let articlesFiltersBuilt = false;
+
+function loadArticlesHistory() {
+    const tbody = document.getElementById('articlesHistoryBody');
+    if (!tbody) return;
+
+    const siteId = document.getElementById('articlesSiteFilter')?.value || '';
+    const userId = document.getElementById('articlesUserFilter')?.value || '';
+    const dateFrom = document.getElementById('articlesDateFrom')?.value || '';
+    const dateTo = document.getElementById('articlesDateTo')?.value || '';
+
+    let qs = 'limit=2000';
+    if (siteId) qs += `&site_id=${siteId}`;
+    if (userId) qs += `&user_id=${userId}`;
+    if (dateFrom) qs += `&date_from=${dateFrom}`;
+    if (dateTo) qs += `&date_to=${dateTo}`;
+
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></td></tr>';
+
+    api('GET', `api/articles-history.php?${qs}`).then(r => {
+        if (r.error) { tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${esc(r.error)}</td></tr>`; return; }
+        articlesData = r.articles || [];
+
+        // Build filter dropdowns once (sites + users with publications)
+        if (!articlesFiltersBuilt) {
+            const sSel = document.getElementById('articlesSiteFilter');
+            (r.sites || []).forEach(s => { sSel.innerHTML += `<option value="${s.id}">${esc(s.name)}</option>`; });
+            const uSel = document.getElementById('articlesUserFilter');
+            (r.users || []).forEach(u => { uSel.innerHTML += `<option value="${u.id}">${esc(u.username)}</option>`; });
+            articlesFiltersBuilt = true;
+        }
+
+        const count = document.getElementById('articlesCount');
+        if (count) count.textContent = `${articlesData.length} z ${r.total} artykułów`;
+        renderArticlesHistory();
+    });
+}
+
+function renderArticlesHistory() {
+    const tbody = document.getElementById('articlesHistoryBody');
+    if (!tbody) return;
+
+    if (!articlesData.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">Brak artykułów.</td></tr>';
+        return;
+    }
+
+    // Sort
+    const sorted = [...articlesData].sort((a, b) => {
+        let av = a[articlesSortField], bv = b[articlesSortField];
+        if (typeof av === 'string') { av = (av || '').toLowerCase(); bv = (bv || '').toLowerCase(); }
+        if (av < bv) return articlesSortAsc ? -1 : 1;
+        if (av > bv) return articlesSortAsc ? 1 : -1;
+        return 0;
+    });
+
+    tbody.innerHTML = sorted.map((a, i) => `
+        <tr>
+            <td class="text-secondary">${i + 1}</td>
+            <td class="small text-nowrap">${formatDate(a.created_at)}</td>
+            <td class="small">${esc(a.site_name)}</td>
+            <td class="small"><a href="${esc(a.post_url)}" target="_blank" rel="noopener" title="${esc(a.post_url)}">${esc(truncate(a.post_url, 45))}</a></td>
+            <td class="small">${esc(truncate(a.post_title || '—', 50))}</td>
+            <td>${a.is_auto
+                ? '<span class="badge bg-purple-lt"><i class="ti ti-robot me-1"></i>Auto-publikacja</span>'
+                : `<span class="text-body">${esc(a.publisher)}</span>`}</td>
+        </tr>
+    `).join('');
+}
+
+function sortArticles(field) {
+    if (articlesSortField === field) articlesSortAsc = !articlesSortAsc;
+    else { articlesSortField = field; articlesSortAsc = true; }
+    renderArticlesHistory();
+}
+
+function exportArticlesCsv() {
+    if (!articlesData.length) { showToast('Brak danych do eksportu', 'warning'); return; }
+    const rows = [['Data', 'Strona zapleczowa', 'URL artykułu', 'Tytuł artykułu', 'Publikujący']];
+    articlesData.forEach(a => rows.push([a.created_at, a.site_name, a.post_url, a.post_title, a.publisher]));
+    const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `historia-artykulow-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast('Wyeksportowano CSV', 'success');
 }
 
 // ── Clients ──────────────────────────────────────────────────
@@ -2246,7 +2342,7 @@ function loadClients() {
         } else {
             tbody.innerHTML = clients.map(c => `
                 <tr>
-                    <td><span class="badge" style="background:${esc(c.color)}">${esc(c.name)}</span></td>
+                    <td><span class="badge" style="background:${esc(c.color)};color:#fff">${esc(c.name)}</span></td>
                     <td class="small">${esc(c.domain)}</td>
                     <td>${c.link_count}</td>
                     <td>${c.site_count}</td>
@@ -2555,7 +2651,7 @@ function loadLinksHistory() {
                 <td class="small text-muted">${formatDate(l.created_at)}</td>
                 <td class="small">${esc(l.site_name)}</td>
                 <td class="small"><a href="${esc(l.post_url)}" target="_blank" title="${esc(l.post_title)}">${esc(truncate(l.post_title || l.post_url, 30))}</a></td>
-                <td>${l.client_name ? `<span class="badge" style="background:${esc(l.client_color || '#6c757d')}">${esc(l.client_name)}</span>` : '<span class="text-muted small">-</span>'}</td>
+                <td>${l.client_name ? `<span class="badge" style="background:${esc(l.client_color || '#6c757d')};color:#fff">${esc(l.client_name)}</span>` : '<span class="text-secondary small">-</span>'}</td>
                 <td class="small">${esc(l.anchor_text)}</td>
                 <td class="small"><a href="${esc(l.target_url)}" target="_blank">${esc(truncate(l.target_url, 35))}</a></td>
                 <td><span class="badge bg-${l.link_type === 'dofollow' ? 'success' : 'secondary'} small">${l.link_type}</span></td>
@@ -2684,7 +2780,7 @@ function generateReport() {
             : 'caly okres';
 
         html += `<div class="card mb-3"><div class="card-body">
-            <h5><span class="badge" style="background:${esc(client?.color || '#6c757d')}">${esc(clientName)}</span> — ${esc(clientDomain)}</h5>
+            <h5><span class="badge" style="background:${esc(client?.color || '#6c757d')};color:#fff">${esc(clientName)}</span> — ${esc(clientDomain)}</h5>
             <p class="text-muted mb-2">Okres: ${esc(periodStr)}</p>
             <div class="row text-center">
                 <div class="col"><h3>${links.length}</h3><small class="text-muted">Linkow</small></div>

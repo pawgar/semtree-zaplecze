@@ -16,7 +16,12 @@ require_once __DIR__ . '/../includes/header.php';
     </li>
     <li class="nav-item">
         <button class="nav-link" id="tab-history" data-bs-toggle="tab" data-bs-target="#pane-history" type="button">
-            <i class="ti ti-clock-hour-9"></i> Historia
+            <i class="ti ti-clock-hour-9"></i> Historia linków
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" id="tab-articles" data-bs-toggle="tab" data-bs-target="#pane-articles" type="button">
+            <i class="ti ti-news"></i> Historia artykułów
         </button>
     </li>
     <li class="nav-item">
@@ -162,6 +167,42 @@ require_once __DIR__ . '/../includes/header.php';
                 </thead>
                 <tbody id="linksHistoryBody">
                     <tr><td colspan="9" class="text-center text-secondary">Ładowanie...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ TAB: Historia artykułów ═══ -->
+    <div class="tab-pane fade" id="pane-articles">
+        <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+            <select class="form-select form-select-sm" id="articlesSiteFilter" style="width:220px" onchange="loadArticlesHistory()">
+                <option value="">Wszystkie strony</option>
+            </select>
+            <select class="form-select form-select-sm" id="articlesUserFilter" style="width:200px" onchange="loadArticlesHistory()">
+                <option value="">Wszyscy publikujący</option>
+            </select>
+            <input type="date" class="form-control form-control-sm" id="articlesDateFrom" style="width:150px" onchange="loadArticlesHistory()">
+            <span class="small text-secondary">-</span>
+            <input type="date" class="form-control form-control-sm" id="articlesDateTo" style="width:150px" onchange="loadArticlesHistory()">
+            <button class="btn btn-outline-secondary btn-sm" onclick="exportArticlesCsv()">
+                <i class="ti ti-download"></i> CSV
+            </button>
+            <span id="articlesCount" class="text-secondary small"></span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-vcenter table-striped table-sm" id="articlesHistoryTable">
+                <thead>
+                    <tr>
+                        <th class="w-1">#</th>
+                        <th class="sortable" data-sort="created_at" onclick="sortArticles('created_at')" style="cursor:pointer">Data <i class="ti ti-arrows-sort text-secondary"></i></th>
+                        <th class="sortable" data-sort="site_name" onclick="sortArticles('site_name')" style="cursor:pointer">Strona zapleczowa <i class="ti ti-arrows-sort text-secondary"></i></th>
+                        <th>URL artykułu</th>
+                        <th class="sortable" data-sort="post_title" onclick="sortArticles('post_title')" style="cursor:pointer">Tytuł artykułu <i class="ti ti-arrows-sort text-secondary"></i></th>
+                        <th class="sortable" data-sort="publisher" onclick="sortArticles('publisher')" style="cursor:pointer">Publikujący <i class="ti ti-arrows-sort text-secondary"></i></th>
+                    </tr>
+                </thead>
+                <tbody id="articlesHistoryBody">
+                    <tr><td colspan="6" class="text-center text-secondary py-4">Ładowanie...</td></tr>
                 </tbody>
             </table>
         </div>
