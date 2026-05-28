@@ -113,6 +113,9 @@
                             <li class="nav-item <?= ($page ?? '') === 'publish' ? 'active' : '' ?>">
                                 <a class="nav-link" href="index.php?page=publish"><span class="nav-link-icon"><i class="ti ti-edit"></i></span><span class="nav-link-title">Publikuj</span></a>
                             </li>
+                            <li class="nav-item <?= ($page ?? '') === 'publish-bulk' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=publish-bulk"><span class="nav-link-icon"><i class="ti ti-stack"></i></span><span class="nav-link-title">Publikuj masowo</span></a>
+                            </li>
                             <li class="nav-item <?= ($page ?? '') === 'import' ? 'active' : '' ?>">
                                 <a class="nav-link" href="index.php?page=import"><span class="nav-link-icon"><i class="ti ti-cloud-upload"></i></span><span class="nav-link-title">Import</span></a>
                             </li>

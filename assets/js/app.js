@@ -5749,3 +5749,460 @@ function tfaDownloadCodes() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+
+// ═══════════════════════════════════════════════════════════════
+//  PUBLIKUJ MASOWO — bulk publish do różnych stron zapleczowych
+// ═══════════════════════════════════════════════════════════════
+
+let bulkArticles = [];          // [{id, title, content, site_id, category_id, author_id, image_data, image_filename, publish_date, status}]
+let bulkSitesList = [];          // [{id, name}]
+const bulkWpDataCache = {};      // bulkWpDataCache[siteId] = {categories, authors, _loadingPromise}
+let bulkPublishedUrls = [];
+
+async function initBulkPublish() {
+    if (!document.getElementById('bulkArticlesTable')) return;
+    try {
+        const sites = await api('GET', 'api/sites.php');
+        bulkSitesList = Array.isArray(sites) ? sites : (sites.sites || []);
+        bulkSitesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } catch (e) {
+        showToast('Nie udalo sie zaladowac listy stron: ' + e.message, 'error');
+        bulkSitesList = [];
+    }
+    populateBulkBulkSiteSelect();
+    renderBulkTable();
+}
+
+function populateBulkBulkSiteSelect() {
+    const sel = document.getElementById('bulkBulkSite');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- wybierz --</option>' +
+        bulkSitesList.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
+}
+
+async function loadBulkWpData(siteId) {
+    siteId = parseInt(siteId);
+    if (!siteId) return null;
+    if (bulkWpDataCache[siteId] && bulkWpDataCache[siteId].categories) {
+        return bulkWpDataCache[siteId];
+    }
+    if (bulkWpDataCache[siteId] && bulkWpDataCache[siteId]._loadingPromise) {
+        return bulkWpDataCache[siteId]._loadingPromise;
+    }
+    const promise = (async () => {
+        try {
+            const [cats, auths] = await Promise.all([
+                api('GET', 'api/wp-data.php?site_id=' + siteId + '&type=categories'),
+                api('GET', 'api/wp-data.php?site_id=' + siteId + '&type=authors'),
+            ]);
+            const data = {
+                categories: Array.isArray(cats) ? cats : [],
+                authors: Array.isArray(auths) ? auths : [],
+            };
+            bulkWpDataCache[siteId] = data;
+            return data;
+        } catch (e) {
+            showToast('Blad WP data: ' + e.message, 'error');
+            return {categories: [], authors: []};
+        }
+    })();
+    bulkWpDataCache[siteId] = {_loadingPromise: promise};
+    return promise;
+}
+
+function uploadDocxBulk(input) {
+    const files = Array.from(input.files);
+    if (!files.length) return;
+    input.value = '';
+    const status = document.getElementById('bulkArticleCount');
+    status.innerHTML = '<i class="ti ti-loader spin"></i> Przetwarzam ' + files.length + ' plikow...';
+    let done = 0;
+    files.forEach(file => {
+        const formData = new FormData();
+        formData.append('file', file);
+        fetch('api/upload-docx.php', {method: 'POST', body: formData, credentials: 'same-origin'})
+            .then(r => r.json())
+            .then(r => {
+                if (r.error) {
+                    showToast('Blad parsowania ' + file.name + ': ' + r.error, 'error');
+                } else {
+                    bulkArticles.push({
+                        id: Date.now() + Math.random(),
+                        title: r.title || file.name.replace(/\.docx$/i, ''),
+                        content: r.html_body || '',
+                        site_id: '', category_id: '', author_id: '',
+                        image_data: '', image_filename: '',
+                        publish_date: '', status: 'draft',
+                    });
+                }
+            })
+            .catch(e => showToast('Blad uploadu ' + file.name + ': ' + e.message, 'error'))
+            .finally(() => {
+                done++;
+                if (done === files.length) {
+                    renderBulkTable();
+                    status.textContent = '';
+                }
+            });
+    });
+}
+
+function renderBulkTable() {
+    const tbody = document.getElementById('bulkArticlesBody');
+    if (!tbody) return;
+    const count = document.getElementById('bulkArticleCount');
+    if (count) count.textContent = bulkArticles.length > 0 ? (bulkArticles.length + ' artykulow') : '';
+
+    if (bulkArticles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-secondary">Brak artykulow. Wgraj DOCX lub dodaj recznie.</td></tr>';
+        updateBulkBulkControls();
+        return;
+    }
+
+    const siteOpts = bulkSitesList.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
+
+    tbody.innerHTML = bulkArticles.map((a, i) => {
+        const cache = a.site_id ? bulkWpDataCache[parseInt(a.site_id)] : null;
+        const cats = (cache && cache.categories) || [];
+        const auths = (cache && cache.authors) || [];
+        const loading = a.site_id && cache && cache._loadingPromise && !cache.categories;
+
+        const sitePicker =
+            '<option value="">--</option>' +
+            bulkSitesList.map(s => '<option value="' + s.id + '"' + (String(a.site_id) === String(s.id) ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('');
+
+        const catOpts = '<option value="">--</option>' +
+            cats.map(c => '<option value="' + c.id + '"' + (String(a.category_id) === String(c.id) ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
+        const authOpts = '<option value="">--</option>' +
+            auths.map(au => '<option value="' + au.id + '"' + (String(a.author_id) === String(au.id) ? ' selected' : '') + '>' + esc(au.name) + '</option>').join('');
+
+        const imgPreview = a.image_data
+            ? '<img src="data:image/' + ((a.image_filename || '').toLowerCase().endsWith('.png') ? 'png' : 'jpeg') + ';base64,' + a.image_data + '" style="height:32px;border-radius:4px" title="' + esc(a.image_filename || '') + '">'
+            : '<span class="text-muted small">brak</span>';
+
+        return '' +
+            '<tr>' +
+                '<td>' + (i + 1) + '</td>' +
+                '<td><input type="text" class="form-control form-control-sm" value="' + esc(a.title) + '" onchange="bulkArticles[' + i + '].title=this.value"></td>' +
+                '<td><select class="form-select form-select-sm" onchange="setBulkRowSite(' + i + ', this.value)">' + sitePicker + '</select></td>' +
+                '<td><select class="form-select form-select-sm" onchange="bulkArticles[' + i + '].category_id=this.value"' + (a.site_id ? '' : ' disabled') + '>' + (loading ? '<option>Laduje...</option>' : catOpts) + '</select></td>' +
+                '<td><select class="form-select form-select-sm" onchange="bulkArticles[' + i + '].author_id=this.value"' + (a.site_id ? '' : ' disabled') + '>' + (loading ? '<option>Laduje...</option>' : authOpts) + '</select></td>' +
+                '<td><div class="d-flex align-items-center gap-1">' + imgPreview +
+                    ' <button class="btn btn-outline-info btn-sm" onclick="generateBulkRowImage(' + i + ')" title="Generuj AI"><i class="ti ti-sparkles"></i></button>' +
+                    ' <input type="file" id="bulkImg' + i + '" accept="image/*" style="display:none" onchange="onBulkRowImageUpload(' + i + ', this)">' +
+                    ' <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById(\'bulkImg' + i + '\').click()" title="Wgraj"><i class="ti ti-upload"></i></button>' +
+                '</div></td>' +
+                '<td><input type="datetime-local" class="form-control form-control-sm" value="' + esc(a.publish_date || '') + '" onchange="bulkArticles[' + i + '].publish_date=this.value"></td>' +
+                '<td><select class="form-select form-select-sm" onchange="bulkArticles[' + i + '].status=this.value">' +
+                    '<option value="draft"' + (a.status === 'draft' ? ' selected' : '') + '>Szkic</option>' +
+                    '<option value="publish"' + (a.status === 'publish' ? ' selected' : '') + '>Publikuj</option>' +
+                '</select></td>' +
+                '<td><button class="btn btn-sm btn-link text-danger" onclick="removeBulkRow(' + i + ')" title="Usun"><i class="ti ti-trash"></i></button></td>' +
+            '</tr>';
+    }).join('');
+
+    updateBulkBulkControls();
+}
+
+function updateBulkBulkControls() {
+    const catSel = document.getElementById('bulkBulkCategory');
+    const authSel = document.getElementById('bulkBulkAuthor');
+    if (!catSel || !authSel) return;
+    if (bulkArticles.length === 0) {
+        catSel.disabled = true; authSel.disabled = true;
+        catSel.innerHTML = '<option value="">--</option>';
+        authSel.innerHTML = '<option value="">--</option>';
+        return;
+    }
+    const sites = [...new Set(bulkArticles.map(a => String(a.site_id)).filter(Boolean))];
+    if (sites.length === 1 && bulkWpDataCache[parseInt(sites[0])] && bulkWpDataCache[parseInt(sites[0])].categories) {
+        const cache = bulkWpDataCache[parseInt(sites[0])];
+        catSel.disabled = false;
+        catSel.innerHTML = '<option value="">--</option>' + cache.categories.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+        authSel.disabled = false;
+        authSel.innerHTML = '<option value="">--</option>' + cache.authors.map(au => '<option value="' + au.id + '">' + esc(au.name) + '</option>').join('');
+    } else {
+        catSel.disabled = true; authSel.disabled = true;
+        catSel.innerHTML = '<option value="">--</option>';
+        authSel.innerHTML = '<option value="">--</option>';
+    }
+}
+
+async function setBulkRowSite(i, siteId) {
+    bulkArticles[i].site_id = siteId;
+    bulkArticles[i].category_id = '';
+    bulkArticles[i].author_id = '';
+    renderBulkTable();
+    if (siteId) {
+        await loadBulkWpData(siteId);
+        renderBulkTable();
+    }
+}
+
+async function setBulkAllSites(siteId) {
+    if (!siteId) return;
+    if (!confirm('Ustawic te strone dla wszystkich wierszy? Skasuje wybrane kategorie i autorow.')) return;
+    bulkArticles.forEach(a => {
+        a.site_id = siteId;
+        a.category_id = '';
+        a.author_id = '';
+    });
+    renderBulkTable();
+    await loadBulkWpData(siteId);
+    renderBulkTable();
+}
+
+function setBulkAllCategory(catId) {
+    if (!catId) return;
+    bulkArticles.forEach(a => { if (a.site_id) a.category_id = catId; });
+    renderBulkTable();
+}
+
+function setBulkAllAuthor(authId) {
+    if (!authId) return;
+    bulkArticles.forEach(a => { if (a.site_id) a.author_id = authId; });
+    renderBulkTable();
+}
+
+function setBulkAllStatus(status) {
+    bulkArticles.forEach(a => { a.status = status; });
+    renderBulkTable();
+}
+
+function setBulkRandomDates() {
+    const from = document.getElementById('bulkRandomDateFrom').value;
+    const to = document.getElementById('bulkRandomDateTo').value;
+    if (!from || !to) return showToast('Podaj zakres dat', 'error');
+    const fromTs = new Date(from).getTime();
+    const toTs = new Date(to).getTime();
+    if (fromTs >= toTs) return showToast('Data "od" musi byc przed "do"', 'error');
+    bulkArticles.forEach(a => {
+        const ts = fromTs + Math.random() * (toTs - fromTs);
+        a.publish_date = new Date(ts).toISOString().slice(0, 16);
+    });
+    renderBulkTable();
+}
+
+function removeBulkRow(i) {
+    bulkArticles.splice(i, 1);
+    renderBulkTable();
+}
+
+function clearBulkArticles() {
+    if (!bulkArticles.length) return;
+    if (!confirm('Wyczyscic cala liste?')) return;
+    bulkArticles = [];
+    bulkPublishedUrls = [];
+    document.getElementById('bulkPublishReport').classList.add('d-none');
+    renderBulkTable();
+}
+
+async function generateBulkRowImage(i) {
+    const a = bulkArticles[i];
+    if (!a.title) return showToast('Brak tytulu', 'error');
+    showToast('Generuje obrazek...', 'info');
+    try {
+        const r = await api('POST', 'api/gemini-generate.php', {prompt: a.title, mode: 'featured'});
+        if (r.error) return showToast(r.error, 'error');
+        a.image_data = r.image_data;
+        a.image_filename = r.filename || 'image.jpg';
+        renderBulkTable();
+        showToast('Obrazek wygenerowany', 'success');
+    } catch (e) {
+        showToast('Blad: ' + e.message, 'error');
+    }
+}
+
+function onBulkRowImageUpload(i, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        bulkArticles[i].image_data = e.target.result.split(',')[1];
+        bulkArticles[i].image_filename = file.name;
+        renderBulkTable();
+    };
+    reader.readAsDataURL(file);
+}
+
+async function bulkGenerateImagesBulk() {
+    const targets = bulkArticles.filter(a => !a.image_data && a.title);
+    if (!targets.length) return showToast('Brak artykulow do wygenerowania', 'info');
+    if (!confirm('Wygenerowac obrazki dla ' + targets.length + ' artykulow?')) return;
+    const status = document.getElementById('bulkGeminiStatus');
+    let done = 0;
+    for (const a of targets) {
+        status.innerHTML = '<i class="ti ti-loader spin"></i> Generuje ' + (done + 1) + '/' + targets.length + '...';
+        try {
+            const r = await api('POST', 'api/gemini-generate.php', {prompt: a.title, mode: 'featured'});
+            if (!r.error) {
+                a.image_data = r.image_data;
+                a.image_filename = r.filename || 'image.jpg';
+            }
+        } catch (e) { /* skip */ }
+        done++;
+        renderBulkTable();
+    }
+    status.textContent = 'Gotowe: ' + done + '/' + targets.length;
+    setTimeout(() => { status.textContent = ''; }, 3000);
+}
+
+let _bulkManualImgData = '';
+let _bulkManualImgName = '';
+
+document.addEventListener('change', e => {
+    if (e.target && e.target.id === 'bulkManualImage') {
+        const f = e.target.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = ev => {
+            _bulkManualImgData = ev.target.result.split(',')[1];
+            _bulkManualImgName = f.name;
+            const prev = document.getElementById('bulkManualImagePreview');
+            if (prev) prev.innerHTML = '<img src="' + ev.target.result + '" style="max-height:120px;border-radius:4px">';
+        };
+        r.readAsDataURL(f);
+    }
+});
+
+async function generateBulkManualImage() {
+    const title = document.getElementById('bulkManualTitle').value.trim();
+    if (!title) return showToast('Wpisz tytul', 'error');
+    showToast('Generuje...', 'info');
+    try {
+        const r = await api('POST', 'api/gemini-generate.php', {prompt: title, mode: 'featured'});
+        if (r.error) return showToast(r.error, 'error');
+        _bulkManualImgData = r.image_data;
+        _bulkManualImgName = r.filename || 'image.jpg';
+        const prev = document.getElementById('bulkManualImagePreview');
+        if (prev) prev.innerHTML = '<img src="data:image/jpeg;base64,' + r.image_data + '" style="max-height:120px;border-radius:4px">';
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function addBulkManualArticle() {
+    const title = document.getElementById('bulkManualTitle').value.trim();
+    const content = document.getElementById('bulkManualContent').value.trim();
+    if (!title) return showToast('Wpisz tytul', 'error');
+    bulkArticles.push({
+        id: Date.now() + Math.random(),
+        title, content,
+        site_id: '', category_id: '', author_id: '',
+        image_data: _bulkManualImgData, image_filename: _bulkManualImgName,
+        publish_date: '', status: 'draft',
+    });
+    _bulkManualImgData = ''; _bulkManualImgName = '';
+    document.getElementById('bulkManualTitle').value = '';
+    document.getElementById('bulkManualContent').value = '';
+    document.getElementById('bulkManualImage').value = '';
+    document.getElementById('bulkManualImagePreview').innerHTML = '';
+    const modal = document.getElementById('bulkManualModal');
+    if (modal && window.bootstrap) bootstrap.Modal.getInstance(modal)?.hide();
+    renderBulkTable();
+}
+
+async function publishBulkAll() {
+    if (!bulkArticles.length) return showToast('Brak artykulow', 'error');
+    const missing = bulkArticles.filter(a => !a.site_id);
+    if (missing.length) return showToast(missing.length + ' wierszy bez przypisanej strony', 'error');
+    const uniq = new Set(bulkArticles.map(a => a.site_id)).size;
+    if (!confirm('Opublikowac ' + bulkArticles.length + ' artykulow na ' + uniq + ' stronach?')) return;
+
+    const btn = document.getElementById('btnBulkPublishAll');
+    const progressWrap = document.getElementById('bulkPublishProgress');
+    const progressBar = document.getElementById('bulkPublishProgressBar');
+    const report = document.getElementById('bulkPublishReport');
+    const log = document.getElementById('bulkPublishReportLog');
+
+    btn.disabled = true;
+    progressWrap.classList.remove('d-none');
+    report.classList.remove('d-none');
+    log.innerHTML = '';
+    bulkPublishedUrls = [];
+
+    const total = bulkArticles.length;
+    for (let i = 0; i < total; i++) {
+        const a = bulkArticles[i];
+        progressBar.style.width = ((i + 1) / total * 100) + '%';
+        progressBar.textContent = (i + 1) + ' / ' + total;
+        try {
+            const postData = {
+                site_id: parseInt(a.site_id),
+                title: a.title,
+                content: a.content,
+                status: a.status || 'draft',
+                category_id: a.category_id ? parseInt(a.category_id) : 0,
+                author_id: a.author_id ? parseInt(a.author_id) : 0,
+                publish_date: a.publish_date || '',
+            };
+            if (a.image_data) {
+                postData.image_data = a.image_data;
+                postData.image_filename = a.image_filename || 'image.jpg';
+            }
+            const r = await api('POST', 'api/publish.php', postData);
+            if (r.success) {
+                bulkPublishedUrls.push(r.post_url);
+                const siteName = (bulkSitesList.find(s => String(s.id) === String(a.site_id)) || {}).name || '?';
+                log.innerHTML += '<div class="text-success small"><i class="ti ti-check"></i> <strong>' + esc(r.title) + '</strong> <span class="text-muted">[' + esc(siteName) + ']</span> &rarr; <a href="' + esc(r.post_url) + '" target="_blank">' + esc(r.post_url) + '</a></div>';
+            } else {
+                log.innerHTML += '<div class="text-danger small"><i class="ti ti-x"></i> <strong>' + esc(a.title) + '</strong>: ' + esc(r.error || 'nieznany blad') + '</div>';
+            }
+        } catch (e) {
+            log.innerHTML += '<div class="text-danger small"><i class="ti ti-x"></i> <strong>' + esc(a.title) + '</strong>: ' + esc(e.message) + '</div>';
+        }
+    }
+
+    progressBar.style.width = '100%';
+    progressBar.textContent = 'Gotowe: ' + total + '/' + total;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-send"></i> Publikuj wszystkie';
+    showToast('Opublikowano: ' + bulkPublishedUrls.length + '/' + total, 'success');
+}
+
+function copyBulkPublishedUrls() {
+    if (!bulkPublishedUrls.length) return;
+    navigator.clipboard.writeText(bulkPublishedUrls.join('\n')).then(() => showToast('Linki skopiowane', 'success'));
+}
+
+function exportBulkJson() {
+    if (!bulkArticles.length) return showToast('Brak artykulow', 'error');
+    const stripped = bulkArticles.map(a => ({...a, image_data: a.image_data ? '__HAS_IMAGE__' : ''}));
+    const blob = new Blob([JSON.stringify(stripped, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'publikuj-masowo-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importBulkJson(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) throw new Error('Plik nie jest tablica JSON');
+            bulkArticles = data.map(a => ({
+                id: a.id || (Date.now() + Math.random()),
+                title: a.title || '',
+                content: a.content || '',
+                site_id: a.site_id || '',
+                category_id: a.category_id || '',
+                author_id: a.author_id || '',
+                image_data: a.image_data === '__HAS_IMAGE__' ? '' : (a.image_data || ''),
+                image_filename: a.image_filename || '',
+                publish_date: a.publish_date || '',
+                status: a.status || 'draft',
+            }));
+            const uniq = [...new Set(bulkArticles.map(a => a.site_id).filter(Boolean))];
+            Promise.all(uniq.map(s => loadBulkWpData(s))).then(() => renderBulkTable());
+            renderBulkTable();
+            showToast('Wczytano ' + bulkArticles.length + ' pozycji', 'success');
+        } catch (err) {
+            showToast('Blad: ' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+}

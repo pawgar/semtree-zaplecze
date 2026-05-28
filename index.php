@@ -129,6 +129,10 @@ switch ($page) {
         requireLogin();
         require __DIR__ . '/pages/publish.php';
         break;
+    case 'publish-bulk':
+        requireLogin();
+        require __DIR__ . '/pages/publish-bulk.php';
+        break;
     case 'import':
         requireLogin();
         require __DIR__ . '/pages/import.php';
