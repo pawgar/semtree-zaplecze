@@ -77,7 +77,8 @@
             </div>
         </div>
         <div class="text-center text-secondary mt-3 small">
-            © <?= date('Y') ?> Semtree Zaplecze
+            <div>Czas serwera: <strong><?= gmdate('H:i:s') ?></strong> UTC — porównaj z zegarem telefonu (powinien być w ciągu ±60s)</div>
+            <div class="mt-2">© <?= date('Y') ?> Semtree Zaplecze</div>
         </div>
     </div>
 </div>

@@ -17,7 +17,7 @@ define('PENDING_2FA_TTL', 600);              // 10 min to enter OTP after passwo
 define('RECOVERY_CODE_COUNT', 8);            // generated on activation
 define('MAX_FAILED_ATTEMPTS', 5);            // wrong OTP attempts before lockout
 define('LOCKOUT_SECONDS', 900);              // 15 min cooldown
-define('TOTP_WINDOW', 1);                    // ±30s clock skew tolerance
+define('TOTP_WINDOW', 2);                    // ±60s clock skew tolerance (was 1)
 
 /**
  * APP_KEY — used to encrypt TOTP secrets at rest (AES-256-GCM).

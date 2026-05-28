@@ -121,6 +121,7 @@
         <div class="text-center text-secondary mt-3 small">
             Zalogowano jako <strong><?= htmlspecialchars($_SESSION['username'] ?? '') ?></strong> &middot;
             <a href="index.php?page=logout" class="link-secondary">Wyloguj</a>
+            <div class="mt-2">Czas serwera: <strong><?= gmdate('H:i:s') ?></strong> UTC</div>
         </div>
     </div>
 </div>
