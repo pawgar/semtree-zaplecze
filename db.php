@@ -234,6 +234,15 @@ function migrateSchema(SQLite3 $db): void {
         $db->exec('ALTER TABLE users ADD COLUMN totp_locked_until DATETIME DEFAULT NULL');
     }
 
+    // One-shot: po wdrozeniu zlagodzenia polityki lockout, wyczysc istniejace blokady
+    // (np. adminow ktorzy zalapali sie na stary lockout=5 prob). Idempotentne — flaga
+    // w settings sprawia, ze leci tylko raz.
+    $flag = $db->querySingle("SELECT value FROM settings WHERE key='lockout_purge_v1'");
+    if ($flag !== '1') {
+        $db->exec("UPDATE users SET totp_failed_attempts = 0, totp_locked_until = NULL");
+        $db->exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('lockout_purge_v1', '1')");
+    }
+
     // Add GSC metric columns to sites table (for instant dashboard loading)
     if (!in_array('gsc_clicks', $siteCols)) {
         $db->exec('ALTER TABLE sites ADD COLUMN gsc_clicks INTEGER DEFAULT NULL');
