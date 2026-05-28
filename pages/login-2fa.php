@@ -70,9 +70,11 @@
                     </div>
                     <div class="mb-3 d-none" id="recoveryBlock">
                         <label class="form-label" for="recoveryCode">Kod odzyskiwania</label>
-                        <input type="text" class="form-control" id="recoveryCode" name="code"
+                        <input type="text" class="form-control" id="recoveryCode"
                                placeholder="XXXX-XXXX" autocomplete="one-time-code"
                                style="text-transform:uppercase;letter-spacing:0.2em">
+                        <!-- name="code" celowo NIEUSTAWIONE — JS dolicza je gdy user wlaczy tryb odzyskiwania.
+                             Inaczej oba inputy maja name="code" jednoczesnie i PHP przeczyta pusty drugi. -->
                         <div class="form-hint">Jednorazowy kod zapisany podczas konfiguracji 2FA.</div>
                     </div>
                     <input type="hidden" name="recovery" id="recoveryFlag" value="">
