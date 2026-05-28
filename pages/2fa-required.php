@@ -6,6 +6,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Wymagana konfiguracja 2FA — <?= APP_NAME ?></title>
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon/favicon-192x192.png">
+    <link rel="apple-touch-icon" href="assets/img/favicon/apple-touch-icon.png">
     <link rel="preconnect" href="https://rsms.me/">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <link href="assets/vendor/tabler/css/tabler.min.css" rel="stylesheet">
