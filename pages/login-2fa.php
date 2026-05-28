@@ -41,6 +41,24 @@
                 </div>
                 <?php endif; ?>
 
+                <?php if (!empty($twoFactorDebug)): ?>
+                <div class="alert alert-warning small" role="alert">
+                    <strong><i class="ti ti-bug me-1"></i>Diagnostyka:</strong><br>
+                    <?php if (!empty($twoFactorDebug['secret_loaded'])): ?>
+                        Wpisany kod: <code><?= htmlspecialchars($twoFactorDebug['received_code'] ?? '') ?></code><br>
+                        Oczekiwany TERAZ: <code><?= htmlspecialchars($twoFactorDebug['expected_now'] ?? '') ?></code><br>
+                        Poprzedni krok (–30s): <code><?= htmlspecialchars($twoFactorDebug['expected_prev'] ?? '') ?></code><br>
+                        Następny krok (+30s): <code><?= htmlspecialchars($twoFactorDebug['expected_next'] ?? '') ?></code><br>
+                        Czas serwera: <code><?= htmlspecialchars($twoFactorDebug['server_time'] ?? '') ?></code><br>
+                        Sekret: <code><?= htmlspecialchars($twoFactorDebug['secret_first8'] ?? '') ?></code> (odszyfrowany OK)<br>
+                        <em>Porównaj "Oczekiwany TERAZ" z tym co pokazuje aplikacja.</em>
+                    <?php else: ?>
+                        <strong>Sekret w bazie się nie odszyfrował!</strong><br>
+                        <?= htmlspecialchars($twoFactorDebug['note'] ?? '') ?>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+
                 <form method="POST" action="index.php?page=login-2fa" autocomplete="off" novalidate id="otpForm">
                     <div class="mb-3" id="otpBlock">
                         <label class="form-label" for="code">Kod 6-cyfrowy</label>

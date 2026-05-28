@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/includes/totp.php';
 
 $page = $_GET['page'] ?? '';
 
@@ -56,6 +57,33 @@ if ($page === 'login-2fa' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $twoFactorError = $useRecovery
             ? 'Nieprawidłowy kod odzyskiwania.'
             : 'Nieprawidłowy kod uwierzytelniający.';
+        // DIAGNOSTYKA: dla nieudanego OTP zwroc oczekiwane kody zeby user
+        // mogl porownac z tym co ma w aplikacji. To JEGO sekret, brak leaku.
+        if (!$useRecovery) {
+            startSession();
+            $uid = (int)($_SESSION['pending_2fa']['user_id'] ?? 0);
+            if ($uid) {
+                $row = tfaUserRow($uid);
+                if ($row) {
+                    $secret = tfaGetSecret($row);
+                    if ($secret) {
+                        $now = time();
+                        $twoFactorDebug = [
+                            'received_code' => preg_replace('/\D/', '', $code),
+                            'expected_now'  => totpCode($secret, $now),
+                            'expected_prev' => totpCode($secret, $now - 30),
+                            'expected_next' => totpCode($secret, $now + 30),
+                            'server_time'   => gmdate('Y-m-d H:i:s') . ' UTC',
+                            'secret_loaded' => true,
+                            'secret_first8' => substr($secret, 0, 4) . '...' . substr($secret, -4),
+                            'totp_step'     => intdiv($now, 30),
+                        ];
+                    } else {
+                        $twoFactorDebug = ['secret_loaded' => false, 'note' => 'Sekret w bazie nie odszyfrowal sie — data/app_key.php prawdopodobnie zostal zregenerowany po aktywacji.'];
+                    }
+                }
+            }
+        }
     }
 }
 
