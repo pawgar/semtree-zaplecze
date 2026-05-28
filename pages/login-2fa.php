@@ -42,19 +42,20 @@
                 <?php endif; ?>
 
                 <?php if (!empty($twoFactorDebug)): ?>
-                <div class="alert alert-warning small" role="alert">
-                    <strong><i class="ti ti-bug me-1"></i>Diagnostyka:</strong><br>
+                <div class="alert alert-warning small" role="alert" style="display:block">
+                    <div class="mb-2"><strong><i class="ti ti-bug me-1"></i>Diagnostyka:</strong></div>
                     <?php if (!empty($twoFactorDebug['secret_loaded'])): ?>
-                        Wpisany kod: <code><?= htmlspecialchars($twoFactorDebug['received_code'] ?? '') ?></code><br>
-                        Oczekiwany TERAZ: <code><?= htmlspecialchars($twoFactorDebug['expected_now'] ?? '') ?></code><br>
-                        Poprzedni krok (–30s): <code><?= htmlspecialchars($twoFactorDebug['expected_prev'] ?? '') ?></code><br>
-                        Następny krok (+30s): <code><?= htmlspecialchars($twoFactorDebug['expected_next'] ?? '') ?></code><br>
-                        Czas serwera: <code><?= htmlspecialchars($twoFactorDebug['server_time'] ?? '') ?></code><br>
-                        Sekret: <code><?= htmlspecialchars($twoFactorDebug['secret_first8'] ?? '') ?></code> (odszyfrowany OK)<br>
-                        <em>Porównaj "Oczekiwany TERAZ" z tym co pokazuje aplikacja.</em>
+                        <div>Wpisany kod: <code><?= htmlspecialchars($twoFactorDebug['received_code'] ?? '') ?></code></div>
+                        <div>Oczekiwany TERAZ: <code style="font-size:1.1em;font-weight:bold;color:#b02a37"><?= htmlspecialchars($twoFactorDebug['expected_now'] ?? '') ?></code></div>
+                        <div>Poprzedni (–30s): <code><?= htmlspecialchars($twoFactorDebug['expected_prev'] ?? '') ?></code></div>
+                        <div>Następny (+30s): <code><?= htmlspecialchars($twoFactorDebug['expected_next'] ?? '') ?></code></div>
+                        <div>Czas serwera: <code><?= htmlspecialchars($twoFactorDebug['server_time'] ?? '') ?></code></div>
+                        <div>Sekret: <code><?= htmlspecialchars($twoFactorDebug['secret_first8'] ?? '') ?></code> <span class="text-success">(odszyfrowany OK)</span></div>
+                        <hr class="my-2">
+                        <div><em>Spójrz teraz w swoją aplikację (Authy/Google Authenticator). Czy kod dla "Semtree" pokazuje to samo co "Oczekiwany TERAZ"?</em></div>
                     <?php else: ?>
-                        <strong>Sekret w bazie się nie odszyfrował!</strong><br>
-                        <?= htmlspecialchars($twoFactorDebug['note'] ?? '') ?>
+                        <div><strong>Sekret w bazie się nie odszyfrował!</strong></div>
+                        <div><?= htmlspecialchars($twoFactorDebug['note'] ?? '') ?></div>
                     <?php endif; ?>
                 </div>
                 <?php endif; ?>
