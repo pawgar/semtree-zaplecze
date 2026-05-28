@@ -3,9 +3,47 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/includes/two_factor.php';
 
 function startSession(): void {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
+    if (session_status() !== PHP_SESSION_NONE) return;
+
+    // ── Konfiguracja sesji PHP MUSI byc ustawiona PRZED session_start() ──
+    //
+    // Domyslne PHP: session.gc_maxlifetime=1440 (24min), session.cookie_lifetime=0
+    // (do zamkniecia przegladarki). Przez to PHP usuwal pliki sesji po 24 minutach
+    // niezaleznie od naszej logiki login_at + ABSOLUTE_SESSION_SECONDS.
+    //
+    // Plus na shared hostingu (Nazwa.pl/inne) defaultowy save_path = /tmp dzielony
+    // z innymi aplikacjami, gdzie systemowy cron czysci globalnie wedlug NAJKROTSZEJ
+    // wartosci gc_maxlifetime ze wszystkich vhostów. Dlatego trzymamy session files
+    // we wlasnym katalogu data/sessions/.
+    @ini_set('session.gc_maxlifetime', (string) SESSION_LIFETIME);
+    @ini_set('session.gc_probability', '1');
+    @ini_set('session.gc_divisor', '100');
+    @ini_set('session.use_strict_mode', '1');
+    @ini_set('session.cookie_httponly', '1');
+
+    $sessionDir = __DIR__ . '/data/sessions';
+    if (!is_dir($sessionDir)) {
+        @mkdir($sessionDir, 0700, true);
+        // Twardo blokujemy direct access przez Apache (na wszelki wypadek)
+        @file_put_contents($sessionDir . '/.htaccess', "Require all denied\nDeny from all\n");
     }
+    if (is_dir($sessionDir) && is_writable($sessionDir)) {
+        session_save_path($sessionDir);
+    }
+
+    // Cookie lifetime musi byc ustawiany przez session_set_cookie_params, nie ini_set
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+           || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    session_set_cookie_params([
+        'lifetime' => SESSION_LIFETIME,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+
+    session_start();
 }
 
 /**
