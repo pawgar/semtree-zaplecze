@@ -85,6 +85,11 @@
                             <a href="index.php?page=profile" class="dropdown-item">
                                 <i class="ti ti-user-circle me-2"></i> Profil
                             </a>
+                            <?php if (isAdmin()): ?>
+                            <a href="index.php?page=users" class="dropdown-item">
+                                <i class="ti ti-users me-2"></i> Użytkownicy
+                            </a>
+                            <?php endif; ?>
                             <a href="index.php?page=settings" class="dropdown-item">
                                 <i class="ti ti-settings me-2"></i> Ustawienia
                             </a>
@@ -128,14 +133,7 @@
                             <li class="nav-item <?= ($page ?? '') === 'auto-publish' ? 'active' : '' ?>">
                                 <a class="nav-link" href="index.php?page=auto-publish"><span class="nav-link-icon"><i class="ti ti-robot"></i></span><span class="nav-link-title">Auto publikacje</span></a>
                             </li>
-                            <?php if (isAdmin()): ?>
-                            <li class="nav-item <?= ($page ?? '') === 'users' ? 'active' : '' ?>">
-                                <a class="nav-link" href="index.php?page=users"><span class="nav-link-icon"><i class="ti ti-users"></i></span><span class="nav-link-title">Użytkownicy</span></a>
-                            </li>
-                            <?php endif; ?>
-                            <li class="nav-item <?= ($page ?? '') === 'settings' ? 'active' : '' ?>">
-                                <a class="nav-link" href="index.php?page=settings"><span class="nav-link-icon"><i class="ti ti-settings"></i></span><span class="nav-link-title">Ustawienia</span></a>
-                            </li>
+<?php /* Użytkownicy + Ustawienia przeniesione do dropdownu usera w topbarze */ ?>
                         </ul>
                     </div>
                 </div>
