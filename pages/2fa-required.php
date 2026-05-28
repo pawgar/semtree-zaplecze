@@ -11,7 +11,7 @@
     <link href="assets/vendor/tabler/css/tabler.min.css" rel="stylesheet">
     <link href="assets/vendor/tabler-icons/tabler-icons.min.css" rel="stylesheet">
     <script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="assets/vendor/qrcode/qrcode.min.js"></script>
 </head>
 <body class="d-flex flex-column">
 <div class="page page-center">
@@ -152,11 +152,17 @@ async function startSetup() {
 
     const qrBox = document.getElementById('qrBox');
     qrBox.innerHTML = '';
-    if (window.QRCode) {
-        window.QRCode.toCanvas(r.otpauth, {width: 220, margin: 1}, function(err, canvas){
-            if (err) { qrBox.innerHTML = '<div class="text-danger small p-3">Błąd QR: ' + err.message + '</div>'; return; }
-            qrBox.appendChild(canvas);
-        });
+    if (typeof qrcode === 'function') {
+        try {
+            // typeNumber=0 (auto-detect), errorCorrectionLevel='M'
+            const qr = qrcode(0, 'M');
+            qr.addData(r.otpauth);
+            qr.make();
+            // cellSize=8 px, margin=2 cells → ~final 200-220px
+            qrBox.innerHTML = qr.createImgTag(8, 16);
+        } catch (e) {
+            qrBox.innerHTML = '<div class="text-danger small p-3">Błąd QR: ' + e.message + '</div>';
+        }
     } else {
         qrBox.innerHTML = '<div class="text-secondary small p-3">Biblioteka QR niedostępna — użyj sekretu poniżej</div>';
     }

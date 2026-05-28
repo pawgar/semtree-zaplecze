@@ -5646,12 +5646,15 @@ async function tfaStartSetup() {
     const secretEl = document.getElementById('tfaSecretText');
     if (secretEl) secretEl.value = r.secret;
     const qrBox = document.getElementById('tfaQrBox');
-    if (qrBox && window.QRCode) {
-        qrBox.innerHTML = '';
-        window.QRCode.toCanvas(r.otpauth, {width: 200, margin: 1}, function(err, canvas){
-            if (err) { qrBox.innerHTML = '<div class="text-danger small">Błąd generowania QR</div>'; return; }
-            qrBox.appendChild(canvas);
-        });
+    if (qrBox && typeof qrcode === 'function') {
+        try {
+            const qr = qrcode(0, 'M');
+            qr.addData(r.otpauth);
+            qr.make();
+            qrBox.innerHTML = qr.createImgTag(7, 14);
+        } catch (e) {
+            qrBox.innerHTML = '<div class="text-danger small">Błąd generowania QR: ' + esc(e.message) + '</div>';
+        }
     } else if (qrBox) {
         qrBox.innerHTML = '<div class="text-secondary small">Biblioteka QR nie załadowana — użyj sekretu poniżej</div>';
     }

@@ -267,8 +267,8 @@ $tfaRecoveryRemaining = tfaRecoveryRemaining($tfaRow);
     </div>
 </div>
 
-<!-- QR code library (small, ~12KB) — generated client-side from otpauth URL -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<!-- QR code library (UMD, ~20KB) — generated client-side from otpauth URL -->
+<script src="assets/vendor/qrcode/qrcode.min.js"></script>
 
 <input type="hidden" id="profileUserId" value="<?= $viewUserId ?: $_SESSION['user_id'] ?>">
 
