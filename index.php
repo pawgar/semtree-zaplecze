@@ -80,6 +80,17 @@ if (!isLoggedIn()) {
     exit;
 }
 
+// ── HARD GATE: 2FA jest wymagane dla wszystkich ─────────────
+// Jeśli zalogowany użytkownik nie ma jeszcze aktywnego 2FA,
+// może wejść tylko na stronę wymuszonej konfiguracji lub się wylogować.
+if (!hasTwoFactorEnabled()) {
+    $allowedWithout2FA = ['2fa-required', 'logout'];
+    if (!in_array($page, $allowedWithout2FA, true)) {
+        header('Location: index.php?page=2fa-required');
+        exit;
+    }
+}
+
 // ── Logged in → route ───────────────────────────────────────
 switch ($page) {
     case 'order':
@@ -117,6 +128,10 @@ switch ($page) {
     case 'users':
         requireAdmin();
         require __DIR__ . '/pages/users.php';
+        break;
+    case '2fa-required':
+        requireLogin();
+        require __DIR__ . '/pages/2fa-required.php';
         break;
     case 'profile':
         requireLogin();

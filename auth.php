@@ -191,6 +191,7 @@ function requireAdminApi(): void {
         echo json_encode(['error' => 'Brak uprawnien']);
         exit;
     }
+    enforceTwoFactorOnApi();
 }
 
 function requireLoginApi(): void {
@@ -200,4 +201,20 @@ function requireLoginApi(): void {
         echo json_encode(['error' => 'Nie zalogowano']);
         exit;
     }
+    enforceTwoFactorOnApi();
+}
+
+/**
+ * Enforce mandatory 2FA on API endpoints. The wizard's own bootstrap endpoints
+ * (setup/enable) and session-info are whitelisted — otherwise the user could
+ * never activate 2FA in the first place.
+ */
+function enforceTwoFactorOnApi(): void {
+    $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    $whitelist = ['2fa-setup.php', '2fa-enable.php', 'session-info.php'];
+    if (in_array($script, $whitelist, true)) return;
+    if (hasTwoFactorEnabled()) return;
+    http_response_code(403);
+    echo json_encode(['error' => '2FA wymagane', 'require_2fa' => true]);
+    exit;
 }
