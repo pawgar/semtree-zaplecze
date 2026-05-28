@@ -6002,10 +6002,10 @@ async function generateBulkRowImage(i) {
     if (!a.title) return showToast('Brak tytulu', 'error');
     showToast('Generuje obrazek...', 'info');
     try {
-        const r = await api('POST', 'api/gemini-generate.php', {prompt: a.title, mode: 'featured'});
+        const r = await api('POST', 'api/gemini-generate.php', {title: a.title});
         if (r.error) return showToast(r.error, 'error');
         a.image_data = r.image_data;
-        a.image_filename = r.filename || 'image.jpg';
+        a.image_filename = r.image_filename || 'image.jpg';
         renderBulkTable();
         showToast('Obrazek wygenerowany', 'success');
     } catch (e) {
@@ -6034,10 +6034,10 @@ async function bulkGenerateImagesBulk() {
     for (const a of targets) {
         status.innerHTML = '<i class="ti ti-loader spin"></i> Generuje ' + (done + 1) + '/' + targets.length + '...';
         try {
-            const r = await api('POST', 'api/gemini-generate.php', {prompt: a.title, mode: 'featured'});
+            const r = await api('POST', 'api/gemini-generate.php', {title: a.title});
             if (!r.error) {
                 a.image_data = r.image_data;
-                a.image_filename = r.filename || 'image.jpg';
+                a.image_filename = r.image_filename || 'image.jpg';
             }
         } catch (e) { /* skip */ }
         done++;
@@ -6070,10 +6070,10 @@ async function generateBulkManualImage() {
     if (!title) return showToast('Wpisz tytul', 'error');
     showToast('Generuje...', 'info');
     try {
-        const r = await api('POST', 'api/gemini-generate.php', {prompt: title, mode: 'featured'});
+        const r = await api('POST', 'api/gemini-generate.php', {title: title});
         if (r.error) return showToast(r.error, 'error');
         _bulkManualImgData = r.image_data;
-        _bulkManualImgName = r.filename || 'image.jpg';
+        _bulkManualImgName = r.image_filename || 'image.jpg';
         const prev = document.getElementById('bulkManualImagePreview');
         if (prev) prev.innerHTML = '<img src="data:image/jpeg;base64,' + r.image_data + '" style="max-height:120px;border-radius:4px">';
     } catch (e) { showToast(e.message, 'error'); }
