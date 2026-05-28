@@ -1,6 +1,7 @@
 data/database.sqlite
 data/*.sqlite
 data/*.db
+data/app_key.php
 config.json
 CLAUDE.local.md
 __pycache__/

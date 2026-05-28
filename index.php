@@ -3,32 +3,84 @@ require_once __DIR__ . '/auth.php';
 
 $page = $_GET['page'] ?? '';
 
-// Handle logout
+// ── Logout ──────────────────────────────────────────────────
 if ($page === 'logout') {
     logout();
     header('Location: index.php?page=login');
     exit;
 }
 
-// Handle login POST
+// ── Step 1: username + password ─────────────────────────────
 if ($page === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if (login($username, $password)) {
+    $result = login($username, $password);
+    if ($result === 'ok') {
         header('Location: index.php');
         exit;
     }
-    $loginError = 'Nieprawidlowy login lub haslo';
+    if ($result === 'pending_2fa') {
+        header('Location: index.php?page=login-2fa');
+        exit;
+    }
+    if ($result === 'locked') {
+        $loginError = 'Konto czasowo zablokowane (zbyt wiele nieudanych prób 2FA). Spróbuj ponownie za kilka minut.';
+    } else {
+        $loginError = 'Nieprawidlowy login lub haslo';
+    }
 }
 
-// Not logged in → show login
+// ── Step 2: TOTP / recovery code ────────────────────────────
+if ($page === 'login-2fa' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!pendingTwoFactor()) {
+        header('Location: index.php?page=login');
+        exit;
+    }
+    $code = trim($_POST['code'] ?? '');
+    $useRecovery = !empty($_POST['recovery']);
+    $r = completeTwoFactor($code, $useRecovery);
+    if ($r === 'ok') {
+        header('Location: index.php');
+        exit;
+    }
+    if ($r === 'expired') {
+        $loginError = 'Sesja weryfikacji wygasła — zaloguj się ponownie.';
+        // fall through to show login.php
+    } elseif ($r === 'locked') {
+        logout(); // drop pending state, force restart
+        $loginError = 'Zbyt wiele nieudanych prób — konto chwilowo zablokowane. Spróbuj ponownie za kilka minut.';
+    } elseif ($r === 'no_pending') {
+        $loginError = 'Brak aktywnej sesji logowania.';
+    } else {
+        $twoFactorError = $useRecovery
+            ? 'Nieprawidłowy kod odzyskiwania.'
+            : 'Nieprawidłowy kod uwierzytelniający.';
+    }
+}
+
+// ── Show 2FA challenge page ─────────────────────────────────
+if ($page === 'login-2fa' && pendingTwoFactor()) {
+    require __DIR__ . '/pages/login-2fa.php';
+    exit;
+}
+
+// Drop stale pending state if user navigated elsewhere
+if (pendingTwoFactor() && $page !== 'login-2fa') {
+    // Cancelled — bounce back to login (clear pending only on /login GET)
+    if ($page === 'login') {
+        startSession();
+        unset($_SESSION['pending_2fa']);
+    }
+}
+
+// ── Not logged in → show login ──────────────────────────────
 if (!isLoggedIn()) {
     require __DIR__ . '/pages/login.php';
     exit;
 }
 
-// Logged in → route to page
+// ── Logged in → route ───────────────────────────────────────
 switch ($page) {
     case 'order':
         requireLogin();

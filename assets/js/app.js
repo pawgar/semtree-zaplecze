@@ -5632,3 +5632,117 @@ function renderCronActivity(cron) {
     setText('cronApToday', cron.auto_publish.published_today || 0);
     setText('cronApErrors', cron.auto_publish.errors_total || 0);
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  2FA (TOTP) — profile page wizard
+// ═══════════════════════════════════════════════════════════════
+let _tfaOtpauth = null;
+let _tfaLastCodes = [];
+
+async function tfaStartSetup() {
+    const r = await api('POST', '/api/2fa-setup.php');
+    if (r.error) { showToast(r.error, 'error'); return; }
+    _tfaOtpauth = r.otpauth;
+    const secretEl = document.getElementById('tfaSecretText');
+    if (secretEl) secretEl.value = r.secret;
+    const qrBox = document.getElementById('tfaQrBox');
+    if (qrBox && window.QRCode) {
+        qrBox.innerHTML = '';
+        window.QRCode.toCanvas(r.otpauth, {width: 200, margin: 1}, function(err, canvas){
+            if (err) { qrBox.innerHTML = '<div class="text-danger small">Błąd generowania QR</div>'; return; }
+            qrBox.appendChild(canvas);
+        });
+    } else if (qrBox) {
+        qrBox.innerHTML = '<div class="text-secondary small">Biblioteka QR nie załadowana — użyj sekretu poniżej</div>';
+    }
+    document.getElementById('tfaSetupWizard').style.display = '';
+    document.getElementById('tfaSetupBtn')?.setAttribute('disabled', 'disabled');
+    document.getElementById('tfaVerifyCode')?.focus();
+}
+
+function tfaCancelSetup() {
+    document.getElementById('tfaSetupWizard').style.display = 'none';
+    document.getElementById('tfaVerifyCode').value = '';
+    document.getElementById('tfaMsg').innerHTML = '';
+    document.getElementById('tfaSetupBtn')?.removeAttribute('disabled');
+}
+
+function tfaCopySecret() {
+    const el = document.getElementById('tfaSecretText');
+    if (!el) return;
+    navigator.clipboard.writeText(el.value).then(() => showToast('Sekret skopiowany', 'success'));
+}
+
+async function tfaConfirmEnable() {
+    const code = (document.getElementById('tfaVerifyCode').value || '').replace(/\D/g, '');
+    const msg = document.getElementById('tfaMsg');
+    if (code.length !== 6) {
+        msg.innerHTML = '<div class="text-danger small">Wpisz pełny 6-cyfrowy kod.</div>';
+        return;
+    }
+    const r = await api('POST', '/api/2fa-enable.php', {code});
+    if (r.error) {
+        msg.innerHTML = '<div class="text-danger small">' + esc(r.error) + '</div>';
+        return;
+    }
+    _tfaLastCodes = r.recovery_codes || [];
+    tfaCancelSetup();
+    tfaShowRecoveryCodes(_tfaLastCodes);
+    showToast('2FA aktywowane', 'success');
+    // Update status badge in-place
+    const b = document.getElementById('tfaStatusBadge');
+    if (b) { b.className = 'ms-auto badge bg-green-lt'; b.textContent = 'Włączone'; }
+}
+
+async function tfaDisable() {
+    const password = prompt('Aby wyłączyć 2FA, podaj swoje aktualne hasło:');
+    if (!password) return;
+    const r = await api('POST', '/api/2fa-disable.php', {password});
+    if (r.error) { showToast(r.error, 'error'); return; }
+    showToast('2FA zostało wyłączone', 'success');
+    setTimeout(() => location.reload(), 600);
+}
+
+async function tfaRegenerateCodes() {
+    const password = prompt('Aby wygenerować nowe kody odzyskiwania, podaj swoje aktualne hasło:');
+    if (!password) return;
+    const r = await api('POST', '/api/2fa-regenerate-codes.php', {password});
+    if (r.error) { showToast(r.error, 'error'); return; }
+    _tfaLastCodes = r.recovery_codes || [];
+    tfaShowRecoveryCodes(_tfaLastCodes);
+    const c = document.getElementById('tfaRecoveryCount');
+    if (c) c.textContent = String(_tfaLastCodes.length);
+    showToast('Wygenerowano nowe kody odzyskiwania', 'success');
+}
+
+function tfaShowRecoveryCodes(codes) {
+    const list = document.getElementById('tfaCodesList');
+    const box  = document.getElementById('tfaCodesBox');
+    if (!list || !box) return;
+    list.innerHTML = codes.map(c =>
+        '<div class="col-6"><div class="border rounded px-2 py-1 text-center">' + esc(c) + '</div></div>'
+    ).join('');
+    box.style.display = '';
+    box.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+function tfaHideCodes() {
+    document.getElementById('tfaCodesBox').style.display = 'none';
+}
+
+function tfaCopyCodes() {
+    navigator.clipboard.writeText(_tfaLastCodes.join('\n')).then(() => showToast('Kody skopiowane', 'success'));
+}
+
+function tfaDownloadCodes() {
+    const text = 'Semtree Zaplecze — kody odzyskiwania 2FA\n' +
+                 'Wygenerowano: ' + new Date().toISOString() + '\n\n' +
+                 _tfaLastCodes.join('\n') + '\n';
+    const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'semtree-2fa-recovery-codes.txt';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+

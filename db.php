@@ -209,6 +209,31 @@ function migrateSchema(SQLite3 $db): void {
         )
     ');
 
+    // ── 2FA columns on users table ─────────────────────────────
+    $userCols = [];
+    $colsResult = $db->query("PRAGMA table_info(users)");
+    while ($col = $colsResult->fetchArray(SQLITE3_ASSOC)) {
+        $userCols[] = $col['name'];
+    }
+    if (!in_array('totp_secret', $userCols)) {
+        $db->exec('ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT NULL');
+    }
+    if (!in_array('totp_enabled', $userCols)) {
+        $db->exec('ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!in_array('totp_recovery_codes', $userCols)) {
+        $db->exec('ALTER TABLE users ADD COLUMN totp_recovery_codes TEXT DEFAULT NULL');
+    }
+    if (!in_array('totp_enabled_at', $userCols)) {
+        $db->exec('ALTER TABLE users ADD COLUMN totp_enabled_at DATETIME DEFAULT NULL');
+    }
+    if (!in_array('totp_failed_attempts', $userCols)) {
+        $db->exec('ALTER TABLE users ADD COLUMN totp_failed_attempts INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!in_array('totp_locked_until', $userCols)) {
+        $db->exec('ALTER TABLE users ADD COLUMN totp_locked_until DATETIME DEFAULT NULL');
+    }
+
     // Add GSC metric columns to sites table (for instant dashboard loading)
     if (!in_array('gsc_clicks', $siteCols)) {
         $db->exec('ALTER TABLE sites ADD COLUMN gsc_clicks INTEGER DEFAULT NULL');

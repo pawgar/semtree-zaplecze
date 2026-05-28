@@ -39,6 +39,13 @@
             </h1>
             <div class="navbar-nav flex-row order-md-last">
                 <div class="navbar-nav flex-row order-md-last">
+                    <!-- Session timer (24h absolute) -->
+                    <div class="nav-item d-none d-md-flex me-3">
+                        <span class="session-timer" id="sessionTimerPill" title="Pozostały czas sesji (24h od logowania)">
+                            <i class="ti ti-clock"></i>
+                            <span class="session-timer-label">--:--</span>
+                        </span>
+                    </div>
                     <!-- Claude API status indicator -->
                     <div class="nav-item d-none d-md-flex me-3">
                         <div class="d-flex align-items-center" id="claudeStatusIndicator" title="Status Claude API">

@@ -573,3 +573,41 @@ th.sortable:hover {
         font-size: 0.75rem;
     }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   Session timer pill (24h absolute countdown)
+   ════════════════════════════════════════════════════════════════ */
+.session-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--tblr-bg-surface-secondary, rgba(0,0,0,0.04));
+    color: var(--tblr-body-color, inherit);
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid var(--tblr-border-color, transparent);
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    cursor: default;
+}
+.session-timer i { font-size: 0.95rem; opacity: 0.7; }
+.session-timer.is-warning {
+    background: rgba(255,193,7,0.15);
+    color: #b88300;
+    border-color: rgba(255,193,7,0.4);
+}
+.session-timer.is-warning i { opacity: 1; }
+.session-timer.is-danger {
+    background: rgba(220,53,69,0.15);
+    color: #b02a37;
+    border-color: rgba(220,53,69,0.45);
+    animation: session-pulse 1.5s ease-in-out infinite;
+}
+.session-timer.is-danger i { opacity: 1; }
+html[data-bs-theme="dark"] .session-timer.is-warning { color: #ffc107; }
+html[data-bs-theme="dark"] .session-timer.is-danger { color: #ff6b7a; }
+@keyframes session-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.7; }
+}

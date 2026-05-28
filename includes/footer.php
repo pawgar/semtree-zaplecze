@@ -36,5 +36,6 @@
 <script src="assets/vendor/tabler/libs/apexcharts/dist/apexcharts.min.js" defer></script>
 <!-- Project JS -->
 <script src="assets/js/app.js?v=<?= filemtime(__DIR__ . '/../assets/js/app.js') ?>"></script>
+<script src="assets/js/session-timer.js?v=<?= filemtime(__DIR__ . '/../assets/js/session-timer.js') ?>"></script>
 </body>
 </html>
