@@ -15,9 +15,9 @@
 <div class="page page-center">
     <div class="container container-tight py-4">
         <div class="text-center mb-4">
-            <a href="." class="navbar-brand navbar-brand-autodark text-decoration-none">
+            <a href="." class="d-inline-flex flex-column align-items-center text-decoration-none">
                 <img src="https://semtree.pl/wp-content/themes/semtree/assets/img/footer-f.svg" alt="Semtree" style="height:48px">
-                <div class="text-secondary mt-2">Panel zaplecza</div>
+                <div class="text-secondary mt-2 small">Panel zaplecza</div>
             </a>
         </div>
         <div class="card card-md">
