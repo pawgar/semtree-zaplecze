@@ -96,12 +96,16 @@ function tfaNormalizeRecoveryCode(string $code): string {
     return strtoupper(preg_replace('/[^A-Z0-9]/i', '', $code));
 }
 
-/** Verify a recovery code; on hit, mark it consumed. Returns true if used. */
+/** Verify a recovery code; on hit, mark it consumed. Returns true if used.
+ *  Recovery codes are deliberately NOT blocked by lockout — they are the
+ *  escape hatch when the user lost the OTP device or got locked out brute-forcing.
+ *  Each recovery code is one-time-use and bcrypt-hashed, so unlimited attempts
+ *  remain computationally infeasible. */
 function tfaConsumeRecoveryCode(int $userId, string $code): bool {
     $code = tfaNormalizeRecoveryCode($code);
     if ($code === '') return false;
     $user = tfaUserRow($userId);
-    if (!$user || tfaIsLocked($user)) return false;
+    if (!$user) return false;
     if (empty($user['totp_recovery_codes'])) return false;
 
     $codes = json_decode((string)$user['totp_recovery_codes'], true);

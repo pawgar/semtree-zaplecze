@@ -32,8 +32,10 @@ function login(string $username, string $password): string {
     session_regenerate_id(true);
 
     if (tfaIsEnabled($user)) {
-        if (tfaIsLocked($user)) return 'locked';
-        // Park identity in pending state — DO NOT set user_id yet
+        // Park identity in pending state — DO NOT set user_id yet.
+        // Note: nie blokujemy tu logowania w razie lockout — user musi miec mozliwosc
+        // uzycia kodu odzyskiwania jako escape hatch. Lockout sprawdzamy ponizej,
+        // przy konkretnej probie OTP.
         $_SESSION['pending_2fa'] = [
             'user_id'  => (int)$user['id'],
             'username' => $user['username'],
@@ -72,7 +74,9 @@ function completeTwoFactor(string $code, bool $isRecovery = false): string {
     $uid = (int)$p['user_id'];
     $row = tfaUserRow($uid);
     if (!$row) return 'invalid';
-    if (tfaIsLocked($row)) return 'locked';
+    // Lockout dotyczy TYLKO klasycznego OTP — recovery code zawsze ma szanse zadziałać,
+    // bo to jedyna droga ucieczki dla usera, który zgubił telefon / brute-forceował się sam.
+    if (!$isRecovery && tfaIsLocked($row)) return 'locked';
 
     $ok = $isRecovery
         ? tfaConsumeRecoveryCode($uid, $code)

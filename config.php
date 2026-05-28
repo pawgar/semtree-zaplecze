@@ -15,7 +15,7 @@ define('DEFAULT_ADMIN_PASS', 'admin');
 define('ABSOLUTE_SESSION_SECONDS', 86400);   // 24h
 define('PENDING_2FA_TTL', 600);              // 10 min to enter OTP after password
 define('RECOVERY_CODE_COUNT', 8);            // generated on activation
-define('MAX_FAILED_ATTEMPTS', 5);            // wrong OTP attempts before lockout
+define('MAX_FAILED_ATTEMPTS', 10);           // wrong OTP attempts before lockout
 define('LOCKOUT_SECONDS', 900);              // 15 min cooldown
 define('TOTP_WINDOW', 2);                    // ±60s clock skew tolerance (was 1)
 
