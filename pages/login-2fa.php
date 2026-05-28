@@ -16,9 +16,9 @@
 <div class="page page-center">
     <div class="container container-tight py-4">
         <div class="text-center mb-4">
-            <a href="." class="navbar-brand navbar-brand-autodark">
-                <span class="text-body fw-bold fs-2">Sem<span class="text-success">tree</span></span>
-                <div class="text-secondary mt-1">Weryfikacja dwuetapowa</div>
+            <a href="." class="navbar-brand navbar-brand-autodark text-decoration-none">
+                <img src="https://semtree.pl/wp-content/themes/semtree/assets/img/footer-f.svg" alt="Semtree" style="height:48px">
+                <div class="text-secondary mt-2">Panel zaplecza &middot; weryfikacja dwuetapowa</div>
             </a>
         </div>
         <div class="card card-md">

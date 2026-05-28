@@ -30,11 +30,12 @@
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <!-- Logo (shown on md+) -->
-            <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
-                <a href="index.php" class="text-decoration-none">
-                    <span class="text-body fw-bold fs-3">Sem<span class="text-success">tree</span></span>
-                    <span class="text-secondary ms-1 small">Zaplecze</span>
+            <!-- Logo (shown on md+) — theme-conditional SVG -->
+            <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3 m-0">
+                <a href="index.php" class="text-decoration-none d-flex align-items-center">
+                    <img src="https://semtree.pl/wp-content/themes/semtree/assets/img/footer-f.svg" class="hide-theme-light" alt="Semtree" style="height:32px">
+                    <img src="https://semtree.pl/wp-content/uploads/2023/06/logo.svg" class="hide-theme-dark" alt="Semtree" style="height:32px">
+                    <span class="text-secondary ms-2 small">Panel zaplecza</span>
                 </a>
             </h1>
             <div class="navbar-nav flex-row order-md-last">
