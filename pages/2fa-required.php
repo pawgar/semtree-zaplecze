@@ -197,7 +197,21 @@ async function confirmEnable() {
 
     const r = await api('POST', '/api/2fa-enable.php', {code: code});
     if (r.error) {
-        err.innerHTML = '<div class="alert alert-danger py-2 small mb-2">' + escapeHtml(r.error) + '</div>';
+        let html = '<div class="alert alert-danger py-2 small mb-2">' + escapeHtml(r.error) + '</div>';
+        if (r.debug) {
+            const d = r.debug;
+            html += '<div class="alert alert-warning small mb-2"><strong>Diagnostyka:</strong><br>' +
+                'Wpisany kod: <code>' + escapeHtml(d.received_code || '') + '</code><br>' +
+                'Oczekiwany przez serwer TERAZ: <code>' + escapeHtml(d.expected_now || '') + '</code><br>' +
+                'Poprzedni krok (–30s): <code>' + escapeHtml(d.expected_prev || '') + '</code><br>' +
+                'Następny krok (+30s): <code>' + escapeHtml(d.expected_next || '') + '</code><br>' +
+                'Czas serwera: <code>' + escapeHtml(d.server_time || '') + '</code><br>' +
+                'Sekret odszyfrowany: ' + (d.secret_loaded ? 'TAK ('+escapeHtml(d.secret_first8 || '')+')' : 'NIE') + '<br>' +
+                '<em>Porównaj "Oczekiwany TERAZ" z tym co pokazuje Twoja aplikacja. ' +
+                'Jeśli się różnią — aplikacja używa innego sekretu albo Twojego zegara na telefonie odjechał. ' +
+                'Jeśli się zgadzają — wpisz ten kod i powinno przejść.</em></div>';
+        }
+        err.innerHTML = html;
         btn.disabled = false;
         btn.innerHTML = '<i class="ti ti-check me-2"></i>Aktywuj 2FA';
         document.getElementById('verifyCode').select();
