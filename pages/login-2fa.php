@@ -17,7 +17,8 @@
     <div class="container container-tight py-4">
         <div class="text-center mb-4">
             <a href="." class="d-inline-flex flex-column align-items-center text-decoration-none">
-                <img src="https://semtree.pl/wp-content/themes/semtree/assets/img/footer-f.svg" alt="Semtree" style="height:48px">
+                <img src="https://semtree.pl/wp-content/themes/semtree/assets/img/footer-f.svg" class="hide-theme-light" alt="Semtree" style="height:48px">
+                <img src="https://semtree.pl/wp-content/uploads/2023/06/logo.svg" class="hide-theme-dark" alt="Semtree" style="height:48px">
                 <div class="text-secondary mt-2 small">Panel zaplecza &middot; weryfikacja dwuetapowa</div>
             </a>
         </div>
