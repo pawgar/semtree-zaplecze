@@ -175,6 +175,9 @@ require_once __DIR__ . '/../includes/header.php';
     <!-- ═══ TAB: Historia artykułów ═══ -->
     <div class="tab-pane fade" id="pane-articles">
         <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+            <select class="form-select form-select-sm" id="articlesCategoryFilter" style="width:220px" onchange="loadArticlesHistory()">
+                <option value="">Wszystkie kategorie</option>
+            </select>
             <select class="form-select form-select-sm" id="articlesSiteFilter" style="width:220px" onchange="loadArticlesHistory()">
                 <option value="">Wszystkie strony</option>
             </select>

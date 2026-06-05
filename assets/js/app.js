@@ -2236,12 +2236,14 @@ function loadArticlesHistory() {
 
     const siteId = document.getElementById('articlesSiteFilter')?.value || '';
     const userId = document.getElementById('articlesUserFilter')?.value || '';
+    const category = document.getElementById('articlesCategoryFilter')?.value || '';
     const dateFrom = document.getElementById('articlesDateFrom')?.value || '';
     const dateTo = document.getElementById('articlesDateTo')?.value || '';
 
     let qs = 'limit=2000';
     if (siteId) qs += `&site_id=${siteId}`;
     if (userId) qs += `&user_id=${userId}`;
+    if (category) qs += `&category=${encodeURIComponent(category)}`;
     if (dateFrom) qs += `&date_from=${dateFrom}`;
     if (dateTo) qs += `&date_to=${dateTo}`;
 
@@ -2251,12 +2253,14 @@ function loadArticlesHistory() {
         if (r.error) { tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${esc(r.error)}</td></tr>`; return; }
         articlesData = r.articles || [];
 
-        // Build filter dropdowns once (sites + users with publications)
+        // Build filter dropdowns once (sites + users + categories with publications)
         if (!articlesFiltersBuilt) {
             const sSel = document.getElementById('articlesSiteFilter');
             (r.sites || []).forEach(s => { sSel.innerHTML += `<option value="${s.id}">${esc(s.name)}</option>`; });
             const uSel = document.getElementById('articlesUserFilter');
             (r.users || []).forEach(u => { uSel.innerHTML += `<option value="${u.id}">${esc(u.username)}</option>`; });
+            const cSel = document.getElementById('articlesCategoryFilter');
+            if (cSel) (r.categories || []).forEach(c => { cSel.innerHTML += `<option value="${esc(c)}">${esc(c)}</option>`; });
             articlesFiltersBuilt = true;
         }
 
