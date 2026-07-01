@@ -90,17 +90,20 @@ foreach ($targets as $t) {
         continue;
     }
     echo "  Jezyk: {$site['lang']} | Kategorie: " . (empty($site['categories']) ? '(brak)' : implode(', ', $site['categories'])) . "\n";
-    echo "  Historia (ostatnie): " . count($site['recent_titles']) . " tytulow (jako anty-dupe)\n";
+    echo "  Historia (wszystkie tytuly): " . count($site['historical_titles']) . " (queue+publications, anty-dupe)\n";
     echo "  Generuje $count tematow przez Claude API...\n";
 
     try {
         $t0 = microtime(true);
-        $topics = generateTopicsForSite($site, $count);
+        $result = generateTopicsForSite($site, $count);
         $dt = round(microtime(true) - $t0, 1);
-        echo "  Wygenerowano: " . count($topics) . " tematow w {$dt}s\n";
+        $topics = $result['topics'] ?? [];
+        $raw = $result['raw_count'] ?? count($topics);
+        $dropped = $result['dropped_dupes'] ?? 0;
+        printf("  Wygenerowano: %d (LLM zwrocil %d, odrzucono %d duplikatow) w %ss\n", count($topics), $raw, $dropped, $dt);
 
         if (!$topics) {
-            echo "  ! Pusta lista tematow, pomijam.\n";
+            echo "  ! Zero unikalnych tematow po dedupie, pomijam.\n";
             $errors++;
             continue;
         }

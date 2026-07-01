@@ -61,7 +61,7 @@ function findExhaustedQueues(int $threshold = 3): array {
  *   - jezyk (auto_publish_config.lang, default 'pl')
  *   - lista niedawnych opublikowanych tytulow (anty-duplikat)
  */
-function getSiteContextForTopics(int $siteId, int $recentTitlesLimit = 40): ?array {
+function getSiteContextForTopics(int $siteId, int $promptTitlesLimit = 200): ?array {
     $db = getDb();
     $stmt = $db->prepare('
         SELECT s.id, s.name, s.url, s.categories, COALESCE(apc.lang, "pl") AS lang
@@ -73,36 +73,40 @@ function getSiteContextForTopics(int $siteId, int $recentTitlesLimit = 40): ?arr
     $site = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
     if (!$site) return null;
 
-    // Ostatnie opublikowane tytuly z queue (nie duplikuj)
+    // WSZYSTKIE tytuly z auto_publish_queue niezaleznie od statusu — pending,
+    // generating, generated, publishing, published, error. Kazdy z nich juz
+    // ZAJMUJE dany temat i NIE MOZE zostac powtorzony.
     $stmt = $db->prepare('
         SELECT title FROM auto_publish_queue
-        WHERE site_id = :id AND status = "published"
-        ORDER BY published_at DESC
-        LIMIT :lim
+        WHERE site_id = :id AND title <> ""
+        ORDER BY id DESC
     ');
     $stmt->bindValue(':id', $siteId, SQLITE3_INTEGER);
-    $stmt->bindValue(':lim', $recentTitlesLimit, SQLITE3_INTEGER);
     $res = $stmt->execute();
-    $publishedTitles = [];
-    while ($r = $res->fetchArray(SQLITE3_ASSOC)) $publishedTitles[] = $r['title'];
+    $historicalTitles = [];
+    while ($r = $res->fetchArray(SQLITE3_ASSOC)) $historicalTitles[] = $r['title'];
 
-    // Dodatkowo pobierz tytuly z publications (recznie opublikowane) zeby unikac dupli
+    // Plus tytuly recznie opublikowane (publications) — tez sa juz zajete
     $stmt = $db->prepare('
         SELECT post_title FROM publications
         WHERE site_id = :id AND post_title <> ""
         ORDER BY created_at DESC
-        LIMIT :lim
     ');
     $stmt->bindValue(':id', $siteId, SQLITE3_INTEGER);
-    $stmt->bindValue(':lim', $recentTitlesLimit, SQLITE3_INTEGER);
     $res = $stmt->execute();
     while ($r = $res->fetchArray(SQLITE3_ASSOC)) {
         $t = trim((string)$r['post_title']);
-        if ($t !== '') $publishedTitles[] = $t;
+        if ($t !== '') $historicalTitles[] = $t;
     }
 
-    // Dedup + limit
-    $publishedTitles = array_slice(array_values(array_unique($publishedTitles)), 0, $recentTitlesLimit);
+    // Dedup po znormalizowanym kluczu — "Jak wybrac X?" i "Jak wybrać X" laczy sie.
+    $seen = [];
+    $historicalTitles = array_values(array_filter($historicalTitles, function($t) use (&$seen) {
+        $k = normalizeTopicTitle($t);
+        if ($k === '' || isset($seen[$k])) return false;
+        $seen[$k] = true;
+        return true;
+    }));
 
     // Kategorie do array
     $cats = array_filter(array_map('trim', explode(',', (string)$site['categories'])));
@@ -113,13 +117,33 @@ function getSiteContextForTopics(int $siteId, int $recentTitlesLimit = 40): ?arr
         'url'        => (string)$site['url'],
         'categories' => array_values($cats),
         'lang'       => (string)$site['lang'],
-        'recent_titles' => $publishedTitles,
+        // WSZYSTKIE zajete tytuly — do post-filtra (zeby wywalic to co LLM zwroci mimo instrukcji)
+        'historical_titles' => $historicalTitles,
+        // Podzbior wyswietlany w promcie (cap zeby prompt nie pucznal na 2000+ tytulow)
+        'recent_titles'     => array_slice($historicalTitles, 0, $promptTitlesLimit),
     ];
 }
 
 /**
+ * Normalizuje tytul do klucza porownawczego:
+ * lower-case + polskie znaki -> ascii + tylko alfanum + single spacja.
+ * "Jak wybrać X?" i "Jak wybrac X" daja ten sam klucz.
+ */
+function normalizeTopicTitle(string $s): string {
+    $s = mb_strtolower(trim($s), 'UTF-8');
+    $map = ['ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z','ü'=>'u','ö'=>'o','ä'=>'a','ß'=>'ss'];
+    $s = strtr($s, $map);
+    $s = preg_replace('/[^a-z0-9]+/', ' ', $s);
+    $s = preg_replace('/\s+/', ' ', $s);
+    return trim($s);
+}
+
+/**
  * Wywoluje Claude API i prosi o $count pomyslow na artykuly w formacie JSON.
- * Zwraca tablice [{title, main_keyword, secondary_keywords, category_name, notes}].
+ * Zwraca:
+ *   ['topics' => [{title, main_keyword, secondary_keywords, category_name, notes}, ...],
+ *    'raw_count'     => ile zwrocil LLM przed dedupem,
+ *    'dropped_dupes' => ile odrzucono jako duplikaty (vs historia + w batchu)]
  *
  * Rzuca RuntimeException gdy brak API key, HTTP error, niepoprawny JSON.
  */
@@ -134,9 +158,14 @@ function generateTopicsForSite(array $site, int $count = 30): array {
     $model = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-4-6';
 
     $catsStr = empty($site['categories']) ? '(brak zdefiniowanych kategorii)' : implode(', ', $site['categories']);
+    $totalHistCount = count($site['historical_titles'] ?? []);
+    $shownCount = count($site['recent_titles'] ?? []);
     $recent = empty($site['recent_titles'])
         ? '(brak historii publikacji na tej stronie)'
         : implode("\n", array_map(fn($t) => '- ' . $t, $site['recent_titles']));
+    $histNote = ($totalHistCount > $shownCount)
+        ? " (pokazane najnowsze {$shownCount} z {$totalHistCount} zajetych tytulow)"
+        : '';
 
     $langLabel = match ($site['lang']) {
         'en' => 'angielskim',
@@ -159,7 +188,7 @@ Nazwa: {$site['name']}
 URL: {$site['url']}
 Kategorie strony: {$catsStr}
 
-Ostatnio juz opublikowane tematy — NIE POWTARZAJ, unikaj bliskich wariantow:
+Tematy JUZ ZAJETE (opublikowane albo w kolejce){$histNote} — NIE POWTARZAJ ani zadnego z nich, ani ich blizniaczych wariantow (np. inne slowo pytające, inna liczba mnoga, inny szyk):
 {$recent}
 
 Kazdy artykul MUSI byc:
@@ -222,7 +251,32 @@ PROMPT;
     $text = $data['content'][0]['text'] ?? '';
     if ($text === '') throw new RuntimeException('Pusta odpowiedz Claude API.');
 
-    return parseTopicsJson($text, $site['categories']);
+    $topics = parseTopicsJson($text, $site['categories']);
+
+    // POST-FILTR ANTY-DUPE: LLM potrafi zignorowac liste w promcie. Odsiewamy
+    // tytuly ktorych znormalizowany klucz pasuje do:
+    //   a) ktoregokolwiek z tytulow historycznych (auto_publish_queue + publications)
+    //   b) innego tytulu w tej samej odpowiedzi (LLM czasem zwraca 2 podobne)
+    $blocked = [];
+    foreach (($site['historical_titles'] ?? []) as $t) {
+        $k = normalizeTopicTitle($t);
+        if ($k !== '') $blocked[$k] = true;
+    }
+    $seenInBatch = [];
+    $filtered = [];
+    $droppedDup = 0;
+    foreach ($topics as $topic) {
+        $k = normalizeTopicTitle($topic['title']);
+        if ($k === '') { $droppedDup++; continue; }
+        if (isset($blocked[$k]) || isset($seenInBatch[$k])) { $droppedDup++; continue; }
+        $seenInBatch[$k] = true;
+        $filtered[] = $topic;
+    }
+    return [
+        'topics'         => $filtered,
+        'raw_count'      => count($topics),
+        'dropped_dupes'  => $droppedDup,
+    ];
 }
 
 /**
