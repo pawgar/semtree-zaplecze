@@ -54,16 +54,16 @@ if ($action === 'overview') {
     $sites = [];
     $totals = ['total' => 0, 'indexed' => 0, 'not_indexed' => 0];
     $res = $db->query('SELECT s.id site_id, s.name, s.url,
-            COUNT(ist.id) total,
-            COALESCE(SUM(ist.is_indexed), 0) indexed,
+            COUNT(ist.id) total_cnt,
+            COALESCE(SUM(ist.is_indexed), 0) indexed_cnt,
             SUM(CASE WHEN ist.is_indexed = 0 AND ist.submitted_at IS NOT NULL THEN 1 ELSE 0 END) submitted_pending,
             MAX(ist.checked_at) last_check
         FROM sites s
         LEFT JOIN index_status ist ON ist.site_id = s.id
         GROUP BY s.id ORDER BY s.name');
     while ($row = $res->fetchArray(SQLITE3_ASSOC)) {
-        $total = (int) $row['total'];
-        $indexed = (int) $row['indexed'];
+        $total = (int) $row['total_cnt'];
+        $indexed = (int) $row['indexed_cnt'];
         $notIndexed = $total - $indexed;
         $sites[] = [
             'site_id' => (int) $row['site_id'],
@@ -88,15 +88,15 @@ if ($action === 'overview') {
 // ── TIMESERIES (zbiorczo, ostatnie 90 dni) ───────────────────
 if ($action === 'timeseries') {
     $series = [];
-    $res = $db->query("SELECT snap_date, SUM(total) total, SUM(indexed) indexed, SUM(not_indexed) not_indexed
+    $res = $db->query("SELECT snap_date, SUM(total) total_cnt, SUM(\"indexed\") indexed_cnt, SUM(not_indexed) not_indexed
                        FROM index_snapshots
                        WHERE snap_date >= date('now', '-90 days')
                        GROUP BY snap_date ORDER BY snap_date");
     while ($row = $res->fetchArray(SQLITE3_ASSOC)) {
         $series[] = [
             'date' => $row['snap_date'],
-            'total' => (int) $row['total'],
-            'indexed' => (int) $row['indexed'],
+            'total' => (int) $row['total_cnt'],
+            'indexed' => (int) $row['indexed_cnt'],
             'not_indexed' => (int) $row['not_indexed'],
         ];
     }
