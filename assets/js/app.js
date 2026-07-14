@@ -4635,13 +4635,13 @@ async function loadGscReport(force = false) {
     if (initial) initial.style.display = 'none';
     if (tableCard) tableCard.style.display = '';
     if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Generuję...'; }
-    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted"><i class="bi bi-arrow-clockwise spin"></i> Pobieranie danych GSC...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted"><i class="bi bi-arrow-clockwise spin"></i> Pobieranie danych GSC...</td></tr>';
 
     try {
         const data = await api('GET', `api/gsc-data.php?action=report&range=${range}${forceParam}`);
 
         if (data.error) {
-            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">${esc(data.error)}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">${esc(data.error)}</td></tr>`;
             if (noData) noData.style.display = '';
             return;
         }
@@ -4651,7 +4651,7 @@ async function loadGscReport(force = false) {
 
         gscReportData = data.sites || [];
         if (gscReportData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Brak danych GSC</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Brak danych GSC</td></tr>';
             if (noData) noData.style.display = '';
             if (summary) summary.style.display = 'none';
             return;
@@ -4668,7 +4668,7 @@ async function loadGscReport(force = false) {
         // Render table
         renderGscReportTable();
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Błąd: ${esc(e.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Błąd: ${esc(e.message)}</td></tr>`;
         if (noData) noData.style.display = '';
     } finally {
         if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<i class="bi bi-play-fill"></i> Generuj raport'; }
@@ -4763,8 +4763,79 @@ function renderGscReportTable() {
             <td class="text-end">${formatChange(s.clicks_change)}</td>
             <td class="text-end">${formatChange(s.impressions_change)}</td>
             <td>${sparkline}</td>
+            <td>${renderGscGoalCell(s)}</td>
         </tr>`;
     }).join('');
+}
+
+// ── GSC goals (kolumna "Cel") ─────────────────────────────────
+let gscGoalSiteId = null;
+
+function renderGscGoalCell(s) {
+    const type = s.goal_type;
+    const goal = parseInt(s.goal_value) || 0;
+    if (!type || goal <= 0) {
+        return `<button class="btn btn-sm btn-outline-secondary" onclick="openGscGoalModal(${s.site_id})"><i class="ti ti-target me-1"></i>Ustaw cel</button>`;
+    }
+    const current = type === 'impressions' ? (s.impressions || 0) : (s.clicks || 0);
+    const pct = goal > 0 ? Math.round(current / goal * 100) : 0;
+    const barPct = Math.min(100, pct);
+    const barColor = pct >= 100 ? 'bg-success' : (pct >= 50 ? 'bg-primary' : 'bg-warning');
+    const typeLabel = type === 'impressions' ? 'wyświetlenia' : 'kliknięcia';
+    return `
+        <div style="min-width:130px; cursor:pointer" onclick="openGscGoalModal(${s.site_id})" title="Kliknij, aby edytować cel">
+            <div class="d-flex justify-content-between align-items-center small mb-1">
+                <span class="text-secondary">${formatNumber(current)} / ${formatNumber(goal)}</span>
+                <span class="fw-bold">${pct}%</span>
+            </div>
+            <div class="progress" style="height:6px">
+                <div class="progress-bar ${barColor}" style="width:${barPct}%"></div>
+            </div>
+            <div class="small text-secondary mt-1">${typeLabel}</div>
+        </div>`;
+}
+
+function openGscGoalModal(siteId) {
+    const s = gscReportData.find(x => x.site_id == siteId);
+    if (!s) return;
+    gscGoalSiteId = siteId;
+    document.getElementById('gscGoalSiteName').textContent = s.name;
+    document.getElementById('gscGoalType').value = s.goal_type || 'clicks';
+    document.getElementById('gscGoalValue').value = s.goal_value || '';
+    const clearBtn = document.getElementById('gscGoalClearBtn');
+    if (clearBtn) clearBtn.style.display = (s.goal_type && s.goal_value) ? '' : 'none';
+    new bootstrap.Modal(document.getElementById('gscGoalModal')).show();
+}
+
+async function saveGscGoal() {
+    if (!gscGoalSiteId) return;
+    const type = document.getElementById('gscGoalType').value;
+    const value = parseInt(document.getElementById('gscGoalValue').value) || 0;
+    if (value <= 0) { showToast('Podaj wartość docelową większą od zera', 'warning'); return; }
+    try {
+        await api('POST', 'api/gsc-data.php?action=set-goal', { site_id: gscGoalSiteId, goal_type: type, goal_value: value });
+        const s = gscReportData.find(x => x.site_id == gscGoalSiteId);
+        if (s) { s.goal_type = type; s.goal_value = value; }
+        bootstrap.Modal.getInstance(document.getElementById('gscGoalModal'))?.hide();
+        renderGscReportTable();
+        showToast('Cel zapisany', 'success');
+    } catch (e) {
+        showToast('Błąd zapisu celu: ' + e.message, 'error');
+    }
+}
+
+async function clearGscGoal() {
+    if (!gscGoalSiteId) return;
+    try {
+        await api('POST', 'api/gsc-data.php?action=set-goal', { site_id: gscGoalSiteId, goal_type: '', goal_value: 0 });
+        const s = gscReportData.find(x => x.site_id == gscGoalSiteId);
+        if (s) { s.goal_type = null; s.goal_value = null; }
+        bootstrap.Modal.getInstance(document.getElementById('gscGoalModal'))?.hide();
+        renderGscReportTable();
+        showToast('Cel usunięty', 'success');
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    }
 }
 
 async function refreshGscReport() {
@@ -4804,7 +4875,7 @@ function exportGscReportXlsx() {
     xml += `<Worksheet ss:Name="Raport GSC ${dateInfo}">\n<Table>\n`;
 
     // Header row
-    const headers = ['#', 'Strona', 'Kliknięcia', 'Wyświetlenia', 'CTR (%)', 'Śr. pozycja', 'Klik. zmiana (%)', 'Wyśw. zmiana (%)'];
+    const headers = ['#', 'Strona', 'Kliknięcia', 'Wyświetlenia', 'CTR (%)', 'Śr. pozycja', 'Klik. zmiana (%)', 'Wyśw. zmiana (%)', 'Realizacja celu (%)'];
     xml += '<Row>';
     headers.forEach(h => { xml += `<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`; });
     xml += '</Row>\n';
@@ -4820,6 +4891,12 @@ function exportGscReportXlsx() {
         xml += `<Cell ss:StyleID="num"><Data ss:Type="Number">${(s.position||0).toFixed(1)}</Data></Cell>`;
         xml += `<Cell ss:StyleID="num"><Data ss:Type="Number">${(s.clicks_change||0).toFixed(1)}</Data></Cell>`;
         xml += `<Cell ss:StyleID="num"><Data ss:Type="Number">${(s.impressions_change||0).toFixed(1)}</Data></Cell>`;
+        const goalPct = (s.goal_type && s.goal_value > 0)
+            ? Math.round((s.goal_type === 'impressions' ? (s.impressions||0) : (s.clicks||0)) / s.goal_value * 100)
+            : '';
+        xml += goalPct === ''
+            ? `<Cell><Data ss:Type="String"></Data></Cell>`
+            : `<Cell ss:StyleID="num"><Data ss:Type="Number">${goalPct}</Data></Cell>`;
         xml += '</Row>\n';
     });
 

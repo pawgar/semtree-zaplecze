@@ -18,6 +18,31 @@ $action = $_GET['action'] ?? '';
 $range = $_GET['range'] ?? '28d';
 $force = ($_GET['force'] ?? '0') === '1';
 
+// ── Set / clear per-site goal (nie wymaga połączenia z GSC) ──
+if ($action === 'set-goal') {
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $siteId = (int)($input['site_id'] ?? 0);
+    $goalType = trim($input['goal_type'] ?? '');
+    $goalValue = (int)($input['goal_value'] ?? 0);
+    if ($siteId <= 0) {
+        echo json_encode(['error' => 'Brak site_id']);
+        exit;
+    }
+    // Nieprawidłowa metryka lub wartość <= 0 => wyczyść cel
+    if (!in_array($goalType, ['clicks', 'impressions'], true) || $goalValue <= 0) {
+        $goalType = null;
+        $goalValue = null;
+    }
+    $db = getDb();
+    $stmt = $db->prepare('UPDATE sites SET gsc_goal_type = :t, gsc_goal_value = :v WHERE id = :id');
+    $stmt->bindValue(':t', $goalType, $goalType === null ? SQLITE3_NULL : SQLITE3_TEXT);
+    $stmt->bindValue(':v', $goalValue, $goalValue === null ? SQLITE3_NULL : SQLITE3_INTEGER);
+    $stmt->bindValue(':id', $siteId, SQLITE3_INTEGER);
+    $stmt->execute();
+    echo json_encode(['success' => true, 'goal_type' => $goalType, 'goal_value' => $goalValue]);
+    exit;
+}
+
 $gsc = new GscApi();
 if (!$gsc->isConnected()) {
     echo json_encode(['error' => 'GSC nie jest połączone. Skonfiguruj w ustawieniach.']);
@@ -164,7 +189,7 @@ function getSiteDetailData(GscApi $gsc, string $appSiteUrl, string $dateFrom, st
 function getReportData(GscApi $gsc, string $dateFrom, string $dateTo, string $prevFrom, string $prevTo, int $ttl): array {
     $db = getDb();
     $sites = [];
-    $result = $db->query('SELECT id, name, url FROM sites ORDER BY name');
+    $result = $db->query('SELECT id, name, url, gsc_goal_type, gsc_goal_value FROM sites ORDER BY name');
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         $sites[] = $row;
     }
@@ -191,6 +216,8 @@ function getReportData(GscApi $gsc, string $dateFrom, string $dateTo, string $pr
                 'clicks_change' => calcChange($summary['clicks'] ?? 0, $prevSummary['clicks'] ?? 0),
                 'impressions_change' => calcChange($summary['impressions'] ?? 0, $prevSummary['impressions'] ?? 0),
                 'daily' => $daily,
+                'goal_type' => $site['gsc_goal_type'],
+                'goal_value' => $site['gsc_goal_value'] !== null ? (int)$site['gsc_goal_value'] : null,
             ];
         } catch (Exception $e) {
             // Skip sites with permission errors or API issues

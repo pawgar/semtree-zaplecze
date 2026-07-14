@@ -147,6 +147,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <th class="sortable text-end" data-sort="clicks_change" onclick="sortGscReport('clicks_change')" style="cursor:pointer">Klik. zmiana <i class="ti ti-arrows-sort text-secondary"></i></th>
                             <th class="sortable text-end" data-sort="impressions_change" onclick="sortGscReport('impressions_change')" style="cursor:pointer">Wyśw. zmiana <i class="ti ti-arrows-sort text-secondary"></i></th>
                             <th>Trend kliknięć</th>
+                            <th style="min-width:150px">Cel <i class="ti ti-target text-secondary"></i></th>
                         </tr>
                     </thead>
                     <tbody id="gscReportBody">
@@ -168,6 +169,37 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="d-flex">
             <div><i class="ti ti-alert-triangle me-2"></i></div>
             <div>Brak danych GSC. Upewnij się, że GSC jest połączone w <a href="index.php?page=settings" class="alert-link">ustawieniach</a>.</div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: ustawianie celu per strona -->
+<div class="modal fade" id="gscGoalModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="ti ti-target me-2"></i>Cel dla strony</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 fw-bold text-truncate" id="gscGoalSiteName"></div>
+                <div class="mb-3">
+                    <label class="form-label">Metryka celu</label>
+                    <select class="form-select" id="gscGoalType">
+                        <option value="clicks">Kliknięcia (ruch)</option>
+                        <option value="impressions">Wyświetlenia</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Wartość docelowa</label>
+                    <input type="number" min="1" step="1" class="form-control" id="gscGoalValue" placeholder="np. 1000">
+                </div>
+                <small class="form-hint">Postęp liczony jest względem aktualnie wybranego zakresu dat raportu.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger me-auto" id="gscGoalClearBtn" onclick="clearGscGoal()">Usuń cel</button>
+                <button type="button" class="btn btn-primary" onclick="saveGscGoal()"><i class="ti ti-check me-1"></i>Zapisz</button>
+            </div>
         </div>
     </div>
 </div>
