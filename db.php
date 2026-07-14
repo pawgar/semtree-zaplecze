@@ -270,4 +270,30 @@ function migrateSchema(SQLite3 $db): void {
     if (!in_array('gsc_goal_value', $siteCols)) {
         $db->exec('ALTER TABLE sites ADD COLUMN gsc_goal_value INTEGER DEFAULT NULL');
     }
+
+    // Indeksacja (zakładka Indeksacja): stan per URL z GSC URL Inspection + dzienne migawki
+    $db->exec('CREATE TABLE IF NOT EXISTS index_status (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site_id INTEGER NOT NULL,
+        url TEXT NOT NULL,
+        verdict TEXT,
+        coverage_state TEXT,
+        is_indexed INTEGER DEFAULT 0,
+        last_crawl TEXT,
+        checked_at DATETIME,
+        submitted_at DATETIME,
+        UNIQUE(site_id, url)
+    )');
+    $db->exec('CREATE INDEX IF NOT EXISTS idx_index_status_site ON index_status(site_id)');
+    $db->exec('CREATE INDEX IF NOT EXISTS idx_index_status_indexed ON index_status(site_id, is_indexed)');
+
+    $db->exec('CREATE TABLE IF NOT EXISTS index_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site_id INTEGER NOT NULL,
+        snap_date TEXT NOT NULL,
+        total INTEGER DEFAULT 0,
+        indexed INTEGER DEFAULT 0,
+        not_indexed INTEGER DEFAULT 0,
+        UNIQUE(site_id, snap_date)
+    )');
 }

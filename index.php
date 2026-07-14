@@ -145,6 +145,10 @@ switch ($page) {
         requireLogin();
         require __DIR__ . '/pages/gsc-report.php';
         break;
+    case 'indexation':
+        requireLogin();
+        require __DIR__ . '/pages/indexation.php';
+        break;
     case 'auto-publish':
         requireLogin();
         require __DIR__ . '/pages/auto-publish.php';

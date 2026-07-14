@@ -5515,7 +5515,208 @@ document.addEventListener('DOMContentLoaded', () => {
         loadTelegramSettings();
         loadSkalmarStatus();
     }
+    if (window.location.search.includes('page=indexation')) {
+        initIndexationPage();
+    }
 });
+
+// ── Indeksacja (zakładka Indeksacja) ─────────────────────────
+let indexationData = [];
+const idxSelected = new Set();
+
+async function initIndexationPage() {
+    await loadIndexationOverview();
+    loadIndexationChart();
+}
+
+async function loadIndexationOverview() {
+    const tbody = document.getElementById('idxTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-arrow-clockwise spin"></i> Ładowanie...</td></tr>';
+    try {
+        const data = await api('GET', 'api/indexation.php?action=overview');
+        if (data.error) { tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">${esc(data.error)}</td></tr>`; return; }
+        indexationData = data.sites || [];
+        const t = data.totals || {};
+        document.getElementById('idxSummary').style.display = '';
+        document.getElementById('idxTotal').textContent = formatNumber(t.total || 0);
+        document.getElementById('idxIndexed').textContent = formatNumber(t.indexed || 0);
+        document.getElementById('idxNotIndexed').textContent = formatNumber(t.not_indexed || 0);
+        document.getElementById('idxPct').textContent = (t.pct != null ? t.pct + '%' : '—');
+        renderIndexationTable();
+        updateIdxSelectionUI();
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Błąd: ${esc(e.message)}</td></tr>`;
+    }
+}
+
+function renderIndexationTable() {
+    const tbody = document.getElementById('idxTableBody');
+    if (!tbody) return;
+    if (indexationData.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Brak stron</td></tr>'; return; }
+    tbody.innerHTML = indexationData.map(s => {
+        const scanned = s.total > 0;
+        const pct = s.pct;
+        const barColor = pct == null ? 'bg-secondary' : (pct >= 80 ? 'bg-success' : (pct >= 50 ? 'bg-warning' : 'bg-danger'));
+        const bar = scanned
+            ? `<div class="d-flex justify-content-between small"><span>${pct}%</span></div>
+               <div class="progress" style="height:6px"><div class="progress-bar ${barColor}" style="width:${Math.min(100, pct)}%"></div></div>`
+            : '<span class="text-secondary small">— brak skanu —</span>';
+        const lastCheck = s.last_check ? esc(s.last_check.replace('T', ' ').slice(0, 16)) : '<span class="text-secondary">nigdy</span>';
+        const checked = idxSelected.has(s.site_id) ? 'checked' : '';
+        const notIdxBadge = s.not_indexed > 0 ? `<span class="text-danger fw-bold">${formatNumber(s.not_indexed)}</span>` : '0';
+        const submittedInfo = s.submitted_pending > 0 ? `<span class="badge bg-azure-lt ms-1" title="Zgłoszone do indexera, jeszcze niezaindeksowane">${s.submitted_pending} zgł.</span>` : '';
+        return `
+        <tr>
+            <td><input type="checkbox" class="form-check-input m-0" ${checked} onchange="idxToggleRow(${s.site_id}, this.checked)"></td>
+            <td><a href="index.php?page=site-card&id=${s.site_id}">${esc(s.name)}</a><div class="small text-secondary text-truncate" style="max-width:220px">${esc(s.url)}</div></td>
+            <td class="text-end">${formatNumber(s.total)}</td>
+            <td class="text-end text-success">${formatNumber(s.indexed)}</td>
+            <td class="text-end">${notIdxBadge}${submittedInfo}</td>
+            <td>${bar}</td>
+            <td class="small">${lastCheck}</td>
+            <td class="text-end text-nowrap">
+                <button class="btn btn-sm btn-ghost-secondary" onclick="showSiteNonIndexed(${s.site_id})" title="Pokaż niezaindeksowane" ${s.not_indexed > 0 ? '' : 'disabled'}><i class="ti ti-list"></i></button>
+                <button class="btn btn-sm btn-ghost-primary" onclick="refreshSiteIndexation(${s.site_id}, this)" title="Odśwież skan tej domeny"><i class="ti ti-refresh"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function idxToggleAll(checked) {
+    idxSelected.clear();
+    if (checked) indexationData.forEach(s => idxSelected.add(s.site_id));
+    renderIndexationTable();
+    updateIdxSelectionUI();
+}
+function idxToggleRow(siteId, checked) {
+    if (checked) idxSelected.add(siteId); else idxSelected.delete(siteId);
+    updateIdxSelectionUI();
+    const all = document.getElementById('idxSelectAll');
+    if (all) all.checked = indexationData.length > 0 && idxSelected.size === indexationData.length;
+}
+function updateIdxSelectionUI() {
+    const n = idxSelected.size;
+    const cnt = document.getElementById('idxSelectedCount'); if (cnt) cnt.textContent = n;
+    const exp = document.getElementById('idxExportSelBtn'); if (exp) exp.disabled = n === 0;
+    const sub = document.getElementById('idxSubmitBtn'); if (sub) sub.disabled = n === 0;
+}
+
+async function loadIndexationChart() {
+    try {
+        const data = await api('GET', 'api/indexation.php?action=timeseries');
+        const series = (data && data.series) || [];
+        const card = document.getElementById('idxChartCard');
+        const holder = document.getElementById('idxChart');
+        if (!holder) return;
+        holder.innerHTML = renderIdxChartSvg(series);
+        if (card) card.style.display = '';
+    } catch (e) { /* ignore */ }
+}
+
+function renderIdxChartSvg(series) {
+    if (!series || series.length < 2) {
+        return '<div class="text-secondary small py-3 text-center">Za mało danych na wykres — potrzeba co najmniej 2 dni skanów (nocny CRON zapełni to z czasem).</div>';
+    }
+    const W = 820, H = 180, padL = 40, padR = 10, padT = 12, padB = 22;
+    const n = series.length;
+    const maxV = Math.max(1, ...series.map(s => s.total));
+    const x = i => padL + (W - padL - padR) * (n === 1 ? 0 : i / (n - 1));
+    const y = v => padT + (H - padT - padB) * (1 - v / maxV);
+    const line = (key, color) => {
+        const pts = series.map((s, i) => `${x(i).toFixed(1)},${y(s[key]).toFixed(1)}`).join(' ');
+        return `<polyline fill="none" stroke="${color}" stroke-width="2" points="${pts}"/>`;
+    };
+    let grid = '';
+    for (const f of [0, 0.5, 1]) {
+        const gy = y(maxV * f);
+        grid += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="var(--tblr-border-color)" stroke-width="1" opacity="0.5"/>`;
+        grid += `<text x="4" y="${gy + 3}" font-size="9" fill="var(--tblr-body-color)" opacity="0.6">${Math.round(maxV * f)}</text>`;
+    }
+    const lbl = (i, anchor) => `<text x="${x(i).toFixed(1)}" y="${H - 6}" font-size="9" fill="var(--tblr-body-color)" opacity="0.6" text-anchor="${anchor}">${esc(series[i].date.slice(5))}</text>`;
+    return `
+        <div class="d-flex gap-3 small mb-1">
+            <span><span style="display:inline-block;width:10px;height:10px;background:#2fb344;border-radius:2px"></span> Zaindeksowane</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#d63939;border-radius:2px"></span> Niezaindeksowane</span>
+        </div>
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:520px;height:auto" preserveAspectRatio="none">
+            ${grid}
+            ${line('indexed', '#2fb344')}
+            ${line('not_indexed', '#d63939')}
+            ${lbl(0, 'start')}${lbl(n - 1, 'end')}
+        </svg>`;
+}
+
+async function refreshSiteIndexation(siteId, btn) {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>'; }
+    showToast('Skanuję indeksację domeny… to może potrwać do minuty', 'info');
+    try {
+        const r = await api('POST', 'api/indexation.php?action=refresh', { site_id: siteId });
+        if (r.error) { showToast('Błąd: ' + r.error, 'error'); }
+        else {
+            let msg = `Skan OK: ${r.name} — zaind. ${r.indexed}, niezaind. ${r.not_indexed} (sprawdzono ${r.scanned}`;
+            if (r.skipped) msg += `, pominięto ${r.skipped}`;
+            msg += ')' + (r.error ? ' — ' + r.error : '');
+            showToast(msg, 'success');
+            await loadIndexationOverview();
+            loadIndexationChart();
+        }
+    } catch (e) { showToast('Błąd skanu: ' + e.message, 'error'); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-refresh"></i>'; } }
+}
+
+async function showSiteNonIndexed(siteId) {
+    const body = document.getElementById('idxUrlsModalBody');
+    const title = document.getElementById('idxUrlsModalTitle');
+    body.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-arrow-clockwise spin"></i> Ładowanie...</div>';
+    new bootstrap.Modal(document.getElementById('idxUrlsModal')).show();
+    try {
+        const data = await api('GET', `api/indexation.php?action=site-detail&site_id=${siteId}`);
+        title.textContent = `Niezaindeksowane: ${data.name || ''} (${(data.urls || []).length})`;
+        if (!data.urls || data.urls.length === 0) {
+            body.innerHTML = '<div class="text-success py-2">Wszystkie sprawdzone podstrony są zaindeksowane 🎉</div>';
+        } else {
+            body.innerHTML = `<div class="table-responsive"><table class="table table-sm table-vcenter">
+                <thead><tr><th>URL</th><th>Stan (GSC)</th><th>Zgłoszony</th></tr></thead>
+                <tbody>${data.urls.map(u => `<tr>
+                    <td><a href="${esc(u.url)}" target="_blank" rel="noopener" class="text-truncate d-inline-block" style="max-width:340px">${esc(u.url)}</a></td>
+                    <td class="small">${esc(u.coverage_state || u.verdict || '')}</td>
+                    <td class="small">${u.submitted_at ? esc(u.submitted_at.slice(0, 10)) : '—'}</td>
+                </tr>`).join('')}</tbody></table></div>`;
+        }
+        const submitBtn = document.getElementById('idxModalSubmitBtn');
+        submitBtn.disabled = !data.urls || data.urls.length === 0;
+        submitBtn.onclick = () => submitNonIndexedToRapid([siteId]);
+    } catch (e) {
+        body.innerHTML = `<div class="text-danger py-2">Błąd: ${esc(e.message)}</div>`;
+    }
+}
+
+function exportNonIndexed(selectedOnly) {
+    let param = 'all';
+    if (selectedOnly) {
+        if (idxSelected.size === 0) { showToast('Zaznacz domeny', 'warning'); return; }
+        param = [...idxSelected].join(',');
+    }
+    const a = document.createElement('a');
+    a.href = `api/indexation.php?action=export&site_ids=${encodeURIComponent(param)}`;
+    document.body.appendChild(a); a.click(); a.remove();
+}
+
+async function submitNonIndexedToRapid(siteIds) {
+    const ids = siteIds || [...idxSelected];
+    if (!ids || ids.length === 0) { showToast('Zaznacz domeny', 'warning'); return; }
+    if (!confirm(`Zgłosić niezaindeksowane podstrony z ${ids.length} domen(y) do Rapid URL Indexer? Zużyje kredyty (1/URL).`)) return;
+    showToast('Zgłaszam do Rapid URL Indexer…', 'info');
+    try {
+        const r = await api('POST', 'api/indexation.php?action=submit-index', { site_ids: ids });
+        if (r.error) { showToast('Błąd: ' + r.error, 'error'); return; }
+        if (r.submitted === 0) { showToast(r.message || 'Brak URL-i do zgłoszenia', 'warning'); }
+        else showToast(`Zgłoszono ${r.submitted} URL-i${r.project_id ? ' (projekt #' + r.project_id + ')' : ''}`, 'success');
+        const m = bootstrap.Modal.getInstance(document.getElementById('idxUrlsModal')); if (m) m.hide();
+        await loadIndexationOverview();
+    } catch (e) { showToast('Błąd zgłoszenia: ' + e.message, 'error'); }
+}
 
 function renderSparklineSvg(daily, metric) {
     if (!daily || daily.length < 2) return '<span class="text-muted">—</span>';

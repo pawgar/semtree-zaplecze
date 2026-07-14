@@ -132,6 +132,18 @@ class WpApi {
     }
 
     /**
+     * Lightweight list of published post URLs (id + link only) — do indeksacji.
+     */
+    public function getPostUrls(): array {
+        $posts = $this->requestPaginated('/posts?status=publish&_fields=id,link');
+        $urls = [];
+        foreach ($posts as $p) {
+            if (!empty($p['link'])) $urls[] = $p['link'];
+        }
+        return $urls;
+    }
+
+    /**
      * Get media details by ID.
      */
     public function getMedia(int $mediaId): array {

@@ -275,6 +275,63 @@ class GscApi {
         return $pages;
     }
 
+    /**
+     * Inspect a URL's Google index status via GSC URL Inspection API.
+     * Zwraca: verdict (PASS/PARTIAL/FAIL/NEUTRAL), coverage_state (zlokalizowany opis),
+     * is_indexed (1 dla PASS/PARTIAL), last_crawl, robots.
+     */
+    public function inspectUrl(string $siteUrl, string $inspectionUrl, bool $retried = false): array {
+        $this->ensureValidToken();
+
+        $payload = json_encode([
+            'inspectionUrl' => $inspectionUrl,
+            'siteUrl' => $siteUrl,
+            'languageCode' => 'pl',
+        ]);
+
+        $ch = curl_init('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $this->accessToken,
+                'Content-Type: application/json',
+            ],
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_TIMEOUT => $this->timeout,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if (curl_errno($ch)) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            throw new RuntimeException('GSC inspect error: ' . $error);
+        }
+        curl_close($ch);
+
+        $data = json_decode($response, true) ?? [];
+
+        if ($httpCode === 401 && !$retried) {
+            $this->refreshAccessToken();
+            return $this->inspectUrl($siteUrl, $inspectionUrl, true);
+        }
+        if ($httpCode >= 400) {
+            $msg = $data['error']['message'] ?? "HTTP {$httpCode}";
+            throw new RuntimeException('GSC inspect error: ' . $msg);
+        }
+
+        $idx = $data['inspectionResult']['indexStatusResult'] ?? [];
+        $verdict = $idx['verdict'] ?? 'NEUTRAL';
+        return [
+            'verdict' => $verdict,
+            'coverage_state' => $idx['coverageState'] ?? '',
+            'is_indexed' => in_array($verdict, ['PASS', 'PARTIAL'], true) ? 1 : 0,
+            'last_crawl' => $idx['lastCrawlTime'] ?? null,
+            'robots' => $idx['robotsTxtState'] ?? '',
+        ];
+    }
+
     // ── Cache helpers ──────────────────────────────────────────
 
     /**

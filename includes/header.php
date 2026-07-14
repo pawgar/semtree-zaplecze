@@ -130,6 +130,9 @@
                             <li class="nav-item <?= ($page ?? '') === 'gsc-report' ? 'active' : '' ?>">
                                 <a class="nav-link" href="index.php?page=gsc-report"><span class="nav-link-icon"><i class="ti ti-chart-line"></i></span><span class="nav-link-title">Raport GSC</span></a>
                             </li>
+                            <li class="nav-item <?= ($page ?? '') === 'indexation' ? 'active' : '' ?>">
+                                <a class="nav-link" href="index.php?page=indexation"><span class="nav-link-icon"><i class="ti ti-list-search"></i></span><span class="nav-link-title">Indeksacja</span></a>
+                            </li>
                             <li class="nav-item <?= ($page ?? '') === 'auto-publish' ? 'active' : '' ?>">
                                 <a class="nav-link" href="index.php?page=auto-publish"><span class="nav-link-icon"><i class="ti ti-robot"></i></span><span class="nav-link-title">Auto publikacje</span></a>
                             </li>
