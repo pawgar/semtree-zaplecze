@@ -72,7 +72,7 @@ $apiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'anthropic
 $anthropicKey = $apiKeyRow ? trim($apiKeyRow['value']) : '';
 
 $modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-4-6';
+$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-5';
 
 $geminiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'gemini_api_key'", true);
 $geminiKey = $geminiKeyRow ? trim($geminiKeyRow['value']) : '';

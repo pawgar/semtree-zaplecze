@@ -60,9 +60,9 @@ $isAdminUser = isAdmin();
                 <div class="mb-3">
                     <label class="form-label">Model AI</label>
                     <select class="form-select" id="settingsAiModel">
-                        <option value="claude-sonnet-4-6">Claude Sonnet 4 (domyślny)</option>
-                        <option value="claude-opus-4-0-20250115">Claude Opus 4 (wyższa jakość, wolniejszy)</option>
-                        <option value="claude-3-5-haiku-20241022">Claude Haiku 3.5 (szybki, tańszy)</option>
+                        <option value="claude-sonnet-5">Claude Sonnet 5 (domyślny, do treści)</option>
+                        <option value="claude-opus-4-8">Claude Opus 4.8 (najwyższa jakość, droższy)</option>
+                        <option value="claude-haiku-4-5">Claude Haiku 4.5 (szybki, tańszy)</option>
                     </select>
                     <small class="form-hint">Model używany do generowania i korekty artykułów.</small>
                 </div>

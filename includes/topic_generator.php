@@ -155,7 +155,7 @@ function generateTopicsForSite(array $site, int $count = 30): array {
         throw new RuntimeException('Brak anthropic_api_key w settings.');
     }
     $modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-    $model = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-4-6';
+    $model = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-5';
 
     $catsStr = empty($site['categories']) ? '(brak zdefiniowanych kategorii)' : implode(', ', $site['categories']);
     $totalHistCount = count($site['historical_titles'] ?? []);

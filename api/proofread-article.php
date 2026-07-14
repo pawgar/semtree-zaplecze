@@ -47,7 +47,7 @@ $systemPrompt = "Jesteś profesjonalnym korektorem tekstów w języku {$langName
 
 // Get configured model
 $modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-4-6';
+$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-5';
 
 $payload = [
     'model'      => $aiModel,

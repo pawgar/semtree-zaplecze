@@ -39,7 +39,7 @@ $userPrompt = buildArticleUserPrompt($title, $mainKeyword, $secondaryKeywords, $
 
 // Get configured model
 $modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-4-6';
+$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-5';
 
 // Call Anthropic Claude API
 $url = 'https://api.anthropic.com/v1/messages';
