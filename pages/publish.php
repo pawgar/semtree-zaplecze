@@ -110,7 +110,7 @@
             </button>
             <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="speedLinksCheck">
-                <label class="form-check-label small" for="speedLinksCheck">Wyślij do indeksacji (Speed-Links)</label>
+                <label class="form-check-label small" for="speedLinksCheck">Wyślij do indeksacji (Rapid URL Indexer)</label>
             </div>
             <button class="btn btn-outline-info btn-sm" onclick="exportArticlesJson()">
                 <i class="ti ti-download"></i> Zapisz stan (JSON)

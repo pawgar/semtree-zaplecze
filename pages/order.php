@@ -183,7 +183,7 @@
             <div class="col-md-3">
                 <div class="form-check mt-4">
                     <input class="form-check-input" type="checkbox" id="orderSpeedLinks">
-                    <label class="form-check-label" for="orderSpeedLinks">Speed-Links indexing</label>
+                    <label class="form-check-label" for="orderSpeedLinks">Indeksacja (Rapid URL Indexer)</label>
                 </div>
             </div>
         </div>
@@ -237,7 +237,7 @@
             </div>
             <div class="form-check ms-3">
                 <input class="form-check-input" type="checkbox" id="bulkOrderSpeedLinks">
-                <label class="form-check-label" for="bulkOrderSpeedLinks">Speed-Links</label>
+                <label class="form-check-label" for="bulkOrderSpeedLinks">Indeksacja (Rapid URL Indexer)</label>
             </div>
         </div>
         <div class="mt-2">

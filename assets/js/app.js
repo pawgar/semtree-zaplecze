@@ -79,7 +79,7 @@ function loadSettingsPage() {
     if (!isSettings) return;
     loadAnthropicKey();
     loadGeminiKey();
-    loadSpeedLinksKey();
+    loadRapidIndexerKey();
     loadCronToken();
     loadContentSettings();
     loadGscSettings();
@@ -1730,21 +1730,21 @@ async function publishAllArticles() {
         }
     }
 
-    // Speed-Links indexing
+    // Indeksacja linków (Rapid URL Indexer) — jedna paczka
     const speedLinksCheck = document.getElementById('speedLinksCheck');
     if (speedLinksCheck && speedLinksCheck.checked && publishedUrls.length > 0) {
-        log.innerHTML += '<hr><div class="text-info"><i class="bi bi-arrow-clockwise spin"></i> Wysylam do indeksacji Speed-Links...</div>';
+        log.innerHTML += '<hr><div class="text-info"><i class="bi bi-arrow-clockwise spin"></i> Wysylam do indeksacji (Rapid URL Indexer)...</div>';
         try {
-            const slResult = await submitToSpeedLinks(publishedUrls);
+            const slResult = await submitToRapidIndexer(publishedUrls);
             if (slResult.error) {
-                log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(slResult.error)}</div>`;
+                log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Rapid Indexer: ${esc(slResult.error)}</div>`;
             } else {
-                let msg = `Speed-Links: wyslano ${slResult.submitted} URLi do indeksacji`;
-                if (slResult.report_url) msg += ` — <a href="${esc(slResult.report_url)}" target="_blank">raport</a>`;
+                let msg = `Rapid Indexer: wyslano ${slResult.submitted} URLi do indeksacji`;
+                if (slResult.project_id) msg += ` (projekt #${esc(String(slResult.project_id))})`;
                 log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> ${msg}</div>`;
             }
         } catch (e) {
-            log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(e.message)}</div>`;
+            log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Rapid Indexer: ${esc(e.message)}</div>`;
         }
     }
 
@@ -1822,30 +1822,31 @@ async function saveGeminiKey() {
     }
 }
 
-// ── Speed-Links Indexing ─────────────────────────────────────
-async function loadSpeedLinksKey() {
+// ── Rapid URL Indexer (indeksacja linków) ────────────────────
+async function loadRapidIndexerKey() {
     try {
-        const r = await api('GET', 'api/settings.php?key=speedlinks_api_key');
-        document.getElementById('speedLinksApiKey').value = r.value || '';
+        const r = await api('GET', 'api/settings.php?key=rapid_indexer_api_key');
+        document.getElementById('rapidIndexerApiKey').value = r.value || '';
     } catch (e) {
         // ignore
     }
 }
 
-async function saveSpeedLinksKey() {
-    const key = document.getElementById('speedLinksApiKey').value.trim();
+async function saveRapidIndexerKey() {
+    const key = document.getElementById('rapidIndexerApiKey').value.trim();
     try {
-        await api('POST', 'api/settings.php', { key: 'speedlinks_api_key', value: key });
-        showToast('Klucz Speed-Links API zapisany', 'success');
+        await api('POST', 'api/settings.php', { key: 'rapid_indexer_api_key', value: key });
+        showToast('Klucz Rapid URL Indexer API zapisany', 'success');
     } catch (e) {
         showToast('Blad zapisu: ' + e.message, 'error');
     }
 }
 
-async function submitToSpeedLinks(urls) {
+// Wysyła listę URL-i jako JEDEN projekt (batch) do Rapid URL Indexer.
+async function submitToRapidIndexer(urls, projectName) {
     if (!urls || urls.length === 0) return;
     try {
-        const r = await api('POST', 'api/speed-links.php', { urls });
+        const r = await api('POST', 'api/rapid-indexer.php', { urls, project_name: projectName || '' });
         return r;
     } catch (e) {
         return { error: e.message };
@@ -3651,15 +3652,15 @@ async function orderPublish() {
 
         log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Artykul opublikowany: <a href="${esc(result.post_url)}" target="_blank">${esc(result.post_url)}</a></div>`;
 
-        // Speed-Links
+        // Indeksacja (Rapid URL Indexer)
         if (speedLinks && result.post_url) {
-            log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Wysylanie do Speed-Links...</div>';
-            const slResult = await submitToSpeedLinks([result.post_url]);
+            log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Wysylanie do indeksacji (Rapid URL Indexer)...</div>';
+            const slResult = await submitToRapidIndexer([result.post_url]);
             if (slResult && slResult.error) {
-                log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(slResult.error)}</div>`;
+                log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Rapid Indexer: ${esc(slResult.error)}</div>`;
             } else if (slResult) {
-                let msg = `Speed-Links: wyslano do indeksacji`;
-                if (slResult.report_url) msg += ` — <a href="${esc(slResult.report_url)}" target="_blank">raport</a>`;
+                let msg = `Rapid Indexer: wyslano do indeksacji`;
+                if (slResult.project_id) msg += ` (projekt #${esc(String(slResult.project_id))})`;
                 log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> ${msg}</div>`;
             }
         }
@@ -4281,15 +4282,15 @@ async function bulkOrderStart() {
         if (processed < total) await sleep(5000);
     }
 
-    // Speed-Links
+    // Indeksacja (Rapid URL Indexer) — jedna paczka dla całego zamówienia
     if (wantSpeedLinks && bulkOrderPublishedUrls.length > 0) {
-        log.innerHTML += '<div class="mt-2"><i class="bi bi-hourglass-split text-primary"></i> Wysylanie do Speed-Links...</div>';
-        const slResult = await submitToSpeedLinks(bulkOrderPublishedUrls);
+        log.innerHTML += '<div class="mt-2"><i class="bi bi-hourglass-split text-primary"></i> Wysylanie do indeksacji (Rapid URL Indexer)...</div>';
+        const slResult = await submitToRapidIndexer(bulkOrderPublishedUrls);
         if (slResult && slResult.error) {
-            log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Speed-Links: ${esc(slResult.error)}</div>`;
+            log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Rapid Indexer: ${esc(slResult.error)}</div>`;
         } else if (slResult) {
-            let msg = `Speed-Links: wyslano ${slResult.submitted || bulkOrderPublishedUrls.length} URLi`;
-            if (slResult.report_url) msg += ` — <a href="${esc(slResult.report_url)}" target="_blank">raport</a>`;
+            let msg = `Rapid Indexer: wyslano ${slResult.submitted || bulkOrderPublishedUrls.length} URLi`;
+            if (slResult.project_id) msg += ` (projekt #${esc(String(slResult.project_id))})`;
             log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> ${msg}</div>`;
         }
     }

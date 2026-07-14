@@ -36,14 +36,14 @@ $isAdminUser = isAdmin();
                 </div>
 
                 <div class="mb-0">
-                    <label class="form-label">Speed-Links API Key <span class="text-secondary small">(Indeksacja)</span></label>
-                    <p class="text-secondary small mb-2">Klucz do automatycznej indeksacji. Pobierz z <a href="https://speed-links.net/" target="_blank" rel="noopener">Speed-Links.net</a>.</p>
+                    <label class="form-label">Rapid URL Indexer API Key <span class="text-secondary small">(Indeksacja)</span></label>
+                    <p class="text-secondary small mb-2">Klucz do automatycznej indeksacji linków. Pobierz z sekcji „My Projects" w <a href="https://rapidurlindexer.com/" target="_blank" rel="noopener">RapidURLIndexer.com</a>.</p>
                     <div class="input-group">
-                        <input type="password" class="form-control" id="speedLinksApiKey" placeholder="Klucz API...">
-                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('speedLinksApiKey', this)">
+                        <input type="password" class="form-control" id="rapidIndexerApiKey" placeholder="Klucz API...">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordField('rapidIndexerApiKey', this)">
                             <i class="ti ti-eye"></i>
                         </button>
-                        <button class="btn btn-primary" onclick="saveSpeedLinksKey()">Zapisz</button>
+                        <button class="btn btn-primary" onclick="saveRapidIndexerKey()">Zapisz</button>
                     </div>
                 </div>
             </div>

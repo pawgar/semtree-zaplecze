@@ -193,6 +193,13 @@
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="changelogTab">
 
+                        <h6 class="text-primary">v2.7 <small class="text-muted">— lipiec 2026</small></h6>
+                        <ul class="small">
+                            <li>Aktualizacja modeli AI: Claude Sonnet 5 (domyślny, treści), Opus 4.8, Haiku 4.5</li>
+                            <li>Raport GSC — kolumna „Cel" per domena z realizacją % (ruch lub wyświetlenia)</li>
+                            <li>Indeksacja linków przez Rapid URL Indexer (zastępuje Speed-Links); auto-publish wysyła zbiorczą dzienną paczkę linków</li>
+                        </ul>
+
                         <h6 class="text-primary">v2.6 <small class="text-muted">— kwiecień 2026</small></h6>
                         <ul class="small">
                             <li>Auto publikacje — automatyczne generowanie i publikacja artykułów z content planu XLSX</li>
