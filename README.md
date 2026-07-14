@@ -113,28 +113,47 @@ MojaStrona;https://example.com;admin;XXXX XXXX XXXX XXXX XXXX XXXX
 ```
 /api/           — Endpointy REST API (JSON)
 /pages/         — Szablony stron (PHP + HTML)
-/includes/      — Biblioteki (GSC API, WP API, parsery)
+/includes/      — Biblioteki (GSC API, WP API, parsery, 2FA, topic generator)
 /assets/css/    — Arkusze stylów
-/assets/js/     — JavaScript frontendowy
-/data/          — Baza danych SQLite (automatycznie tworzona)
+/assets/js/     — JavaScript frontendowy (jeden plik app.js)
+/assets/vendor/ — Tabler, Bootstrap, ikony, qrcode-generator
+/bin/           — Skrypty CLI (2fa-debug, list-articles, refill-queues, ...)
+/data/          — SQLite DB, app_key.php, sessions/ (chronione .htaccess)
+/docs/          — Dokumentacja topikowa
 ```
 
 ## Bezpieczeństwo
 
+- **2FA obowiązkowe** dla wszystkich (TOTP RFC 6238, sekrety AES-256-GCM)
+- **Absolutny timeout sesji 24h** od logowania (nie idle)
+- 8 kodów odzyskiwania per user (bcrypt, jednorazowe, immune-na-lockout)
+- Rate limit: 10 nieudanych OTP → 15 min lockout
 - Hasła hashowane bcrypt
-- Sesje PHP z 24h limitem
-- `.htaccess` blokuje dostęp do: `data/`, `config.php`, `db.php`, `auth.php`
-- Prepared statements (ochrona przed SQL injection)
+- `.htaccess` blokuje: `data/`, `config.php`, `db.php`, `auth.php`
+- Prepared statements wszędzie
 - Endpointy CRON chronione tokenem
-- HTTPS wymagany dla WordPress Application Passwords
+- HTTPS wymagany (WP Application Passwords + secure cookies)
+
+## Dokumentacja szczegółowa
+
+- **[CLAUDE.md](CLAUDE.md)** — pełny kontekst projektu dla AI-asystentów (stack, konwencje, zasady operacyjne)
+- **[docs/DEPLOY.md](docs/DEPLOY.md)** — cykl deployu (GitHub push-only), rollback, debug przez SSH
+- **[docs/AUTH-2FA.md](docs/AUTH-2FA.md)** — 2FA, sesje PHP, lockout policy, recovery, escape hatchy
+- **[docs/AUTO-PUBLISH.md](docs/AUTO-PUBLISH.md)** — content plan → kolejka → CRON, category mapping, refill przez AI
+- **[docs/CLI-TOOLS.md](docs/CLI-TOOLS.md)** — wszystkie skrypty `bin/*` z przykładami
+- **[docs/DATABASE.md](docs/DATABASE.md)** — schema, migracje, query patterns, backup
 
 ## Rozwiązywanie problemów
 
 | Problem | Rozwiązanie |
 |---------|-------------|
 | Baza się nie tworzy | Sprawdź uprawnienia zapisu do katalogu `data/` |
+| User się co chwilę wylogowuje | Patrz [docs/AUTH-2FA.md](docs/AUTH-2FA.md) — sekcja "Konfiguracja PHP sesji" |
+| Wszystkie kody 2FA odrzucane | `php bin/2fa-debug.php --server-time` — sprawdź drift zegara |
+| Zapomniałem 2FA / recovery codes | `php bin/2fa-debug.php --disable <user>` przez SSH |
 | API WordPress nie działa | Sprawdź czy strona ma HTTPS i włączone Application Passwords |
 | GSC "invalid_client" | Sprawdź czy Client ID zawiera prefix numeru projektu Google |
 | GSC brak wyboru konta | OAuth prompt musi zawierać `select_account consent` |
 | CRON nie działa | Sprawdź token w URL i w Ustawieniach aplikacji |
 | Linki się nie zliczają | Uruchom ręczne odświeżenie statusów (skanuje linki) |
+| Kolejka auto-publish pusta | `php bin/refill-queues.php --apply` — refill przez Claude AI |
