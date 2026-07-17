@@ -88,10 +88,30 @@ if ($action === 'overview') {
 // ── TIMESERIES (zbiorczo, ostatnie 90 dni) ───────────────────
 if ($action === 'timeseries') {
     $series = [];
-    $res = $db->query("SELECT snap_date, SUM(total) total_cnt, SUM(\"indexed\") indexed_cnt, SUM(not_indexed) not_indexed
-                       FROM index_snapshots
-                       WHERE snap_date >= date('now', '-90 days')
-                       GROUP BY snap_date ORDER BY snap_date");
+    // Dla każdego dnia sumujemy OSTATNIĄ ZNANĄ migawkę każdej domeny (carry-forward),
+    // nie tylko te zapisane tego dnia. Bez tego przebieg skanu przecięty północą albo
+    // domena pominięta na quocie GSC zaniżają sumę dnia i wykres pokazuje fikcyjny zjazd.
+    $res = $db->query("
+        WITH days AS (
+            SELECT DISTINCT snap_date d FROM index_snapshots
+            WHERE snap_date >= date('now', '-90 days')
+        ),
+        grid AS (
+            SELECT days.d, sites_seen.site_id
+            FROM days CROSS JOIN (SELECT DISTINCT site_id FROM index_snapshots) sites_seen
+        )
+        SELECT g.d snap_date,
+               SUM(snap.total) total_cnt,
+               SUM(snap.\"indexed\") indexed_cnt,
+               SUM(snap.not_indexed) not_indexed
+        FROM grid g
+        JOIN index_snapshots snap
+          ON snap.site_id = g.site_id
+         AND snap.snap_date = (
+                SELECT MAX(prev.snap_date) FROM index_snapshots prev
+                WHERE prev.site_id = g.site_id AND prev.snap_date <= g.d
+             )
+        GROUP BY g.d ORDER BY g.d");
     while ($row = $res->fetchArray(SQLITE3_ASSOC)) {
         $series[] = [
             'date' => $row['snap_date'],

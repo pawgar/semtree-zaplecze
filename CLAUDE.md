@@ -104,6 +104,11 @@ Chronione tokenem `settings.cron_token`:
 - `api/cron-status.php?token=X` — HTTP + WP API statusy + skanowanie linków (900s timeout)
 - `api/cron-gsc.php?token=X` — refresh GSC dla wszystkich stron (600s timeout)
 - `api/cron-auto-publish.php?token=X` — bierze pending z kolejki, generuje treść (Claude), wysyła do WP (patrz docs/AUTO-PUBLISH.md)
+- `api/cron-indexation.php --token=X` — skan GSC URL Inspection wszystkich stron → `index_status` + dzienna migawka `index_snapshots` (zasila zakładkę Indeksacja). **Tylko CLI** — przebieg trwa kilka godzin, po HTTP padnie na timeoucie.
+
+Przy dodawaniu nowego crona: dopisz go do crontaba na prodzie **oraz** do README i tej listy.
+Zakładka Indeksacja stała 2 dni z zamrożonymi danymi, bo `cron-indexation.php` powstał
+razem z zakładką, ale nikt go nie wpiął w crontab — kod bez wpisu w crontabie to martwy kod.
 
 ## Konwencje kodu
 

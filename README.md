@@ -46,9 +46,20 @@ Ustaw w crontab serwera:
 
 # Odświeżanie danych GSC (codziennie o 6:00)
 0 6 * * * curl -s "https://twoja-domena.pl/api/cron-gsc.php?token=TWOJ_TOKEN" > /dev/null
+
+# Auto-publish — generowanie i publikacja z kolejki (codziennie o 9:00)
+0 9 * * * /usr/local/php83/bin/php /SCIEZKA/public_html/api/cron-auto-publish.php --token=TWOJ_TOKEN >> /SCIEZKA/public_html/data/cron-auto-publish.log 2>&1
+
+# Skan indeksacji GSC URL Inspection (codziennie o 3:00) — MUSI być przez CLI, nie curl:
+# przebieg trwa kilka godzin i wywali się na timeoucie HTTP.
+0 3 * * * /usr/local/php83/bin/php /SCIEZKA/public_html/api/cron-indexation.php --token=TWOJ_TOKEN >> /SCIEZKA/public_html/data/cron-indexation.log 2>&1
 ```
 
 Token CRON ustawisz w Ustawieniach aplikacji.
+
+Godziny dobrane tak, by przebiegi się nie nakładały. Skan indeksacji startuje o 3:00
+czasu lokalnego (= 1:00 UTC), bo migawki w `index_snapshots` datowane są przez SQLite
+w UTC — start o 1:00 lokalnego przeciąłby północ UTC i rozbił jeden przebieg na dwa dni.
 
 ## Funkcjonalności
 
