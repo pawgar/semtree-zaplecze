@@ -171,7 +171,7 @@ function indexCheckLive(string $url): array {
  * @return array{submitted:int, project_id:?string, credits_left:?int, skipped:int, deferred:int, error:?string}
  */
 function indexFlush(bool $force = false, string $label = ''): array {
-    $out = ['submitted' => 0, 'project_id' => null, 'credits_left' => null, 'skipped' => 0, 'deferred' => 0, 'error' => null];
+    $out = ['submitted' => 0, 'project_id' => null, 'credits_left' => null, 'skipped' => 0, 'deferred' => 0, 'indexnow' => 0, 'error' => null];
     if (indexSetting('rapid_indexer_api_key') === '') { $out['error'] = 'brak klucza Rapid'; return $out; }
     // Jedna wysyłka naraz (worker co minutę, koniec przebiegu CRON, publikacja bez workera) — bez podwójnych zgłoszeń
     $lock = fopen(__DIR__ . '/../data/index-flush.lock', 'c');
@@ -238,6 +238,21 @@ function indexFlush(bool $force = false, string $label = ''): array {
         $out['submitted'] = count($ok);
         $out['project_id'] = $p['project_id'];
         $out['credits_left'] = $credits - ($p['credits_charged'] ?? count($ok));
+
+        // IndexNow (Bing i inne) — te same URL-e, tylko domeny ze zweryfikowanym plikiem klucza
+        require_once __DIR__ . '/indexnow.php';
+        $in = indexNowSubmit(array_values($ok));
+        $out['indexnow'] = $in['sent'];
+        if ($in['sent']) {
+            $verified = indexNowVerifiedHosts();
+            $mark = $db->prepare('UPDATE index_queue SET indexnow_at = datetime("now") WHERE id = :id');
+            foreach ($ok as $id => $url) {
+                if (!isset($verified[indexNowHostOf($url)])) continue;
+                $mark->bindValue(':id', $id, SQLITE3_INTEGER);
+                $mark->execute();
+                $mark->reset();
+            }
+        }
     } catch (Throwable $e) {
         $out['error'] = $e->getMessage();
     }
@@ -282,4 +297,157 @@ function indexStats(): array {
         'indexed_20d'    => $q("SELECT COALESCE(SUM(indexed), 0) FROM rapid_projects WHERE created_at > datetime('now', '-20 days')"),
         'submitted_20d'  => $q("SELECT COALESCE(SUM(url_count), 0) FROM rapid_projects WHERE created_at > datetime('now', '-20 days')"),
     ];
+}
+
+// ── Kontrola po zgłoszeniu (wyniki nocnego skanu GSC URL Inspection z index_status) ──
+
+const INDEX_RESUBMIT_AFTER_DAYS = 14;   // Rapid zwraca kredyt za URL niezaindeksowany po 14 dniach
+
+/**
+ * Dla zgłoszonych URL-i odczytuje stan z GSC (index_status, aktualizowany przez nocny skan —
+ * bez dodatkowej kwoty inspekcji). Zaindeksowany -> indexed_at. Po 14 dniach nadal
+ * niezaindeksowany -> jedno automatyczne ponowne zgłoszenie. Dalej nic -> problem jakościowy (panel).
+ * @return array{checked:int, indexed:int, resubmitted:int}
+ */
+function indexFollowUp(): array {
+    $db = getDb();
+    $sum = ['checked' => 0, 'indexed' => 0, 'resubmitted' => 0];
+    $r = $db->query("SELECT * FROM index_queue WHERE status = 'submitted' AND indexed_at IS NULL
+        AND submitted_at > datetime('now', '-60 days')");
+    $rows = [];
+    while ($row = $r->fetchArray(SQLITE3_ASSOC)) $rows[] = $row;
+
+    $find = $db->prepare('SELECT is_indexed, coverage_state, checked_at FROM index_status
+        WHERE url IN (:a, :b) AND checked_at > :since ORDER BY checked_at DESC LIMIT 1');
+    $upd = $db->prepare('UPDATE index_queue SET gsc_state = :s, gsc_checked_at = :c, indexed_at = :i WHERE id = :id');
+    $resub = $db->prepare("UPDATE index_queue SET status = 'queued', available_at = datetime('now'), resubmits = resubmits + 1,
+        attempts = 0, last_reason = 'ponowne zgłoszenie po 14 dniach' WHERE id = :id");
+    foreach ($rows as $row) {
+        $u = $row['url'];
+        $alt = str_ends_with($u, '/') ? rtrim($u, '/') : $u . '/';
+        $find->bindValue(':a', $u, SQLITE3_TEXT);
+        $find->bindValue(':b', $alt, SQLITE3_TEXT);
+        $find->bindValue(':since', $row['submitted_at'], SQLITE3_TEXT);
+        $st = $find->execute()->fetchArray(SQLITE3_ASSOC);
+        $find->reset();
+        if (!$st) continue;   // nocny skan jeszcze nie sprawdził tego URL po zgłoszeniu
+        $sum['checked']++;
+        $upd->bindValue(':s', (string)$st['coverage_state'], SQLITE3_TEXT);
+        $upd->bindValue(':c', $st['checked_at'], SQLITE3_TEXT);
+        $upd->bindValue(':i', $st['is_indexed'] ? $st['checked_at'] : null, $st['is_indexed'] ? SQLITE3_TEXT : SQLITE3_NULL);
+        $upd->bindValue(':id', $row['id'], SQLITE3_INTEGER);
+        $upd->execute();
+        $upd->reset();
+        if ($st['is_indexed']) { $sum['indexed']++; continue; }
+
+        $submitted = strtotime($row['submitted_at'] . ' UTC');
+        $checked = strtotime($st['checked_at'] . ' UTC');
+        if (time() - $submitted > INDEX_RESUBMIT_AFTER_DAYS * 86400 && (int)$row['resubmits'] < 1
+            && $checked > $submitted + INDEX_RESUBMIT_AFTER_DAYS * 86400) {
+            $resub->bindValue(':id', $row['id'], SQLITE3_INTEGER);
+            $resub->execute();
+            $resub->reset();
+            $sum['resubmitted']++;
+        }
+    }
+    return $sum;
+}
+
+// ── Mapy witryn w GSC ──────────────────────────────────────
+
+/**
+ * Raz na dobę: stan map witryn każdej strony w GSC (site_sitemaps). Strona bez zgłoszonej mapy
+ * dostaje mapę z robots.txt (Yoast: sitemap_index.xml); mapy strony z nowymi zgłoszeniami
+ * od ostatniego zgłoszenia mapy są zgłaszane ponownie. Zgłaszanie wymaga zakresu webmasters.
+ * @return array{sites:int, submitted:int, errors:int}
+ */
+function indexSitemapsSync(?callable $log = null): array {
+    require_once __DIR__ . '/gsc_api.php';
+    $log = $log ?? fn($m) => null;
+    $db = getDb();
+    $gsc = new GscApi();
+    $sum = ['sites' => 0, 'submitted' => 0, 'errors' => 0];
+    if (!$gsc->isConnected()) return $sum;
+
+    $sites = [];
+    $r = $db->query('SELECT id, name, url FROM sites ORDER BY name');
+    while ($s = $r->fetchArray(SQLITE3_ASSOC)) $sites[] = $s;
+
+    $saveStatus = $db->prepare('INSERT INTO site_sitemap_status (site_id, gsc_property, synced_at, last_error)
+        VALUES (:sid, :p, datetime("now"), :e)
+        ON CONFLICT(site_id) DO UPDATE SET gsc_property = :p, synced_at = datetime("now"), last_error = :e');
+    $saveMap = $db->prepare('INSERT OR REPLACE INTO site_sitemaps (site_id, path, last_submitted, last_downloaded, is_pending, warnings, errors, submitted, indexed)
+        VALUES (:sid, :path, :ls, :ld, :p, :w, :e, :s, :i)');
+    $newSince = $db->prepare("SELECT COUNT(*) FROM index_queue WHERE site_id = :sid AND status = 'submitted' AND submitted_at > :t");
+
+    foreach ($sites as $site) {
+        $sum['sites']++;
+        $error = null;
+        $prop = null;
+        try {
+            $prop = $gsc->matchSiteToProperty($site['url']);
+            if (!$prop) throw new RuntimeException('brak usługi w GSC');
+            $maps = $gsc->listSitemaps($prop);
+
+            if (!$maps) {
+                // Brak mapy -> zgłoś tę z robots.txt
+                $path = indexSitemapFromRobots($site['url']);
+                if ($path) {
+                    $gsc->submitSitemap($prop, $path);
+                    $sum['submitted']++;
+                    $log("  {$site['name']}: zgłoszono mapę $path");
+                    $maps = $gsc->listSitemaps($prop);
+                }
+            } else {
+                // Nowe zgłoszenia od ostatniego zgłoszenia mapy -> zgłoś ponownie (sygnał do odświeżenia)
+                $lastSub = max(array_map(fn($m) => strtotime((string)$m['lastSubmitted']) ?: 0, $maps));
+                $newSince->bindValue(':sid', (int)$site['id'], SQLITE3_INTEGER);
+                $newSince->bindValue(':t', gmdate('Y-m-d H:i:s', $lastSub), SQLITE3_TEXT);
+                $fresh = (int)$newSince->execute()->fetchArray(SQLITE3_NUM)[0];
+                $newSince->reset();
+                if ($fresh > 0) {
+                    foreach ($maps as $m) {
+                        $gsc->submitSitemap($prop, $m['path']);
+                        $sum['submitted']++;
+                    }
+                    $log("  {$site['name']}: ponownie zgłoszono " . count($maps) . ' map(y)');
+                    $maps = $gsc->listSitemaps($prop);
+                }
+            }
+
+            $db->exec('DELETE FROM site_sitemaps WHERE site_id = ' . (int)$site['id']);
+            foreach ($maps as $m) {
+                $saveMap->bindValue(':sid', (int)$site['id'], SQLITE3_INTEGER);
+                $saveMap->bindValue(':path', $m['path'], SQLITE3_TEXT);
+                $saveMap->bindValue(':ls', $m['lastSubmitted'], SQLITE3_TEXT);
+                $saveMap->bindValue(':ld', $m['lastDownloaded'], SQLITE3_TEXT);
+                $saveMap->bindValue(':p', $m['isPending'] ? 1 : 0, SQLITE3_INTEGER);
+                $saveMap->bindValue(':w', $m['warnings'], SQLITE3_INTEGER);
+                $saveMap->bindValue(':e', $m['errors'], SQLITE3_INTEGER);
+                $saveMap->bindValue(':s', $m['submitted'], SQLITE3_INTEGER);
+                $saveMap->bindValue(':i', $m['indexed'], SQLITE3_INTEGER);
+                $saveMap->execute();
+                $saveMap->reset();
+            }
+        } catch (Throwable $e) {
+            $error = $e->getMessage();
+            $sum['errors']++;
+            $log("  {$site['name']}: $error");
+        }
+        $saveStatus->bindValue(':sid', (int)$site['id'], SQLITE3_INTEGER);
+        $saveStatus->bindValue(':p', $prop, $prop ? SQLITE3_TEXT : SQLITE3_NULL);
+        $saveStatus->bindValue(':e', $error, $error ? SQLITE3_TEXT : SQLITE3_NULL);
+        $saveStatus->execute();
+        $saveStatus->reset();
+    }
+    return $sum;
+}
+
+/** Pierwsza mapa z robots.txt strony (np. https://x.pl/sitemap_index.xml) albo null. */
+function indexSitemapFromRobots(string $siteUrl): ?string {
+    $ch = curl_init(rtrim($siteUrl, '/') . '/robots.txt');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_USERAGENT => RAPID_USER_AGENT, CURLOPT_FOLLOWLOCATION => true]);
+    $body = (string)curl_exec($ch);
+    curl_close($ch);
+    return preg_match('/^\s*sitemap:\s*(\S+)/im', $body, $m) ? $m[1] : null;
 }

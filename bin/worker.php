@@ -49,6 +49,19 @@ if ($idx['submitted'] || $idx['error']) {
 if ((int)workerSetting('index_refreshed_at') < time() - 3600) {
     workerSetSetting('index_refreshed_at', (string)time());
     indexRefreshProjects();
+    $fu = indexFollowUp();
+    if ($fu['indexed'] || $fu['resubmitted']) {
+        echo '[' . date('H:i:s') . "] Kontrola GSC: {$fu['indexed']} zaindeksowanych, {$fu['resubmitted']} zgłoszonych ponownie\n";
+    }
+}
+// Mapy witryn w GSC raz na dobę, po nocnym skanie indeksacji (start 3:00)
+if ((int)date('G') >= 7 && workerSetting('sitemaps_synced_on') !== date('Y-m-d')) {
+    workerSetSetting('sitemaps_synced_on', date('Y-m-d'));
+    $sm = indexSitemapsSync();
+    echo '[' . date('H:i:s') . "] Mapy witryn: {$sm['sites']} stron, {$sm['submitted']} zgłoszeń, {$sm['errors']} błędów\n";
+    require_once __DIR__ . '/../includes/indexnow.php';
+    $iv = indexNowVerifySites();
+    echo '[' . date('H:i:s') . "] IndexNow: plik klucza działa na {$iv['verified']} z {$iv['sites']} stron\n";
 }
 
 // ── Zadania generowania artykułów ───────────────────────────

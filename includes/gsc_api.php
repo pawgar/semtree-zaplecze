@@ -15,7 +15,9 @@ class GscApi {
     const TOKEN_URL = 'https://oauth2.googleapis.com/token';
     const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
     const API_BASE = 'https://www.googleapis.com/webmasters/v3';
-    const SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
+    // Pełny zakres (zawiera odczyt): zgłaszanie map witryn wymaga zapisu. Konta połączone
+    // wcześniej z .readonly muszą połączyć GSC ponownie, inaczej submitSitemap() dostaje 403.
+    const SCOPE = 'https://www.googleapis.com/auth/webmasters';
 
     public function __construct() {
         $db = getDb();
@@ -433,6 +435,62 @@ class GscApi {
     }
 
     // ── Private HTTP helpers ───────────────────────────────────
+
+    /**
+     * Mapy witryn zgłoszone w usłudze GSC.
+     * @return array<int, array{path:string, lastSubmitted:?string, lastDownloaded:?string, isPending:bool, warnings:int, errors:int, submitted:int, indexed:int}>
+     */
+    public function listSitemaps(string $siteUrl): array {
+        $this->ensureValidToken();
+        $data = $this->apiGet('/sites/' . rawurlencode($siteUrl) . '/sitemaps');
+        $out = [];
+        foreach ($data['sitemap'] ?? [] as $s) {
+            $submitted = 0; $indexed = 0;
+            foreach ($s['contents'] ?? [] as $c) {
+                $submitted += (int)($c['submitted'] ?? 0);
+                $indexed += (int)($c['indexed'] ?? 0);
+            }
+            $out[] = [
+                'path'           => (string)($s['path'] ?? ''),
+                'lastSubmitted'  => $s['lastSubmitted'] ?? null,
+                'lastDownloaded' => $s['lastDownloaded'] ?? null,
+                'isPending'      => !empty($s['isPending']),
+                'warnings'       => (int)($s['warnings'] ?? 0),
+                'errors'         => (int)($s['errors'] ?? 0),
+                'submitted'      => $submitted,
+                'indexed'        => $indexed,
+            ];
+        }
+        return $out;
+    }
+
+    /** Zgłasza (ponownie) mapę witryny. Wymaga zakresu webmasters (nie .readonly). */
+    public function submitSitemap(string $siteUrl, string $feedpath, bool $retried = false): void {
+        $this->ensureValidToken();
+        $ch = curl_init(self::API_BASE . '/sites/' . rawurlencode($siteUrl) . '/sitemaps/' . rawurlencode($feedpath));
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST => 'PUT',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $this->accessToken, 'Content-Length: 0'],
+            CURLOPT_TIMEOUT => $this->timeout,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_errno($ch) ? curl_error($ch) : '';
+        curl_close($ch);
+        if ($err) throw new RuntimeException('GSC API error: ' . $err);
+        if ($httpCode === 401 && !$retried) {
+            $this->refreshAccessToken();
+            $this->submitSitemap($siteUrl, $feedpath, true);
+            return;
+        }
+        if ($httpCode >= 400) {
+            $data = json_decode((string)$response, true) ?? [];
+            $msg = $data['error']['message'] ?? "HTTP {$httpCode}";
+            if ($httpCode === 403) $msg .= ' (połącz GSC ponownie w Ustawieniach, żeby nadać uprawnienie do zgłaszania map)';
+            throw new RuntimeException('GSC sitemap: ' . $msg);
+        }
+    }
 
     private function apiGet(string $endpoint, bool $retried = false): array {
         $ch = curl_init(self::API_BASE . $endpoint);

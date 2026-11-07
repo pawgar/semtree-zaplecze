@@ -361,4 +361,40 @@ function migrateSchema(SQLite3 $db): void {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         checked_at DATETIME DEFAULT NULL
     )');
+
+    // Kontrola po zgłoszeniu (stan z GSC) + ponowne zgłoszenie po 14 dniach
+    $iqCols = [];
+    $r = $db->query('PRAGMA table_info(index_queue)');
+    while ($c = $r->fetchArray(SQLITE3_ASSOC)) $iqCols[] = $c['name'];
+    foreach (['gsc_state TEXT DEFAULT NULL', 'gsc_checked_at DATETIME DEFAULT NULL', 'indexed_at DATETIME DEFAULT NULL', 'resubmits INTEGER NOT NULL DEFAULT 0', 'indexnow_at DATETIME DEFAULT NULL'] as $def) {
+        $col = strtok($def, ' ');
+        if (!in_array($col, $iqCols)) $db->exec("ALTER TABLE index_queue ADD COLUMN $def");
+    }
+
+    // Mapy witryn w GSC (synchronizacja raz na dobę przez workera)
+    $db->exec('CREATE TABLE IF NOT EXISTS site_sitemaps (
+        site_id INTEGER NOT NULL,
+        path TEXT NOT NULL,
+        last_submitted TEXT,
+        last_downloaded TEXT,
+        is_pending INTEGER NOT NULL DEFAULT 0,
+        warnings INTEGER NOT NULL DEFAULT 0,
+        errors INTEGER NOT NULL DEFAULT 0,
+        submitted INTEGER NOT NULL DEFAULT 0,
+        indexed INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (site_id, path)
+    )');
+    // IndexNow: na których domenach odpowiada plik klucza (sprawdzane raz na dobę)
+    $db->exec('CREATE TABLE IF NOT EXISTS site_indexnow (
+        site_id INTEGER PRIMARY KEY,
+        host TEXT NOT NULL,
+        verified INTEGER NOT NULL DEFAULT 0,
+        checked_at DATETIME
+    )');
+    $db->exec('CREATE TABLE IF NOT EXISTS site_sitemap_status (
+        site_id INTEGER PRIMARY KEY,
+        gsc_property TEXT,
+        synced_at DATETIME,
+        last_error TEXT
+    )');
 }

@@ -58,6 +58,14 @@ Błędy przejściowe API (429/5xx/529/timeout, nieudany wynik batcha) po retry w
 
 Każda publikacja (auto-publikacja, Publikuj, Publikuj masowo, Zamów i opublikuj) trafia do kolejki `index_queue` (`includes/rapid_indexing.php`). Przebieg auto-publikacji wysyła na końcu jedną paczkę z tym, co opublikował; pozostałe publikacje wysyła worker, gdy paczka dojrzeje (najstarszy URL czeka 10 min albo jest 50 URL-i), a bez workera — od razu po publikacji. URL musi zwracać 200 i nie mieć noindex (zaplanowane wpisy czekają do daty publikacji, nieosiągalne są ponawiane co 6 h), nie jest zgłaszany ponownie przez 30 dni, a przy saldzie poniżej 5 kredytów paczka czeka. Statystyki i wyłącznik: Ustawienia → Rapid URL Indexer.
 
+**Kontrola po zgłoszeniu:** stan każdego zgłoszonego URL-a pochodzi z nocnego skanu GSC (index_status). Niezaindeksowany po 14 dniach (Rapid zwraca wtedy kredyt) jest zgłaszany ponownie raz; jeśli dalej nie wejdzie, panel liczy go jako „problem jakościowy”.
+
+**Mapy witryn:** raz na dobę worker sprawdza mapy każdej strony w GSC, zgłasza brakującą (z robots.txt) i ponownie zgłasza mapy stron z nowymi publikacjami. Wymaga ponownego połączenia GSC (zakres `webmasters`).
+
+**IndexNow:** te same URL-e idą do IndexNow (Bing i inne, nie Google), ale tylko dla domen z wgranym mu-pluginem `wp-plugins/semtree-indexnow-key.php`.
+
+Podgląd wszystkiego: zakładka Indeksacja → „Zgłoszenia do indeksacji” oraz „Mapy witryn w GSC i IndexNow”.
+
 ## Category mapping
 
 Content plan ma kategorie jako tekst (`"Poradniki"`), WordPress jako `wp_category_id`. Mapping trzyma `auto_publish_category_map`.

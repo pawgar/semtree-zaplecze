@@ -117,6 +117,66 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+
+    <!-- Zgłoszenia do indeksacji (Rapid URL Indexer) + kontrola w GSC -->
+    <div class="card mt-3" id="ipCard">
+        <div class="card-header">
+            <h3 class="card-title"><i class="ti ti-rocket me-2"></i>Zgłoszenia do indeksacji (Rapid URL Indexer)</h3>
+            <div class="card-actions"><button class="btn btn-outline-secondary btn-sm" onclick="loadIndexPanel()"><i class="ti ti-refresh"></i> Odśwież</button></div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 mb-2" id="ipKpis"></div>
+            <p class="text-secondary small mb-0">Każda publikacja trafia do kolejki i jest zgłaszana paczką. Stan w Google pochodzi z nocnego skanu GSC (bez dodatkowej kwoty). Adres niezaindeksowany po 14 dniach jest zgłaszany ponownie raz; jeśli dalej nie wejdzie, liczy się jako „problem jakościowy” — wtedy pomaga poprawa treści, nie kolejne zgłoszenie.</p>
+        </div>
+        <div class="card-body p-0 border-top">
+            <div class="d-flex gap-2 p-2 flex-wrap align-items-center">
+                <select class="form-select form-select-sm w-auto" id="ipFilter" onchange="renderIndexPanelTable()">
+                    <option value="">Wszystkie</option>
+                    <option value="queued">W kolejce</option>
+                    <option value="waiting">Zgłoszone, czekają na Google</option>
+                    <option value="indexed">Zaindeksowane</option>
+                    <option value="notindexed">Sprawdzone, niezaindeksowane</option>
+                    <option value="quality">Problem jakościowy</option>
+                    <option value="skipped">Pominięte</option>
+                </select>
+                <span class="small text-secondary" id="ipCount"></span>
+            </div>
+            <div class="table-responsive" style="max-height:480px">
+                <table class="table table-vcenter card-table table-sm mb-0">
+                    <thead><tr><th>Adres</th><th>Strona</th><th>Źródło</th><th>Zgłoszono</th><th>Stan w Google</th><th>Uwagi</th></tr></thead>
+                    <tbody id="ipTableBody"><tr><td colspan="6" class="text-center text-muted py-3">Ładowanie...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cards mt-1">
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header"><h3 class="card-title"><i class="ti ti-package me-2"></i>Projekty Rapid</h3></div>
+                <div class="table-responsive" style="max-height:420px">
+                    <table class="table table-vcenter card-table table-sm mb-0">
+                        <thead><tr><th>Projekt</th><th class="text-end">URL</th><th class="text-end">Zaind.</th><th>Status</th></tr></thead>
+                        <tbody id="ipProjectsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="ti ti-sitemap me-2"></i>Mapy witryn w GSC i IndexNow</h3>
+                    <div class="card-actions"><button class="btn btn-outline-secondary btn-sm" id="ipSyncBtn" onclick="syncSitemapsNow()"><i class="ti ti-refresh"></i> Synchronizuj teraz</button></div>
+                </div>
+                <div class="table-responsive" style="max-height:420px">
+                    <table class="table table-vcenter card-table table-sm mb-0">
+                        <thead><tr><th>Strona</th><th class="text-end">Map</th><th>Ostatnie zgłoszenie</th><th>Ostatnie pobranie</th><th class="text-end">URL w mapach</th><th>Stan</th><th>IndexNow</th></tr></thead>
+                        <tbody id="ipSitemapsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Modal: niezaindeksowane URL-e domeny -->

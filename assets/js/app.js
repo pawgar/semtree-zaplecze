@@ -5669,6 +5669,132 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ── Panel zgłoszeń do indeksacji (Rapid + kontrola GSC + mapy witryn) ──
+let indexPanelData = null;
+
+async function loadIndexPanel() {
+    const tbody = document.getElementById('ipTableBody');
+    if (!tbody) return;
+    try {
+        indexPanelData = await api('GET', 'api/index-panel.php');
+        if (indexPanelData.error) throw new Error(indexPanelData.error);
+        renderIndexPanelKpis();
+        renderIndexPanelTable();
+        renderIndexPanelProjects();
+        renderIndexPanelSitemaps();
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">Błąd: ${esc(e.message)}</td></tr>`;
+    }
+}
+
+function ipRowState(r) {
+    if (r.status === 'queued') return 'queued';
+    if (r.status === 'skipped') return 'skipped';
+    if (r.indexed_at) return 'indexed';
+    const submittedAgo = (Date.now() - new Date((r.submitted_at || '') .replace(' ', 'T') + 'Z')) / 86400000;
+    if (r.resubmits > 0 && submittedAgo > 14) return 'quality';
+    if (r.gsc_checked_at) return 'notindexed';
+    return 'waiting';
+}
+
+function renderIndexPanelKpis() {
+    const k = indexPanelData.kpi || {};
+    const pct = k.checked_30d ? Math.round(k.indexed_30d / k.checked_30d * 100) + '%' : '—';
+    const tile = (val, label, cls = '') => `<div class="col-6 col-md-3 col-xl"><div class="h2 mb-0 ${cls}">${val}</div><div class="text-secondary small">${label}</div></div>`;
+    document.getElementById('ipKpis').innerHTML =
+        tile(k.credits ?? '—', 'Kredyty Rapid', (k.credits !== null && k.credits < 50) ? 'text-danger' : '') +
+        tile(formatNumber(k.queued || 0), 'W kolejce') +
+        tile(formatNumber(k.submitted_30d || 0), 'Zgłoszone (30 dni)') +
+        tile(`${formatNumber(k.indexed_30d || 0)} <span class="small text-secondary">/ ${formatNumber(k.checked_30d || 0)}</span>`, `Zaindeksowane / sprawdzone (${pct})`) +
+        tile(formatNumber(k.resubmitted || 0), 'Zgłoszone ponownie') +
+        tile(formatNumber(k.quality || 0), 'Problem jakościowy', k.quality ? 'text-warning' : '') +
+        tile(`${formatNumber(k.indexnow_30d || 0)} <span class="small text-secondary">· ${k.indexnow_sites || 0} stron</span>`, 'IndexNow (Bing, 30 dni)');
+}
+
+function renderIndexPanelTable() {
+    const tbody = document.getElementById('ipTableBody');
+    const filter = document.getElementById('ipFilter')?.value || '';
+    const rows = (indexPanelData.recent || []).filter(r => !filter || ipRowState(r) === filter);
+    document.getElementById('ipCount').textContent = `${rows.length} adresów (ostatnie 300 zgłoszeń)`;
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Brak adresów</td></tr>'; return; }
+    const badge = {
+        queued: '<span class="badge bg-secondary-lt">W kolejce</span>',
+        waiting: '<span class="badge bg-blue-lt">Czeka na Google</span>',
+        indexed: '<span class="badge bg-green-lt">Zaindeksowany</span>',
+        notindexed: '<span class="badge bg-orange-lt">Niezaindeksowany</span>',
+        quality: '<span class="badge bg-red-lt">Problem jakościowy</span>',
+        skipped: '<span class="badge bg-secondary-lt">Pominięty</span>',
+    };
+    tbody.innerHTML = rows.map(r => {
+        const st = ipRowState(r);
+        const when = r.submitted_at ? r.submitted_at.slice(0, 16) : (r.status === 'queued' ? 'od ' + (r.available_at || '').slice(0, 16) : '—');
+        const notes = [
+            r.gsc_state && st !== 'indexed' ? esc(r.gsc_state) : '',
+            r.resubmits > 0 ? 'zgłoszony ponownie' : '',
+            r.indexnow_at ? 'IndexNow ✓' : '',
+            r.last_reason ? esc(r.last_reason) : '',
+        ].filter(Boolean).join(' · ');
+        return `<tr>
+            <td class="small text-truncate" style="max-width:360px"><a href="${esc(r.url)}" target="_blank">${esc(r.url.replace(/^https?:\/\//, ''))}</a></td>
+            <td class="small">${esc(r.site || '')}</td>
+            <td class="small">${esc(r.source || '')}</td>
+            <td class="small text-nowrap">${esc(when)}</td>
+            <td>${badge[st] || ''}${r.indexed_at ? `<div class="small text-secondary">${esc(r.indexed_at.slice(0, 10))}</div>` : ''}</td>
+            <td class="small text-secondary">${notes}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderIndexPanelProjects() {
+    const tbody = document.getElementById('ipProjectsBody');
+    const rows = indexPanelData.projects || [];
+    tbody.innerHTML = rows.length ? rows.map(p => `<tr>
+        <td class="small">${esc(p.name)}<div class="text-secondary">${esc((p.created_at || '').slice(0, 16))}</div></td>
+        <td class="text-end">${p.url_count}</td>
+        <td class="text-end">${p.indexed}</td>
+        <td class="small">${esc(p.status)}</td>
+    </tr>`).join('') : '<tr><td colspan="4" class="text-center text-muted py-3">Brak projektów</td></tr>';
+}
+
+function renderIndexPanelSitemaps() {
+    const tbody = document.getElementById('ipSitemapsBody');
+    const rows = indexPanelData.sitemaps || [];
+    tbody.innerHTML = rows.map(s => {
+        let state = '<span class="text-secondary small">nie synchronizowano</span>';
+        if (s.last_error) state = `<span class="text-danger small">${esc(s.last_error)}</span>`;
+        else if (s.synced_at && !s.maps) state = '<span class="text-warning small">brak mapy w GSC</span>';
+        else if (s.errors > 0) state = `<span class="text-danger small">${s.errors} błędów</span>`;
+        else if (s.pending) state = '<span class="text-blue small">przetwarzana</span>';
+        else if (s.synced_at) state = '<span class="text-success small">OK</span>';
+        return `<tr>
+            <td class="small">${esc(s.name)}</td>
+            <td class="text-end">${s.maps || 0}</td>
+            <td class="small text-nowrap">${esc((s.last_submitted || '—').slice(0, 10))}</td>
+            <td class="small text-nowrap">${esc((s.last_downloaded || '—').slice(0, 10))}</td>
+            <td class="text-end small">${s.urls_submitted ? formatNumber(s.urls_submitted) : '—'}</td>
+            <td>${state}</td>
+            <td class="small">${s.indexnow ? '<span class="text-success">✓</span>' : (s.indexnow_checked ? '<span class="text-secondary">brak pliku</span>' : '—')}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function syncSitemapsNow() {
+    const btn = document.getElementById('ipSyncBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Synchronizuję...';
+    try {
+        const r = await api('POST', 'api/index-panel.php', { action: 'sync-sitemaps' });
+        if (r.error) throw new Error(r.error);
+        showToast(`Mapy witryn: ${r.sites} stron, ${r.submitted} zgłoszeń, ${r.errors} błędów · IndexNow: ${r.indexnow_verified} stron`, r.errors ? 'warning' : 'success');
+        loadIndexPanel();
+    } catch (e) {
+        showToast('Błąd: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-refresh"></i> Synchronizuj teraz';
+    }
+}
+
 // ── Indeksacja (zakładka Indeksacja) ─────────────────────────
 let indexationData = [];
 const idxSelected = new Set();
@@ -5676,6 +5802,7 @@ const idxSelected = new Set();
 async function initIndexationPage() {
     await loadIndexationOverview();
     loadIndexationChart();
+    loadIndexPanel();
 }
 
 async function loadIndexationOverview() {

@@ -65,6 +65,14 @@ Ustaw w crontab serwera:
 
 Token CRON ustawisz w Ustawieniach aplikacji.
 
+### IndexNow (Bing) na stronach zaplecza
+
+Wgraj `wp-plugins/semtree-indexnow-key.php` do `wp-content/mu-plugins/` każdej strony WordPress zaplecza (mu-plugin, bez aktywacji). Sprawdzenie: `https://domena.pl/f1abc58f9a9f293363eea23b4a693d1a.txt` zwraca sam klucz. Aplikacja wykrywa to sama (raz na dobę albo przycisk „Synchronizuj teraz” w zakładce Indeksacja).
+
+### GSC — uprawnienie do zgłaszania map witryn
+
+Po aktualizacji z listopada 2026 aplikacja prosi GSC o zakres `webmasters` (wcześniej tylko odczyt). Połącz GSC ponownie w Ustawieniach, inaczej zgłaszanie map witryn kończy się błędem 403 (podgląd map działa bez tego).
+
 Godziny dobrane tak, by przebiegi się nie nakładały. Skan indeksacji startuje o 3:00
 czasu lokalnego (= 1:00 UTC), bo migawki w `index_snapshots` datowane są przez SQLite
 w UTC — start o 1:00 lokalnego przeciąłby północ UTC i rozbił jeden przebieg na dwa dni.
