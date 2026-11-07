@@ -310,7 +310,9 @@ function claudeBatchCreate(array $requests): string {
         // Batches API nie przyjmuje parametru fallbacks ani stream
         $body['requests'][] = ['custom_id' => (string)$customId, 'params' => claudeBuildPayload($opts, $opts['model'] ?? claudeMainModel())];
     }
-    $data = claudeBatchHttp('POST', 'https://api.anthropic.com/v1/messages/batches', $body);
+    // Bez ponawiania po błędzie sieci: timeout po wysłaniu nie mówi, czy batch powstał, a ponowienie
+    // mogłoby utworzyć drugi, płatny batch. Nieudane wysłanie = wpisy wracają do pending (CRON).
+    $data = claudeBatchHttp('POST', 'https://api.anthropic.com/v1/messages/batches', $body, false, false);
     if (empty($data['id'])) throw new ClaudeApiException('Batch API: brak ID w odpowiedzi', true);
     return $data['id'];
 }
@@ -347,7 +349,7 @@ function claudeBatchResults(string $resultsUrl): array {
     return $out;
 }
 
-function claudeBatchHttp(string $method, string $url, ?array $body = null, bool $rawResponse = false) {
+function claudeBatchHttp(string $method, string $url, ?array $body = null, bool $rawResponse = false, bool $retryNetwork = true) {
     $apiKey = claudeApiKey();
     if ($apiKey === '') throw new ClaudeApiException('Brak klucza Anthropic API w ustawieniach.');
     $lastError = '';
@@ -357,7 +359,7 @@ function claudeBatchHttp(string $method, string $url, ?array $body = null, bool 
         $opts = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'x-api-key: ' . $apiKey, 'anthropic-version: 2023-06-01'],
-            CURLOPT_TIMEOUT => 120,
+            CURLOPT_TIMEOUT => 300,          // wysyłka/pobranie kilku MB (paczka, wyniki JSONL)
             CURLOPT_CONNECTTIMEOUT => 30,
             CURLOPT_FOLLOWLOCATION => true,
         ];
@@ -370,7 +372,12 @@ function claudeBatchHttp(string $method, string $url, ?array $body = null, bool 
         $err = curl_errno($ch) ? curl_error($ch) : '';
         $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        if ($err) { $lastError = 'cURL: ' . $err; continue; }
+        if ($err) {
+            $lastError = 'cURL: ' . $err;
+            // Połączenie nie powstało = żądanie na pewno nie dotarło, ponowienie jest bezpieczne
+            if ($retryNetwork || str_contains(strtolower($err), 'connect')) continue;
+            throw new ClaudeApiException($lastError, true);
+        }
         if ($code === 200) return $rawResponse ? $resp : (json_decode((string)$resp, true) ?? []);
         $data = json_decode((string)$resp, true) ?? [];
         $lastError = "Batch API HTTP $code: " . ($data['error']['message'] ?? 'nieznany błąd');
