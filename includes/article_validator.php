@@ -187,7 +187,8 @@ function articleQuestionHeadingsWithoutMark(array $headings, string $lang): arra
     $out = [];
     foreach ($headings as $h) {
         $first = mb_strtolower(preg_split('/[\s,:]+/u', $h['text'])[0] ?? '', 'UTF-8');
-        if (in_array($first, $starters, true) && !str_ends_with(rtrim($h['text']), '?')) $out[] = $h['text'];
+        // Pytanie w środku nagłówka ("Co podkreśla talię? Fasony...") też się liczy
+        if (in_array($first, $starters, true) && !str_contains($h['text'], '?')) $out[] = $h['text'];
     }
     return $out;
 }
@@ -205,7 +206,7 @@ function autoFixArticle(string $markdown, string $lang = 'pl'): string {
     $markdown = preg_replace_callback('/^(#{2,3})\s+(.+?)\s*$/mu', function ($m) use ($starters) {
         $text = rtrim($m[2], " .:;");
         $first = mb_strtolower(preg_split('/[\s,:]+/u', $text)[0] ?? '', 'UTF-8');
-        if (in_array($first, $starters, true) && !str_ends_with($text, '?')) $text .= '?';
+        if (in_array($first, $starters, true) && !str_contains($text, '?')) $text .= '?';
         return $m[1] . ' ' . $text;
     }, $markdown);
 
