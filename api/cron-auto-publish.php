@@ -193,7 +193,8 @@ foreach ($batchedItems as $batchId => $items) {
             $saved = json_decode((string)$article['quality_report'], true) ?: [];
             $ctx = $saved['ctx'] ?? null;
             if (!$ctx) throw new RuntimeException('Brak zapisanego kontekstu researchu');
-            articleTrackUsage($ctx, $res);
+            // Pisanie z batcha liczone po stawce Batch API (osobny klucz "batch:<model>" w usage)
+            articleTrackUsage($ctx, ['model' => 'batch:' . ($res['model'] ?: $ctx['model'])] + $res);
             $article['_batch'] = true;
             $result = articleFinish($ctx, $res['text'], null, fn($m) => cronLog("    $m"));
             cronPublishArticle($site, $article, $result);

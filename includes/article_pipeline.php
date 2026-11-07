@@ -384,8 +384,12 @@ function articleCostUsd(array $usage): float {
     $total = 0.0;
     foreach ($usage as $model => $u) {
         $p = null;
-        foreach ($prices as $prefix => $pp) if (str_starts_with((string)$model, $prefix)) $p = $pp;
+        // "batch:<model>" = wynik z Message Batches API, 50% ceny standardowej
+        $batch = str_starts_with((string)$model, 'batch:');
+        $name = $batch ? substr((string)$model, 6) : (string)$model;
+        foreach ($prices as $prefix => $pp) if (str_starts_with($name, $prefix)) $p = $pp;
         if (!$p) continue;
+        if ($batch) $p = array_map(fn($v) => $v / 2, $p);
         $total += (($u['input_tokens'] ?? 0) * $p[0] + ($u['cache_creation_input_tokens'] ?? 0) * $p[1]
             + ($u['cache_read_input_tokens'] ?? 0) * $p[2] + ($u['output_tokens'] ?? 0) * $p[3]) / 1e6;
         $total += ($u['web_search_requests'] ?? 0) * 0.01;   // $10 / 1000 wyszukiwań
