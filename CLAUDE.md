@@ -104,7 +104,7 @@ Singleton `getDb()` w `db.php`. Migracje w `migrateSchema()` — idempotentne (s
 Chronione tokenem `settings.cron_token`:
 - `api/cron-status.php?token=X` — HTTP + WP API statusy + skanowanie linków (900s timeout)
 - `api/cron-gsc.php?token=X` — refresh GSC dla wszystkich stron (600s timeout)
-- `api/cron-auto-publish.php --token=X` — kolejka auto-publikacji; z Batch API (domyślnie) publikuje wyniki poprzedniego przebiegu i wysyła kolejny batch, `--sync` robi wszystko od razu (patrz docs/AUTO-PUBLISH.md)
+- `api/cron-auto-publish.php --token=X` — kolejka auto-publikacji; z Batch API (domyślnie) publikuje wyniki poprzedniego przebiegu i wysyła kolejny batch, `--sync` robi wszystko od razu. Jeden przebieg naraz (flock `data/cron-auto-publish.run.lock`); ręczne „Uruchom teraz” (`--manual`) wyłącza zaplanowany przebieg tego dnia (patrz docs/AUTO-PUBLISH.md)
 - `api/cron-indexation.php --token=X` — skan GSC URL Inspection wszystkich stron → `index_status` + dzienna migawka `index_snapshots` (zasila zakładkę Indeksacja). **Tylko CLI** — przebieg trwa kilka godzin, po HTTP padnie na timeoucie.
 
 Przy dodawaniu nowego crona: dopisz go do crontaba na prodzie **oraz** do README i tej listy.

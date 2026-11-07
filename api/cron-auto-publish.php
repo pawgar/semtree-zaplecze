@@ -64,9 +64,42 @@ if (!$cronToken || $providedToken !== $cronToken) {
     exit;
 }
 
-// Reset stuck articles from previous crashed runs
+// ── Jeden przebieg naraz ─────────────────────────────────────
+// flock na osobnym pliku: drugi przebieg (CRON + ręczny, dwa ręczne) kończy się od razu.
+// Bez tego drugi przebieg resetował "generating" pierwszego i oba brały te same wpisy (duplikaty).
+$runLock = fopen(__DIR__ . '/../data/cron-auto-publish.run.lock', 'c');
+if (!$runLock || !flock($runLock, LOCK_EX | LOCK_NB)) {
+    cronLog('Inny przebieg auto-publikacji już trwa — kończę bez zmian.');
+    echo json_encode(['success' => false, 'message' => 'Inny przebieg auto-publikacji już trwa.']);
+    exit;
+}
+// Znacznik dla UI ("działa w tle") — także dla przebiegów z crona; sprzątany przy każdym wyjściu
+$markerFile = __DIR__ . '/../data/cron-auto-publish.lock';
+@file_put_contents($markerFile, (string)time());
+register_shutdown_function(function () use ($markerFile, $runLock) {
+    @unlink($markerFile);
+    flock($runLock, LOCK_UN);
+});
+
+// Ręczny pełny przebieg („Uruchom teraz”, --manual) zastępuje zaplanowany przebieg tego dnia
+$isManualRun = $isCli && in_array('--manual', $argv ?? [], true);
+$today = date('Y-m-d');
+if ($isManualRun) {
+    $st = $db->prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('auto_publish_manual_date', :d)");
+    $st->bindValue(':d', $today, SQLITE3_TEXT);
+    $st->execute();
+} else {
+    $manualDate = $db->querySingle("SELECT value FROM settings WHERE key = 'auto_publish_manual_date'");
+    if ($manualDate === $today) {
+        cronLog("Pominięty: dziś ($today) był już ręczny pełny przebieg.");
+        echo json_encode(['success' => true, 'message' => 'Pominięty — dziś był ręczny przebieg.', 'published' => 0]);
+        exit;
+    }
+}
+
+// Reset stuck articles from previous crashed runs (bezpieczne — trzymamy blokadę)
 $db->exec("UPDATE auto_publish_queue SET status = 'pending' WHERE status IN ('generating', 'generated', 'publishing')");
-cronLog('CRON start — stuck articles reset');
+cronLog('CRON start' . ($isManualRun ? ' (ręczny)' : '') . ' — stuck articles reset');
 
 // ── Settings ─────────────────────────────────────────────────
 $apiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'anthropic_api_key'", true);
@@ -463,8 +496,6 @@ cronLog("Telegram result: $telegramResult");
 cronLog("Indexer result: $speedLinksResult");
 cronLog("CRON done — published: $totalPublished, errors: $totalErrors");
 
-// Remove lock file
-@unlink(__DIR__ . '/../data/cron-auto-publish.lock');
 
 // ── Response ─────────────────────────────────────────────────
 echo json_encode([

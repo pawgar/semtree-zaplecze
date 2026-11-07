@@ -31,6 +31,9 @@ Cykl: **content plan (XLSX/CSV) → kolejka → CRON generuje treść (Claude) �
    Tryb synchroniczny (Batch wyłączony albo flaga --sync, np. „Uruchom teraz” z panelu):
      cały pipeline + publikacja w jednym przebiegu
    → Telegram raport na koniec przebiegu
+   Zawsze tylko jeden przebieg naraz (flock na data/cron-auto-publish.run.lock) — drugi kończy się od razu.
+   Ręczne „Uruchom teraz” (--sync --manual) zapisuje datę w settings.auto_publish_manual_date;
+   zaplanowany przebieg z crona tego samego dnia jest wtedy pomijany.
 
 3. UŻYTKOWNIK: monitoruje w UI Auto publikacje (queue stats per strona)
    albo w Linki → Historia artykułów (wszystkie publikacje z filtrem)

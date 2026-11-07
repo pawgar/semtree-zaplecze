@@ -259,10 +259,9 @@ try {
             $cronToken = $tokenRow ? trim($tokenRow['value']) : '';
             if (!$cronToken) throw new RuntimeException('Brak tokena CRON — ustaw go w Ustawieniach');
 
-            // Check if already running (lock file)
-            $lockFile = __DIR__ . '/../data/cron-auto-publish.lock';
-            if (file_exists($lockFile) && (time() - filemtime($lockFile)) < 7200) {
-                throw new RuntimeException('Auto-publikacja już działa (lock file). Zaczekaj na zakończenie.');
+            // Trwa inny przebieg (z crona albo ręczny)? CRON trzyma flock na pliku .run.lock
+            if (autoPublishRunning()) {
+                throw new RuntimeException('Auto-publikacja już działa. Zaczekaj na zakończenie.');
             }
 
             $cronScript = realpath(__DIR__ . '/cron-auto-publish.php');
@@ -275,7 +274,8 @@ try {
 
             // Fire-and-forget: spawn background process via shell
             $cmd = sprintf(
-                '%s %s --token=%s --sync >> %s 2>&1 &',   // ręczne uruchomienie: publikacja od razu, bez Batch API
+                // --sync: publikacja od razu, bez Batch API; --manual: dzisiejszy przebieg z crona zostanie pominięty
+                '%s %s --token=%s --sync --manual >> %s 2>&1 &',
                 escapeshellcmd($phpBin),
                 escapeshellarg($cronScript),
                 escapeshellarg($cronToken),
@@ -285,9 +285,6 @@ try {
             // Use nohup to detach from parent and survive script end
             $fullCmd = "nohup $cmd";
             exec($fullCmd);
-
-            // Mark as running
-            @file_put_contents($lockFile, (string)time());
 
             echo json_encode([
                 'success' => true,
@@ -301,9 +298,7 @@ try {
         case 'log-tail':
             requireAdminApi();
             $logFile = realpath(__DIR__ . '/../data') . '/cron-auto-publish.log';
-            $lockFile = __DIR__ . '/../data/cron-auto-publish.lock';
-
-            $running = file_exists($lockFile) && (time() - filemtime($lockFile)) < 7200;
+            $running = autoPublishRunning();
             $log = '';
             if (file_exists($logFile)) {
                 // Last 50 lines
@@ -325,6 +320,16 @@ try {
 } catch (Exception $e) {
     http_response_code($e->getCode() >= 400 ? $e->getCode() : 400);
     echo json_encode(['error' => $e->getMessage()]);
+}
+
+// Czy trwa przebieg auto-publikacji — test flock-a, który trzyma api/cron-auto-publish.php
+function autoPublishRunning(): bool {
+    $fh = @fopen(__DIR__ . '/../data/cron-auto-publish.run.lock', 'c');
+    if (!$fh) return false;
+    $free = flock($fh, LOCK_EX | LOCK_NB);
+    if ($free) flock($fh, LOCK_UN);
+    fclose($fh);
+    return !$free;
 }
 
 // ── Content plan parser (handles inlineStr) ─────────────────
