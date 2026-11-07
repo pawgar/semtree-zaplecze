@@ -107,6 +107,8 @@ Chronione tokenem `settings.cron_token`:
 - `api/cron-auto-publish.php --token=X` — kolejka auto-publikacji; z Batch API (domyślnie) publikuje wyniki poprzedniego przebiegu i wysyła kolejny batch, `--sync` robi wszystko od razu. Jeden przebieg naraz (flock `data/cron-auto-publish.run.lock`); ręczne „Uruchom teraz” (`--manual`) wyłącza zaplanowany przebieg tego dnia (patrz docs/AUTO-PUBLISH.md)
 - `api/cron-indexation.php --token=X` — skan GSC URL Inspection wszystkich stron → `index_status` + dzienna migawka `index_snapshots` (zasila zakładkę Indeksacja). **Tylko CLI** — przebieg trwa kilka godzin, po HTTP padnie na timeoucie.
 
+- `bin/worker.php` (CLI, **co minutę**) — kolejka: ręczne przebiegi auto-publikacji i zadania generowania artykułów
+
 Przy dodawaniu nowego crona: dopisz go do crontaba na prodzie **oraz** do README i tej listy.
 Zakładka Indeksacja stała 2 dni z zamrożonymi danymi, bo `cron-indexation.php` powstał
 razem z zakładką, ale nikt go nie wpiął w crontab — kod bez wpisu w crontabie to martwy kod.
@@ -129,7 +131,7 @@ razem z zakładką, ale nikt go nie wpiął w crontab — kod bez wpisu w cronta
 - **XLSX parser** (`api/parse-bulk-file.php`) — własny w PHP, bez PhpSpreadsheet. Czyta SharedStrings + arkusz 1, obsługuje inline strings i formula strings.
 - **QR code na 2FA setup** — biblioteka `qrcode-generator@1.4.4` w `assets/vendor/qrcode/qrcode.min.js` (nie CDN — CDN qrcode@1.5.3 miało 404, a `/lib/browser.min.js` to CommonJS bez browser bundle).
 - **Global JS state:** `gscDashboardData`, `articles`, `bulkArticles`, `bulkSitesList`, `bulkWpDataCache`, `publishedUrls`, `articlesData`, `sitesData`. Jak `null` — kolumny/tabele ukryte.
-- **Generowanie pojedyncze działa w tle:** `api/generate-job.php` startuje `bin/run-generation-job.php` przez `nohup` (jak „Uruchom teraz”), frontend odpytuje o postęp. Bez `exec` fallback na synchroniczne `api/generate-article.php` z keepalive.
+- **Hosting blokuje `exec()`** — strona nie może startować procesów. Długie zadania wykonuje `bin/worker.php` z crona co minutę (`includes/worker_queue.php`): „Uruchom teraz” zapisuje `settings.auto_publish_run_requested`, generowanie pojedyncze/masowe tworzy wpis w `generation_jobs`, frontend odpytuje `api/generate-job.php`. Worker zapisuje `settings.worker_heartbeat`; bez świeżego heartbeatu generowanie przechodzi na synchroniczne `api/generate-article.php` (keepalive), a „Uruchom teraz” zwraca błąd z instrukcją.
 - **Audyt artykułu jest automatyczny** (`includes/article_validator.php`): reguły skilla seo-blog-post-writer-v2. Zmieniając prompt, zmień też walidator, i odwrotnie.
 - **Session timer w topbarze** (`assets/js/session-timer.js`) — poll `/api/session-info.php` co 60s, tick locally 1s, warning <30min, danger pulse <5min.
 

@@ -3,14 +3,15 @@
  * Generowanie artykułu w tle (Zamów i opublikuj — pojedynczo i masowo).
  *
  *   POST {title, main_keyword, secondary_keywords, notes, lang, category} -> {job_id}
- *        Start procesu CLI bin/run-generation-job.php w tle (jak "Uruchom teraz" w auto-publikacji).
- *        Gdy serwer nie pozwala uruchomić procesu: {fallback: true} — frontend woła api/generate-article.php.
+ *        Zadanie trafia do kolejki, wykonuje je worker z crona (bin/worker.php, co minutę) —
+ *        hosting blokuje exec(), więc strona nie może sama startować procesów.
+ *        Gdy worker nie działa (brak świeżego heartbeatu): {fallback: true} — frontend woła api/generate-article.php.
  *   GET ?id=<job_id> -> {status: queued|running|done|error, progress[], result?, error?}
  *
  * Przeglądarka nie trzyma otwartego połączenia przez kilka minut generowania.
  */
 require_once __DIR__ . '/../auth.php';
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../includes/worker_queue.php';
 header('Content-Type: application/json');
 requireLoginApi();
 
@@ -50,7 +51,7 @@ if (trim($input['title'] ?? '') === '') {
     echo json_encode(['error' => 'Tytuł jest wymagany']);
     exit;
 }
-if (!function_exists('exec')) {
+if (!workerAlive()) {
     echo json_encode(['fallback' => true]);
     exit;
 }
@@ -71,14 +72,5 @@ $stmt->bindValue(':in', json_encode([
     'category'           => trim($input['category'] ?? ''),
 ], JSON_UNESCAPED_UNICODE), SQLITE3_TEXT);
 $stmt->execute();
-
-// PHP CLI jak w auto-publish.php (run-manual): SeoHost trzyma go w /usr/local/php83/bin/php
-$phpBin = '/usr/local/php83/bin/php';
-if (!is_executable($phpBin)) $phpBin = PHP_BINARY;
-if (!is_executable($phpBin)) $phpBin = 'php';
-$script = realpath(__DIR__ . '/../bin/run-generation-job.php');
-$logFile = realpath(__DIR__ . '/../data') . '/generation-jobs.log';
-exec(sprintf('nohup %s %s %s >> %s 2>&1 &',
-    escapeshellcmd($phpBin), escapeshellarg($script), escapeshellarg($jobId), escapeshellarg($logFile)));
 
 echo json_encode(['job_id' => $jobId]);

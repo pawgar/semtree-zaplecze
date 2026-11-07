@@ -4,6 +4,7 @@
  * Manages content plans, queue, configs, and category mappings.
  */
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../includes/worker_queue.php';
 header('Content-Type: application/json');
 requireLoginApi();
 
@@ -264,32 +265,18 @@ try {
                 throw new RuntimeException('Auto-publikacja już działa. Zaczekaj na zakończenie.');
             }
 
-            $cronScript = realpath(__DIR__ . '/cron-auto-publish.php');
-            $logFile = realpath(__DIR__ . '/../data') . '/cron-auto-publish.log';
-
-            // Find PHP CLI binary (SeoHost uses /usr/local/php83/bin/php)
-            $phpBin = '/usr/local/php83/bin/php';
-            if (!is_executable($phpBin)) $phpBin = PHP_BINARY;
-            if (!is_executable($phpBin)) $phpBin = 'php';
-
-            // Fire-and-forget: spawn background process via shell
-            $cmd = sprintf(
-                // --sync: publikacja od razu, bez Batch API; --manual: dzisiejszy przebieg z crona zostanie pominięty
-                '%s %s --token=%s --sync --manual >> %s 2>&1 &',
-                escapeshellcmd($phpBin),
-                escapeshellarg($cronScript),
-                escapeshellarg($cronToken),
-                escapeshellarg($logFile)
-            );
-
-            // Use nohup to detach from parent and survive script end
-            $fullCmd = "nohup $cmd";
-            exec($fullCmd);
+            // Hosting blokuje exec(), więc proces startuje worker z crona (bin/worker.php, co minutę)
+            if (!workerAlive()) {
+                throw new RuntimeException('Worker kolejki nie działa — dodaj w crontabie hostingu wpis z bin/worker.php (co minutę, patrz README → CRON).');
+            }
+            if (autoPublishRunRequested()) {
+                throw new RuntimeException('Przebieg jest już zlecony — wystartuje w ciągu minuty.');
+            }
+            requestAutoPublishRun();
 
             echo json_encode([
                 'success' => true,
-                'message' => 'Auto-publikacja uruchomiona w tle. Sprawdzaj postęp w tabeli lub w logach.',
-                'log_file' => $logFile,
+                'message' => 'Przebieg zlecony — worker uruchomi go w ciągu minuty. Postęp w logu poniżej.',
                 'running_in_background' => true,
             ]);
             break;
@@ -299,6 +286,7 @@ try {
             requireAdminApi();
             $logFile = realpath(__DIR__ . '/../data') . '/cron-auto-publish.log';
             $running = autoPublishRunning();
+            $requested = autoPublishRunRequested();
             $log = '';
             if (file_exists($logFile)) {
                 // Last 50 lines
@@ -309,7 +297,9 @@ try {
 
             echo json_encode([
                 'success' => true,
-                'running' => $running,
+                'running' => $running || $requested,
+                'requested' => $requested,
+                'worker_alive' => workerAlive(),
                 'log' => $log,
             ]);
             break;

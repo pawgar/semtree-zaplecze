@@ -32,7 +32,8 @@ Cykl: **content plan (XLSX/CSV) → kolejka → CRON generuje treść (Claude) �
      cały pipeline + publikacja w jednym przebiegu
    → Telegram raport na koniec przebiegu
    Zawsze tylko jeden przebieg naraz (flock na data/cron-auto-publish.run.lock) — drugi kończy się od razu.
-   Ręczne „Uruchom teraz” (--sync --manual) zapisuje datę w settings.auto_publish_manual_date;
+   „Uruchom teraz” zleca przebieg workerowi (bin/worker.php z crona co minutę — hosting blokuje exec()),
+   który odpala go z --sync --manual i zapisuje datę w settings.auto_publish_manual_date;
    zaplanowany przebieg z crona tego samego dnia jest wtedy pomijany.
 
 3. UŻYTKOWNIK: monitoruje w UI Auto publikacje (queue stats per strona)
@@ -41,7 +42,7 @@ Cykl: **content plan (XLSX/CSV) → kolejka → CRON generuje treść (Claude) �
 
 ## Pipeline treści (`includes/article_pipeline.php`)
 
-Wspólny dla auto-publikacji i „Zamów i opublikuj” (pojedynczo i masowo, w tle przez `api/generate-job.php` + `bin/run-generation-job.php`):
+Wspólny dla auto-publikacji i „Zamów i opublikuj” (pojedynczo i masowo, w tle przez `api/generate-job.php` + worker `bin/worker.php`):
 
 1. **Research Senuto** (tylko PL, gdy Senuto skonfigurowane): `getKeywords` (60), `getQuestions` (20), `getGroups` (12) → filtr trafności na Claude Haiku 5.5 (model może tylko wybierać pozycje z listy, wynik przecinany z wejściem). Frazy poboczne z content planu traktowane jako zatwierdzone (Senuto dokłada wtedy tylko pytania i grupy). Cache `senuto_cache` 30 dni.
 2. **Analiza SERP**: `web_search` + `web_fetch` top 3-5 wyników → format, encje semantyczne, sekcje, fakty. Cache `serp_cache` 14 dni per fraza. Wyłączalne w Ustawieniach.

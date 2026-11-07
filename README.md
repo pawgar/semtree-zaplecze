@@ -53,6 +53,10 @@ Ustaw w crontab serwera:
 # i wysyła pisanie kolejnych paczką; --sync wymusza publikację w tym samym przebiegu.
 0 9 * * * /usr/local/php83/bin/php /SCIEZKA/public_html/api/cron-auto-publish.php --token=TWOJ_TOKEN >> /SCIEZKA/public_html/data/cron-auto-publish.log 2>&1
 
+# Worker kolejki (CO MINUTĘ) — "Uruchom teraz" w Auto publikacjach i generowanie artykułów w tle.
+# Hosting blokuje exec(), więc panel tylko zleca zadania, a ten proces je wykonuje.
+* * * * * /usr/local/php83/bin/php /SCIEZKA/public_html/bin/worker.php >> /SCIEZKA/public_html/data/worker.log 2>&1
+
 # Skan indeksacji GSC URL Inspection (codziennie o 3:00) — MUSI być przez CLI, nie curl:
 # przebieg trwa kilka godzin i wywali się na timeoucie HTTP.
 0 3 * * * /usr/local/php83/bin/php /SCIEZKA/public_html/api/cron-indexation.php --token=TWOJ_TOKEN >> /SCIEZKA/public_html/data/cron-indexation.log 2>&1

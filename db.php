@@ -324,7 +324,7 @@ function migrateSchema(SQLite3 $db): void {
         $db->exec('ALTER TABLE auto_publish_queue ADD COLUMN batch_id TEXT DEFAULT NULL');
     }
 
-    // Generowanie pojedyncze w tle (api/generate-job.php + bin/run-generation-job.php)
+    // Generowanie pojedyncze w tle (api/generate-job.php + bin/worker.php)
     $db->exec('CREATE TABLE IF NOT EXISTS generation_jobs (
         id TEXT PRIMARY KEY,
         user_id INTEGER NOT NULL,
