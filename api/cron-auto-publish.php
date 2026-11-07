@@ -26,6 +26,7 @@ require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../includes/wp_api.php';
 require_once __DIR__ . '/../includes/article_pipeline.php';
 require_once __DIR__ . '/../includes/image_utils.php';
+require_once __DIR__ . '/../includes/rapid_indexing.php';
 
 if (!$isCli) header('Content-Type: application/json');
 
@@ -109,8 +110,7 @@ $anthropicKey = $apiKeyRow ? trim($apiKeyRow['value']) : '';
 $geminiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'gemini_api_key'", true);
 $geminiKey = $geminiKeyRow ? trim($geminiKeyRow['value']) : '';
 
-$rapidKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'rapid_indexer_api_key'", true);
-$rapidKey = $rapidKeyRow ? trim($rapidKeyRow['value']) : '';
+$rapidKey = indexSetting('rapid_indexer_api_key');
 
 if (!$anthropicKey) {
     echo json_encode(['error' => 'Brak klucza Anthropic API']);
@@ -401,8 +401,10 @@ function cronPublishArticle(array $site, array $article, array $result): void {
     $pubStmt->bindValue(':title', $articleTitle, SQLITE3_TEXT);
     $pubStmt->execute();
 
-    // Zbieraj do indeksacji (Rapid URL Indexer) — wysyłka zbiorcza po całym przebiegu
-    if ($site['use_speed_links'] && $postUrl) $speedLinksUrls[] = $postUrl;
+    // Indeksacja (Rapid URL Indexer): każda publikacja do kolejki, paczka wysyłana na koniec przebiegu
+    if ($postUrl && (indexAutoEnabled() || $site['use_speed_links'])) {
+        if (indexQueueUrl($postUrl, (int)$site['id'], 'auto-publikacja')) $speedLinksUrls[] = $postUrl;
+    }
 
     $report[$site['id']]['published']++;
     $totalPublished++;
@@ -435,58 +437,17 @@ function cronArticleFailed(array $site, array $article, Exception $e): void {
     $report[$site['id']]['articles'][] = ['title' => $article['title'], 'url' => '', 'status' => 'error', 'error' => $errMsg];
 }
 
-// ── Rapid URL Indexer — jedna zbiorcza paczka za cały dzienny przebieg ──
+// ── Rapid URL Indexer — jedna paczka z publikacjami tego przebiegu (includes/rapid_indexing.php) ──
 $speedLinksResult = '';
-if (!empty($speedLinksUrls) && $rapidKey) {
-    try {
-        // Odfiltruj puste / niepoprawne URL-e (Rapid wymaga http:// lub https://)
-        $indexUrls = array_values(array_filter($speedLinksUrls, function ($u) {
-            return is_string($u) && preg_match('#^https?://#i', $u);
-        }));
-
-        if (empty($indexUrls)) {
-            $speedLinksResult = "Rapid Indexer: brak poprawnych URL-i do wysłania";
-        } else {
-            $projectName = 'Auto-publish ' . date('Y-m-d');
-            $payload = json_encode([
-                'project_name' => $projectName,
-                'urls' => $indexUrls,
-                'notify_on_status_change' => false,
-                'apex_mode_enabled' => false,
-            ]);
-
-            $ch = curl_init('https://rapidurlindexer.com/wp-json/api/v1/projects');
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json',
-                    'X-API-Key: ' . $rapidKey,
-                ],
-                CURLOPT_POSTFIELDS => $payload,
-                CURLOPT_TIMEOUT => 60,
-                CURLOPT_CONNECTTIMEOUT => 20,
-            ]);
-            $riResponse = curl_exec($ch);
-            $riCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $riError = curl_error($ch);
-            curl_close($ch);
-
-            if ($riError) {
-                $speedLinksResult = "Rapid Indexer error: $riError";
-            } elseif ($riCode === 201 || $riCode === 200) {
-                $riData = json_decode($riResponse, true) ?? [];
-                $pid = $riData['project_id'] ?? '?';
-                $speedLinksResult = "Rapid Indexer: " . count($indexUrls) . " URL-i wysłano (projekt #{$pid}: {$projectName})";
-            } else {
-                $riData = json_decode($riResponse, true) ?? [];
-                $msg = $riData['message'] ?? trim((string) $riResponse);
-                $speedLinksResult = "Rapid Indexer error (HTTP {$riCode}): {$msg}";
-            }
-        }
-    } catch (Exception $e) {
-        $speedLinksResult = "Rapid Indexer error: " . $e->getMessage();
+if (!empty($speedLinksUrls)) {
+    $idx = indexFlush(true, 'auto-publikacja');
+    if ($idx['submitted']) {
+        $speedLinksResult = "Rapid Indexer: {$idx['submitted']} URL-i wysłano (projekt #{$idx['project_id']}, kredyty: {$idx['credits_left']})";
+    } elseif ($idx['error']) {
+        $speedLinksResult = "Rapid Indexer error: {$idx['error']} (URL-e czekają w kolejce)";
     }
+    if ($idx['deferred']) $speedLinksResult .= " | {$idx['deferred']} niedostępnych, ponowienie za 6 h";
+    cronLog($speedLinksResult);
 }
 
 // ── Telegram report ──────────────────────────────────────────

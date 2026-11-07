@@ -136,6 +136,8 @@ function rapidSubmitProject(string $apiKey, string $projectName, array $urls): a
         CURLOPT_POSTFIELDS => $payload,
         CURLOPT_TIMEOUT => 60,
         CURLOPT_CONNECTTIMEOUT => 20,
+        // Rapid zwraca 403 HTML dla domyślnego User-Agenta curla
+        CURLOPT_USERAGENT => 'SemtreeZapleczeIndexer/1.0 (+https://zaplecze.semtree.com.pl)',
     ]);
     $resp = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);

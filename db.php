@@ -336,4 +336,29 @@ function migrateSchema(SQLite3 $db): void {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )');
+
+    // Indeksacja publikacji przez Rapid URL Indexer (includes/rapid_indexing.php)
+    $db->exec('CREATE TABLE IF NOT EXISTS index_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        url TEXT NOT NULL UNIQUE,
+        site_id INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL DEFAULT "",
+        status TEXT NOT NULL DEFAULT "queued",
+        attempts INTEGER NOT NULL DEFAULT 0,
+        available_at DATETIME NOT NULL,
+        last_reason TEXT DEFAULT NULL,
+        rapid_project_id TEXT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        submitted_at DATETIME DEFAULT NULL
+    )');
+    $db->exec('CREATE INDEX IF NOT EXISTS idx_index_queue_status ON index_queue(status, available_at)');
+    $db->exec('CREATE TABLE IF NOT EXISTS rapid_projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        url_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT "pending",
+        indexed INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        checked_at DATETIME DEFAULT NULL
+    )');
 }

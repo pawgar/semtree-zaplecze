@@ -8,7 +8,8 @@
  *   1. zapisuje heartbeat (panel wie, że worker działa),
  *   2. jeśli panel poprosił o ręczny przebieg auto-publikacji ("Uruchom teraz") — zabiera prośbę
  *      i wykonuje pełny przebieg w tym procesie (--sync --manual, log do cron-auto-publish.log),
- *   3. w przeciwnym razie przetwarza zadania generowania artykułów (generation_jobs) jedno po drugim.
+ *   3. w przeciwnym razie: wysyła do Rapid URL Indexer dojrzałą paczkę z kolejki indeksacji
+ *      (co godzinę odświeża status projektów) i przetwarza zadania generowania (generation_jobs).
  *
  * Kolejne wywołania co minutę nie dublują pracy: przebieg auto-publikacji trzyma swój flock,
  * a zadania generowania — flock data/worker-jobs.lock (zadanie i tak zabierane atomowo).
@@ -37,6 +38,17 @@ if (claimAutoPublishRun()) {
     $argc = count($argv);
     require __DIR__ . '/../api/cron-auto-publish.php';
     exit;
+}
+
+// ── Indeksacja: paczka z kolejki (gdy dojrzała) + co godzinę status projektów Rapid ──
+require_once __DIR__ . '/../includes/rapid_indexing.php';
+$idx = indexFlush(false);
+if ($idx['submitted'] || $idx['error']) {
+    echo '[' . date('H:i:s') . '] Indeksacja: ' . ($idx['submitted'] ? "{$idx['submitted']} URL-i, projekt {$idx['project_id']}" : $idx['error']) . "\n";
+}
+if ((int)workerSetting('index_refreshed_at') < time() - 3600) {
+    workerSetSetting('index_refreshed_at', (string)time());
+    indexRefreshProjects();
 }
 
 // ── Zadania generowania artykułów ───────────────────────────

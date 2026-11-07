@@ -4,6 +4,8 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../includes/wp_api.php';
 require_once __DIR__ . '/../includes/image_utils.php';
 require_once __DIR__ . '/../includes/link_extractor.php';
+require_once __DIR__ . '/../includes/rapid_indexing.php';
+require_once __DIR__ . '/../includes/worker_queue.php';
 header('Content-Type: application/json');
 requireLoginApi();
 
@@ -130,12 +132,25 @@ try {
         }
     }
 
+    // Indeksacja (Rapid URL Indexer): każda publikacja trafia do kolejki. Wpis zaplanowany
+    // na przyszłość czeka do daty publikacji. Bez workera z crona — wysyłka od razu.
+    $indexQueued = false;
+    $indexResult = null;
+    $wpStatus = $result['status'] ?? $postData['status'];   // WP sam zmienia publish -> future dla daty w przyszłości
+    if ($postUrl && in_array($wpStatus, ['publish', 'future'], true) && indexAutoEnabled()) {
+        $availableAt = ($wpStatus === 'future' && !empty($result['date_gmt'])) ? $result['date_gmt'] . ' UTC' : null;
+        $indexQueued = indexQueueUrl($postUrl, $siteId, trim($input['source'] ?? '') ?: 'publikacja', $availableAt);
+        if ($indexQueued && !$availableAt && !workerAlive()) $indexResult = indexFlush(true);
+    }
+
     echo json_encode([
         'success' => true,
         'post_id' => $result['id'] ?? 0,
         'post_url' => $postUrl,
         'title' => $title,
         'links_added' => $linksAdded,
+        'index_queued' => $indexQueued,
+        'index_result' => $indexResult,
     ]);
 } catch (Exception $e) {
     echo json_encode([

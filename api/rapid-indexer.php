@@ -1,12 +1,15 @@
 <?php
 /**
- * Submit URLs to Rapid URL Indexer as a single project (batch).
- * Zastępuje dawną integrację Speed-Links.
+ * Ręczne zgłoszenie URL-i do Rapid URL Indexer (Publikuj / Import — checkbox „Wyślij do indeksacji”).
  * POST: { urls: ["url1", "url2", ...], project_name?: "..." }
- * API: POST https://rapidurlindexer.com/wp-json/api/v1/projects  (X-API-Key)
+ *
+ * Idzie przez wspólną kolejkę (includes/rapid_indexing.php) i od razu wysyła paczkę: sprawdzenie
+ * 200/noindex, bez ponownego zgłoszenia w ciągu 30 dni, kontrola kredytów, własny User-Agent.
+ * Publikacje przez api/publish.php trafiają do kolejki same — ten endpoint wtedy nic nie dubluje.
  */
-set_time_limit(90);
+set_time_limit(300);
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../includes/rapid_indexing.php';
 header('Content-Type: application/json');
 requireLoginApi();
 
@@ -19,75 +22,36 @@ if (empty($urls) || !is_array($urls)) {
     echo json_encode(['error' => 'Brak URLi do indeksacji']);
     exit;
 }
-
-// Wyczyść i odfiltruj puste / niepoprawne (Rapid wymaga http:// lub https://)
-$urls = array_values(array_filter(array_map('trim', $urls), function ($u) {
-    return $u !== '' && preg_match('#^https?://#i', $u);
-}));
-
-if (empty($urls)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Brak poprawnych URLi do indeksacji (wymagany http:// lub https://)']);
-    exit;
-}
-
-$db = getDb();
-$row = $db->querySingle("SELECT value FROM settings WHERE key = 'rapid_indexer_api_key'", true);
-$apiKey = $row ? trim($row['value']) : '';
-
-if (!$apiKey) {
+if (indexSetting('rapid_indexer_api_key') === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Brak klucza API Rapid URL Indexer. Ustaw go w ustawieniach.']);
     exit;
 }
 
-if ($projectName === '') {
-    $projectName = 'Zaplecze — ' . date('Y-m-d H:i');
+$db = getDb();
+$queued = 0;
+foreach ($urls as $u) {
+    $u = trim((string)$u);
+    if (!preg_match('#^https?://#i', $u)) continue;
+    // site_id po domenie (0, gdy URL spoza zaplecza)
+    $host = preg_replace('/^www\./', '', strtolower(parse_url($u, PHP_URL_HOST) ?? ''));
+    $st = $db->prepare("SELECT id FROM sites WHERE REPLACE(REPLACE(REPLACE(LOWER(url), 'https://', ''), 'http://', ''), 'www.', '') LIKE :h LIMIT 1");
+    $st->bindValue(':h', $host . '%', SQLITE3_TEXT);
+    $siteId = (int)($st->execute()->fetchArray(SQLITE3_NUM)[0] ?? 0);
+    if (indexQueueUrl($u, $siteId, 'ręcznie')) $queued++;
 }
 
-$payload = json_encode([
-    'project_name' => $projectName,
-    'urls' => $urls,
-    'notify_on_status_change' => false,
-    'apex_mode_enabled' => false,
-]);
-
-$ch = curl_init('https://rapidurlindexer.com/wp-json/api/v1/projects');
-curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER => [
-        'Content-Type: application/json',
-        'X-API-Key: ' . $apiKey,
-    ],
-    CURLOPT_POSTFIELDS => $payload,
-    CURLOPT_TIMEOUT => 60,
-    CURLOPT_CONNECTTIMEOUT => 20,
-]);
-$result = curl_exec($ch);
-$httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error = curl_error($ch);
-curl_close($ch);
-
-if ($error) {
-    http_response_code(500);
-    echo json_encode(['error' => 'cURL error: ' . $error]);
+$res = indexFlush(true, $projectName ?: 'ręcznie');
+if ($res['error'] && !$res['submitted']) {
+    http_response_code(502);
+    echo json_encode(['error' => $res['error'], 'queued' => $queued], JSON_UNESCAPED_UNICODE);
     exit;
 }
-
-$data = json_decode($result, true) ?? [];
-
-if ($httpCode === 201 || $httpCode === 200) {
-    echo json_encode([
-        'success' => true,
-        'submitted' => count($urls),
-        'project_id' => $data['project_id'] ?? null,
-        'project_name' => $projectName,
-    ]);
-} else {
-    echo json_encode([
-        'success' => false,
-        'submitted' => 0,
-        'error' => 'Rapid Indexer: ' . ($data['message'] ?? ('HTTP ' . $httpCode . ' ' . trim((string) $result))),
-    ]);
-}
+echo json_encode([
+    'success'      => true,
+    'submitted'    => $res['submitted'],
+    'project_id'   => $res['project_id'],
+    'credits_left' => $res['credits_left'],
+    'deferred'     => $res['deferred'],
+    'already'      => count($urls) - $queued,   // zgłoszone wcześniej (np. automatycznie po publikacji)
+], JSON_UNESCAPED_UNICODE);
