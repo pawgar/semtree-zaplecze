@@ -13,6 +13,8 @@
  */
 
 require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/claude_client.php';
+require_once __DIR__ . '/senuto_api.php';
 
 /**
  * Zwraca ID stron ktorych kolejka ma mniej niz $threshold pendingow.
@@ -108,8 +110,14 @@ function getSiteContextForTopics(int $siteId, int $promptTitlesLimit = 200): ?ar
         return true;
     }));
 
-    // Kategorie do array
-    $cats = array_filter(array_map('trim', explode(',', (string)$site['categories'])));
+    // Kategorie: nazwy zmapowane w auto_publish_category_map (tylko takie CRON przepuszcza),
+    // fallback na sites.categories gdy strona nie ma jeszcze mapowania
+    $cats = [];
+    $stmt = $db->prepare('SELECT category_name FROM auto_publish_category_map WHERE site_id = :id ORDER BY category_name');
+    $stmt->bindValue(':id', $siteId, SQLITE3_INTEGER);
+    $res = $stmt->execute();
+    while ($r = $res->fetchArray(SQLITE3_ASSOC)) $cats[] = trim((string)$r['category_name']);
+    if (!$cats) $cats = array_filter(array_map('trim', explode(',', (string)$site['categories'])));
 
     return [
         'id'         => (int)$site['id'],
@@ -148,14 +156,10 @@ function normalizeTopicTitle(string $s): string {
  * Rzuca RuntimeException gdy brak API key, HTTP error, niepoprawny JSON.
  */
 function generateTopicsForSite(array $site, int $count = 30): array {
-    $db = getDb();
-    $apiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'anthropic_api_key'", true);
-    $apiKey = $apiKeyRow ? trim((string)$apiKeyRow['value']) : '';
-    if ($apiKey === '') {
+    if (claudeApiKey() === '') {
         throw new RuntimeException('Brak anthropic_api_key w settings.');
     }
-    $modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-    $model = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-5';
+    $senutoPool = topicSenutoPool($site);
 
     $catsStr = empty($site['categories']) ? '(brak zdefiniowanych kategorii)' : implode(', ', $site['categories']);
     $totalHistCount = count($site['historical_titles'] ?? []);
@@ -191,7 +195,7 @@ Kategorie strony: {$catsStr}
 Tematy JUZ ZAJETE (opublikowane albo w kolejce){$histNote} — NIE POWTARZAJ ani zadnego z nich, ani ich blizniaczych wariantow (np. inne slowo pytające, inna liczba mnoga, inny szyk):
 {$recent}
 
-Kazdy artykul MUSI byc:
+{$senutoPool['prompt']}Kazdy artykul MUSI byc:
 - ORYGINALNY, konkretny, nie za ogolny (np. NIE "Wszystko o X", "Kompendium wiedzy o X"),
 - Roznorodny — mieszanka poradnikow, list, porownan, case-studies, odpowiedzi na konkretne pytania,
 - Bezposrednio zwiazany z tematyka strony (nie generyczny content),
@@ -210,45 +214,16 @@ Format odpowiedzi — tablica JSON z {$count} obiektami:
 Zwroc TYLKO tablice JSON. Nic wiecej.
 PROMPT;
 
-    $payload = [
-        'model' => $model,
-        'max_tokens' => 12000,
+    // Wspólny klient: retry przy przeciążeniu, tekst z bloków text (przy thinking content[0] to nie tekst)
+    $resp = claudeRequest([
+        'model' => claudeMainModel(),
         'system' => $system,
-        'messages' => [
-            ['role' => 'user', 'content' => $userPrompt],
-        ],
-    ];
-
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'x-api-key: ' . $apiKey,
-            'anthropic-version: 2023-06-01',
-        ],
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_TIMEOUT => 180,
-        CURLOPT_CONNECTTIMEOUT => 30,
-        CURLOPT_SSL_VERIFYPEER => false,
+        'messages' => [['role' => 'user', 'content' => $userPrompt]],
+        'effort' => 'low',
+        'max_tokens' => 16000,
+        'timeout' => 300,
     ]);
-    $response = curl_exec($ch);
-    if (curl_errno($ch)) {
-        $err = curl_error($ch);
-        curl_close($ch);
-        throw new RuntimeException('cURL: ' . $err);
-    }
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    $data = json_decode($response, true);
-    if ($httpCode >= 400 || !$data) {
-        $msg = $data['error']['message'] ?? "HTTP {$httpCode}";
-        throw new RuntimeException('Claude API: ' . $msg);
-    }
-
-    $text = $data['content'][0]['text'] ?? '';
+    $text = $resp['text'];
     if ($text === '') throw new RuntimeException('Pusta odpowiedz Claude API.');
 
     $topics = parseTopicsJson($text, $site['categories']);
@@ -276,6 +251,36 @@ PROMPT;
         'topics'         => $filtered,
         'raw_count'      => count($topics),
         'dropped_dupes'  => $droppedDup,
+    ];
+}
+
+/**
+ * Pula prawdziwych fraz z Senuto dla generatora tematów (tylko PL, gdy Senuto skonfigurowane):
+ * po jednym zapytaniu getKeywords na kategorię strony (cache 30 dni), frazy z wolumenem.
+ * Zwraca ['prompt' => sekcja do promptu albo '', 'keywords' => [...]].
+ */
+function topicSenutoPool(array $site, int $perCategory = 40): array {
+    if (($site['lang'] ?? 'pl') !== 'pl' || !senutoConfigured() || empty($site['categories'])) {
+        return ['prompt' => '', 'keywords' => []];
+    }
+    $rows = [];
+    foreach (array_slice($site['categories'], 0, 6) as $cat) {
+        try {
+            foreach (senutoGetKeywords($cat, 'pl', $perCategory) as $k) {
+                $kw = trim((string)($k['keyword'] ?? ''));
+                if ($kw !== '' && ($k['searches'] ?? 0) >= 30) $rows[$kw] = (int)$k['searches'];
+            }
+        } catch (Throwable $e) {
+            // brak danych dla kategorii nie blokuje generowania tematów
+        }
+    }
+    if (!$rows) return ['prompt' => '', 'keywords' => []];
+    arsort($rows);
+    $rows = array_slice($rows, 0, 150, true);
+    $list = implode("\n", array_map(fn($kw, $vol) => "- {$kw} ({$vol}/mies.)", array_keys($rows), $rows));
+    return [
+        'prompt' => "Frazy z realnym wolumenem wyszukiwan (Senuto, Polska) — main_keyword wybieraj z tej listy, gdy pasuje do tematu i kategorii; frazy poboczne tez preferuj z listy:\n{$list}\n\n",
+        'keywords' => array_keys($rows),
     ];
 }
 

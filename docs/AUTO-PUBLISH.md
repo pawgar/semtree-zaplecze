@@ -9,6 +9,7 @@ Cykl: **content plan (XLSX/CSV) → kolejka → CRON generuje treść (Claude) �
   - `pending` — czeka na generację
   - `generating` — Claude API w trakcie (nie ruszaj, blokada wyścigu)
   - `generated` — treść gotowa, czeka na publikację
+  - `batched` — pisanie wysłane w Batch API, wynik odbierze kolejny przebieg CRON (`batch_id`)
   - `publishing` — wysyłka do WP w toku
   - `published` — sukces, `published_url` + `published_at` uzupełnione
   - `error` — coś poszło źle, `error_message` z detalami
@@ -17,36 +18,45 @@ Cykl: **content plan (XLSX/CSV) → kolejka → CRON generuje treść (Claude) �
 ## Flow
 
 ```
-1. UŻYTKOWNIK: wgrywa XLSX/CSV w Auto publikacje
-   → mapuje kolumny (Tytuł, Główna fraza, Frazy poboczne, Kategoria)
-   → wybiera stronę zapleczową
-   → wpisy trafiają do auto_publish_queue jako "pending"
+1. UŻYTKOWNIK: wgrywa XLSX w Auto publikacje (kolumny rozpoznawane po nagłówkach:
+   Tytuł, Główne słowo kluczowe, Frazy poboczne, Kategoria, Notatki)
+   → wybiera stronę zapleczową → wpisy trafiają do auto_publish_queue jako "pending"
 
-2. CRON: /api/cron-auto-publish.php?token=X (co dzień, godzinowo, whatever)
-   → dla każdej strony z enabled=1:
-      → bierze do daily_limit pending items z tej strony
-      → dla każdego:
-         a. UPDATE status='generating'
-         b. Claude API: full article (topic, keywords, category context)
-         c. Gemini API: featured image (jeśli image_gen w config)
-         d. UPDATE status='generated'
-         e. WP REST: create post (matched category via auto_publish_category_map)
-         f. UPDATE status='published', published_url, published_at
-         g. Opcjonalnie Speed-Links VIP indexing
-         h. Opcjonalnie inline images przez Gemini (linkowanie w treści)
-      → Telegram raport na koniec cyklu
+2. CRON: php api/cron-auto-publish.php --token=X (codziennie 9:00)
+   Tryb Batch API (domyślny, Ustawienia → "Auto-publikacja przez Batch API"):
+     Faza A — wpisy "batched" z poprzedniego przebiegu: odbiór wyników batcha,
+              audyt + poprawki + korekta, okładka, publikacja w WP
+     Faza B — nowe "pending" (do daily_limit na stronę): research Senuto + SERP teraz,
+              pisanie wysłane jednym batchem (50% taniej) → status "batched"
+   Tryb synchroniczny (Batch wyłączony albo flaga --sync, np. „Uruchom teraz” z panelu):
+     cały pipeline + publikacja w jednym przebiegu
+   → Telegram raport na koniec przebiegu
 
 3. UŻYTKOWNIK: monitoruje w UI Auto publikacje (queue stats per strona)
    albo w Linki → Historia artykułów (wszystkie publikacje z filtrem)
 ```
 
+## Pipeline treści (`includes/article_pipeline.php`)
+
+Wspólny dla auto-publikacji i „Zamów i opublikuj” (pojedynczo i masowo, w tle przez `api/generate-job.php` + `bin/run-generation-job.php`):
+
+1. **Research Senuto** (tylko PL, gdy Senuto skonfigurowane): `getKeywords` (60), `getQuestions` (20), `getGroups` (12) → filtr trafności na Claude Haiku 5.5 (model może tylko wybierać pozycje z listy, wynik przecinany z wejściem). Frazy poboczne z content planu traktowane jako zatwierdzone (Senuto dokłada wtedy tylko pytania i grupy). Cache `senuto_cache` 30 dni.
+2. **Analiza SERP**: `web_search` + `web_fetch` top 3-5 wyników → format, encje semantyczne, sekcje, fakty. Cache `serp_cache` 14 dni per fraza. Wyłączalne w Ustawieniach.
+3. **Pisanie**: model z Ustawień (domyślnie Claude Sonnet 5.5, effort medium), prompt `includes/article_prompt.php` zgodny ze skillem seo-blog-post-writer-v2.
+4. **Audyt** `includes/article_validator.php` (automatyczna część 21-punktowego checklistu skilla): długość, H2/H3, listy, zakazane frazy, myślniki PL, „?” w nagłówkach pytających, linki. FAIL → poprawka modelem (maks. 2 rundy). Znaki zapytania i myślniki poprawiane też deterministycznie.
+5. **Korekta językowa** (ten sam prompt co `api/proofread-article.php`), przyjmowana tylko gdy nie pogarsza audytu.
+
+Raport (checki, research, usage, koszt w USD) zapisywany w `auto_publish_queue.quality_report`.
+
+Błędy przejściowe API (429/5xx/529/timeout, nieudany wynik batcha) po retry w kliencie: wpis wraca do `pending`, maks. 3 próby (`attempts`).
+
 ## Category mapping
 
-Content plan zwykle ma kategorie jako string (`"Poradniki"`, `"Recenzje"`). WordPress ma je jako `wp_category_id`. Mapping trzyma `auto_publish_category_map`.
+Content plan ma kategorie jako tekst (`"Poradniki"`), WordPress jako `wp_category_id`. Mapping trzyma `auto_publish_category_map`.
 
-- Pierwsza publikacja z nową kategorią → CRON próbuje zmatchować po nazwie w WP, jeśli znajdzie → zapisuje mapping, jeśli nie → status=`error` z komunikatem "kategoria niezmapowana"
-- UI Auto publikacje ma sekcję "Niezmapowane kategorie" gdzie ręcznie łączysz `category_name` → wybór z dropdownu WP kategorii
-- Pozycje z `wp_category_id IS NOT NULL` lub z pustym `category_name` — trafiają na produkcję bez blokera
+- CRON przetwarza tylko wpisy z pustą kategorią, z ustawionym `wp_category_id` albo z kategorią obecną w mapowaniu. **Niezmapowana kategoria NIE jest dopasowywana po nazwie**: wpis czeka w `pending`, aż połączysz ją w UI Auto publikacje → „Niezmapowane kategorie”.
+- Formatki content planu (lista rozwijana kategorii) zawierają tylko nazwy już zmapowane dla danej domeny.
+- Generator tematów (`includes/topic_generator.php`) bierze kategorie z mapowania, żeby nowe wpisy nie utykały w kolejce, a frazy główne z puli Senuto (wolumen) zamiast wymyślonych.
 
 ## Refill kolejki przez AI
 

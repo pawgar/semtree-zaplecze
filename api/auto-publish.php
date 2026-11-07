@@ -29,7 +29,7 @@ try {
                 $st = $db->prepare('SELECT status, COUNT(*) as cnt FROM auto_publish_queue WHERE site_id = :sid GROUP BY status');
                 $st->bindValue(':sid', $siteId, SQLITE3_INTEGER);
                 $res = $st->execute();
-                $stats = ['pending' => 0, 'generating' => 0, 'generated' => 0, 'publishing' => 0, 'published' => 0, 'error' => 0];
+                $stats = ['pending' => 0, 'generating' => 0, 'generated' => 0, 'batched' => 0, 'publishing' => 0, 'published' => 0, 'error' => 0];
                 while ($s = $res->fetchArray(SQLITE3_ASSOC)) {
                     $stats[$s['status']] = (int)$s['cnt'];
                 }
@@ -275,7 +275,7 @@ try {
 
             // Fire-and-forget: spawn background process via shell
             $cmd = sprintf(
-                '%s %s --token=%s >> %s 2>&1 &',
+                '%s %s --token=%s --sync >> %s 2>&1 &',   // ręczne uruchomienie: publikacja od razu, bez Batch API
                 escapeshellcmd($phpBin),
                 escapeshellarg($cronScript),
                 escapeshellarg($cronToken),

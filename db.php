@@ -296,4 +296,44 @@ function migrateSchema(SQLite3 $db): void {
         not_indexed INTEGER DEFAULT 0,
         UNIQUE(site_id, snap_date)
     )');
+
+    // Research do generowania treści: cache Senuto (30 dni) i analizy SERP (14 dni)
+    $db->exec('CREATE TABLE IF NOT EXISTS senuto_cache (
+        cache_key TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        fetched_at DATETIME NOT NULL
+    )');
+    $db->exec('CREATE TABLE IF NOT EXISTS serp_cache (
+        cache_key TEXT PRIMARY KEY,
+        keyword TEXT NOT NULL,
+        data TEXT NOT NULL,
+        fetched_at DATETIME NOT NULL
+    )');
+
+    // Kolejka auto-publikacji: licznik prób (ponawianie błędów przejściowych) + raport audytu
+    $apqCols = [];
+    $r = $db->query('PRAGMA table_info(auto_publish_queue)');
+    while ($c = $r->fetchArray(SQLITE3_ASSOC)) $apqCols[] = $c['name'];
+    if (!in_array('attempts', $apqCols)) {
+        $db->exec('ALTER TABLE auto_publish_queue ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!in_array('quality_report', $apqCols)) {
+        $db->exec('ALTER TABLE auto_publish_queue ADD COLUMN quality_report TEXT DEFAULT NULL');
+    }
+    if (!in_array('batch_id', $apqCols)) {
+        $db->exec('ALTER TABLE auto_publish_queue ADD COLUMN batch_id TEXT DEFAULT NULL');
+    }
+
+    // Generowanie pojedyncze w tle (api/generate-job.php + bin/run-generation-job.php)
+    $db->exec('CREATE TABLE IF NOT EXISTS generation_jobs (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT "queued",
+        input TEXT NOT NULL,
+        progress TEXT NOT NULL DEFAULT "[]",
+        result TEXT DEFAULT NULL,
+        error TEXT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )');
 }

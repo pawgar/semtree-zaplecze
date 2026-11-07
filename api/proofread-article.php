@@ -6,6 +6,7 @@
 set_time_limit(180);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../includes/article_prompt.php';
+require_once __DIR__ . '/../includes/claude_client.php';
 header('Content-Type: application/json');
 requireLoginApi();
 
@@ -47,7 +48,7 @@ $systemPrompt = "Jesteś profesjonalnym korektorem tekstów w języku {$langName
 
 // Get configured model
 $modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-5';
+$aiModel = claudeMainModel();
 
 $payload = [
     'model'      => $aiModel,

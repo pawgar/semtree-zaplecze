@@ -97,7 +97,53 @@ async function loadContentSettings() {
             const el = document.getElementById('settingsDefaultLang');
             if (el) el.value = r2.value;
         }
+        const r3 = await api('GET', 'api/settings.php?key=ai_effort');
+        const effortEl = document.getElementById('settingsAiEffort');
+        if (effortEl) effortEl.value = r3.value || 'medium';
+        const r4 = await api('GET', 'api/settings.php?key=serp_enabled');
+        const serpEl = document.getElementById('settingsSerpEnabled');
+        if (serpEl) serpEl.checked = r4.value !== '0';
+        const r5 = await api('GET', 'api/settings.php?key=auto_publish_batch');
+        const batchEl = document.getElementById('settingsAutoPublishBatch');
+        if (batchEl) batchEl.checked = r5.value !== '0';
+        const s = await api('GET', 'api/senuto-settings.php');
+        const emailEl = document.getElementById('senutoEmail');
+        if (emailEl) {
+            emailEl.value = s.email || '';
+            document.getElementById('senutoStatus').textContent = s.has_password
+                ? 'Skonfigurowane' + (s.token_expires ? ', token do ' + s.token_expires.slice(0, 10) : '')
+                : 'Nieskonfigurowane';
+        }
     } catch (e) {}
+}
+
+async function saveSenutoSettings() {
+    const email = document.getElementById('senutoEmail').value.trim();
+    const password = document.getElementById('senutoPassword').value;
+    const status = document.getElementById('senutoStatus');
+    status.textContent = 'Zapisuję i testuję...';
+    try {
+        const r = await api('POST', 'api/senuto-settings.php', { email, password });
+        document.getElementById('senutoPassword').value = '';
+        status.textContent = r.error || r.message;
+        status.className = 'small ' + (r.ok ? 'text-success' : 'text-danger');
+    } catch (e) {
+        status.textContent = 'Błąd: ' + e.message;
+        status.className = 'small text-danger';
+    }
+}
+
+async function testSenutoConnection() {
+    const status = document.getElementById('senutoStatus');
+    status.textContent = 'Testuję...';
+    try {
+        const r = await api('POST', 'api/senuto-settings.php', { action: 'test' });
+        status.textContent = r.error || r.message;
+        status.className = 'small ' + (r.ok ? 'text-success' : 'text-danger');
+    } catch (e) {
+        status.textContent = 'Błąd: ' + e.message;
+        status.className = 'small text-danger';
+    }
 }
 
 async function saveContentSettings() {
@@ -106,6 +152,12 @@ async function saveContentSettings() {
     try {
         if (model) await api('POST', 'api/settings.php', { key: 'ai_model', value: model });
         if (lang) await api('POST', 'api/settings.php', { key: 'default_lang', value: lang });
+        const effort = document.getElementById('settingsAiEffort')?.value;
+        if (effort) await api('POST', 'api/settings.php', { key: 'ai_effort', value: effort });
+        const serpEl = document.getElementById('settingsSerpEnabled');
+        if (serpEl) await api('POST', 'api/settings.php', { key: 'serp_enabled', value: serpEl.checked ? '1' : '0' });
+        const batchEl = document.getElementById('settingsAutoPublishBatch');
+        if (batchEl) await api('POST', 'api/settings.php', { key: 'auto_publish_batch', value: batchEl.checked ? '1' : '0' });
         showToast('Ustawienia zapisane', 'success');
     } catch (e) {
         showToast('Blad zapisu: ' + e.message, 'error');
@@ -3270,6 +3322,72 @@ function orderSelectCategory(id, name) {
 }
 
 // ── Generate Article (Single Mode) ──────────────────────────
+// Generowanie artykułu w tle: start zadania + odpytywanie o postęp (api/generate-job.php).
+// Gdy serwer nie może uruchomić procesu w tle — synchronicznie przez api/generate-article.php.
+async function generateArticleRemote(payload, onProgress) {
+    const start = await api('POST', 'api/generate-job.php', payload);
+    if (start.error) throw new Error(start.error);
+    if (start.fallback || !start.job_id) return api('POST', 'api/generate-article.php', payload);
+
+    let shown = 0;
+    const deadline = Date.now() + 30 * 60 * 1000;
+    while (Date.now() < deadline) {
+        await sleep(4000);
+        let st;
+        try {
+            st = await api('GET', 'api/generate-job.php?id=' + encodeURIComponent(start.job_id));
+        } catch (e) {
+            continue;   // chwilowy błąd sieci — próbuj dalej
+        }
+        if (st.error && !st.status) throw new Error(st.error);
+        (st.progress || []).slice(shown).forEach(p => onProgress && onProgress(p.msg));
+        shown = (st.progress || []).length;
+        if (st.status === 'done') return st.result;
+        if (st.status === 'error') return { error: st.error || 'Generowanie nie powiodło się' };
+    }
+    return { error: 'Przekroczono czas oczekiwania na artykuł (30 min)' };
+}
+
+// Podsumowanie audytu artykułu z api/generate-article.php (checks + research)
+function articleAuditSummaryHtml(article) {
+    const checks = article.checks || [];
+    const fails = checks.filter(c => c.status === 'FAIL');
+    const warns = checks.filter(c => c.status === 'WARN');
+    const sources = (article.research && article.research.sources) || [];
+    let html = `<div class="small text-muted">  Research: ${sources.length ? esc(sources.join(' + ')) : 'brak (Senuto/SERP niedostępne)'}</div>`;
+    if (fails.length) {
+        html += `<div class="small text-warning"><i class="bi bi-exclamation-triangle"></i> Audyt: ${fails.map(c => esc(c.name + ': ' + c.message)).join('; ')}</div>`;
+    } else {
+        html += `<div class="small text-success"><i class="bi bi-check-circle"></i> Audyt zgodności OK${warns.length ? ' (uwagi: ' + warns.map(c => esc(c.name)).join(', ') + ')' : ''}</div>`;
+    }
+    (article.notes || []).forEach(n => { html += `<div class="small text-muted">  ${esc(n)}</div>`; });
+    return html;
+}
+
+// Pobiera frazy wspierające z Senuto (z filtrem trafności) do pola fraz pomocniczych
+async function orderFetchSenuto() {
+    const mainKw = document.getElementById('orderMainKeyword').value.trim();
+    const title = document.getElementById('orderTitle').value.trim();
+    if (!mainKw) return showToast('Wpisz najpierw glowne slowo kluczowe', 'error');
+    const btn = document.getElementById('orderSenutoBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Senuto...';
+    try {
+        const r = await api('POST', 'api/senuto-keywords.php', { main_keyword: mainKw, title });
+        if (r.error) throw new Error(r.error);
+        const field = document.getElementById('orderSecondaryKeywords');
+        const existing = field.value.split(',').map(s => s.trim()).filter(Boolean);
+        field.value = [...new Set([...existing, ...(r.supporting || [])])].join(', ');
+        const q = (r.questions || []).length;
+        showToast(`Senuto: ${(r.supporting || []).length} fraz${q ? ', ' + q + ' pytan (trafia do promptu przy generowaniu)' : ''}`, 'success');
+    } catch (e) {
+        showToast('Senuto: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-search"></i> Frazy z Senuto';
+    }
+}
+
 async function orderGenerate() {
     const title = document.getElementById('orderTitle').value.trim();
     const mainKw = document.getElementById('orderMainKeyword').value.trim();
@@ -3302,14 +3420,18 @@ async function orderGenerate() {
     log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Generowanie tresci...</div>';
 
     try {
-        const article = await api('POST', 'api/generate-article.php', {
-            title, main_keyword: mainKw, secondary_keywords: secondaryKw, notes, lang
-        });
+        log.innerHTML += '<div class="text-muted small">Research Senuto + analiza SERP, pisanie, audyt i korekta (kilka minut)...</div>';
+        const category = (document.getElementById('orderCategorySearch')?.value || '').trim();
+        const article = await generateArticleRemote({
+            title, main_keyword: mainKw, secondary_keywords: secondaryKw, notes, lang, category
+        }, msg => { log.innerHTML += `<div class="text-muted small">  ${esc(msg)}</div>`; });
         if (article.error) throw new Error(article.error);
 
         orderGeneratedData.html_content = article.html_content;
         orderGeneratedData.markdown = article.markdown;
-        log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Tresc wygenerowana (${article.char_count} znakow)</div>`;
+        orderGeneratedData.proofread = !!article.proofread;
+        log.innerHTML += `<div class="text-success"><i class="bi bi-check-circle"></i> Tresc wygenerowana (${article.char_count} znakow, ~$${article.cost_usd ?? '?'})</div>`;
+        log.innerHTML += articleAuditSummaryHtml(article);
         orderProgress(bar, 30, 'Tresc gotowa');
     } catch (e) {
         log.innerHTML += `<div class="text-danger"><i class="bi bi-x-circle"></i> Blad: ${esc(e.message)}</div>`;
@@ -3318,10 +3440,10 @@ async function orderGenerate() {
         return;
     }
 
-    // Phase 1b: Proofreading (30-40%)
+    // Phase 1b: Proofreading (30-40%) — pomijana, gdy pipeline zrobił już korektę
     orderProgress(bar, 32, 'Korekta ortograficzna...');
-    log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Korekta ortograficzna...</div>';
-    try {
+    if (!orderGeneratedData.proofread) log.innerHTML += '<div><i class="bi bi-hourglass-split text-primary"></i> Korekta ortograficzna...</div>';
+    if (!orderGeneratedData.proofread) try {
         const proof = await api('POST', 'api/proofread-article.php', {
             markdown: orderGeneratedData.markdown, lang
         });
@@ -4150,21 +4272,23 @@ async function bulkOrderStart() {
             // Combine per-item notes with global notes; use per-item or fallback lang
             const itemNotes = [item.notes, globalNotes].filter(n => n).join('\n');
             const itemLang = item.lang || fallbackLang;
-            const article = await api('POST', 'api/generate-article.php', {
+            const article = await generateArticleRemote({
                 title: item.title,
                 main_keyword: item.main_keyword,
                 secondary_keywords: item.secondary_keywords,
                 notes: itemNotes,
                 lang: itemLang,
-            });
+                category: item.category_name || '',
+            }, msg => { log.innerHTML += `<div class="text-muted small">    ${esc(msg)}</div>`; });
             if (article.error) throw new Error(article.error);
 
             let htmlContent = article.html_content;
             let articleMarkdown = article.markdown || '';
+            log.innerHTML += articleAuditSummaryHtml(article);
 
-            // 1b. Proofreading pass
-            log.innerHTML += `<div class="text-muted small">  Korekta ortograficzna...</div>`;
-            try {
+            // 1b. Proofreading pass — pomijana, gdy pipeline zrobił już korektę
+            if (!article.proofread) log.innerHTML += `<div class="text-muted small">  Korekta ortograficzna...</div>`;
+            if (!article.proofread) try {
                 const proof = await api('POST', 'api/proofread-article.php', {
                     markdown: articleMarkdown, lang: itemLang
                 });
@@ -4978,7 +5102,7 @@ function renderApSites() {
         const published = q.published || 0;
         const pending = q.pending || 0;
         const errors = q.error || 0;
-        const generating = (q.generating || 0) + (q.generated || 0) + (q.publishing || 0);
+        const generating = (q.generating || 0) + (q.generated || 0) + (q.batched || 0) + (q.publishing || 0);
         const pctPublished = total > 0 ? Math.round(published / total * 100) : 0;
         const pctPending = total > 0 ? Math.round(pending / total * 100) : 0;
         const pctError = total > 0 ? Math.round(errors / total * 100) : 0;
@@ -5205,6 +5329,7 @@ function renderApQueue() {
             pending: statusDot('orange', 'Oczekuje'),
             generating: statusDot('blue', 'Generowanie', true),
             generated: statusDot('azure', 'Wygenerowany'),
+            batched: statusDot('azure', 'W batchu (publikacja w kolejnym przebiegu)', true),
             publishing: statusDot('blue', 'Publikacja', true),
             published: statusDot('green', 'Opublikowany'),
             error: statusDot('red', 'Błąd'),

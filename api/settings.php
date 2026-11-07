@@ -13,6 +13,12 @@ if ($method === 'GET') {
         echo json_encode(['error' => 'Brak klucza']);
         exit;
     }
+    // Dane logowania Senuto obsługuje api/senuto-settings.php i nigdy ich nie zwraca
+    if (str_starts_with($key, 'senuto_')) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Klucz niedostępny']);
+        exit;
+    }
 
     $stmt = $db->prepare('SELECT value FROM settings WHERE key = :key');
     $stmt->bindValue(':key', $key, SQLITE3_TEXT);
@@ -31,6 +37,11 @@ if ($method === 'POST') {
     if (!$key) {
         http_response_code(400);
         echo json_encode(['error' => 'Brak klucza']);
+        exit;
+    }
+    if (str_starts_with($key, 'senuto_')) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Użyj api/senuto-settings.php']);
         exit;
     }
 

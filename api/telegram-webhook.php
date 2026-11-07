@@ -13,6 +13,7 @@
  */
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../includes/squidward_facts.php';
+require_once __DIR__ . '/../includes/claude_client.php';
 header('Content-Type: application/json');
 
 // Zawsze 200 dla Telegrama, żeby nie próbował retransmisji
@@ -123,7 +124,7 @@ function skalmarContextualReply(SQLite3 $db, string $userMsg, string $fromName):
     // Używaj modelu z settings (zwykle Sonnet 4.6) dla lepszej polszczyzny.
     // Webhook Telegrama czeka ~60s, Sonnet odpowiada w 3-5s — mieścimy się.
     $modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-    $model = ($modelRow && !empty($modelRow['value'])) ? trim($modelRow['value']) : 'claude-sonnet-5';
+    $model = claudeMainModel();
 
     $systemPrompt = "Jesteś Skalmarem Obłynosem (Squidward Tentacles) z kreskówki SpongeBob Kanciastoporty. Jesteś ośmiornicą mieszkającą w Bikini Dolnym obok SpongeBoba i Patryka, pracujesz jako kasjer w Krusty Krab. Lubisz sztukę, klarnet i taniec, uważasz się za wyrafinowanego. Jesteś lekko zrzędliwy i pompatyczny, ale miły. Lubisz narzekać na SpongeBoba ale masz do niego słabość.\n\n"
         . "ZASADY JĘZYKOWE (bardzo ważne):\n"

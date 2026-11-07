@@ -93,7 +93,8 @@ Singleton `getDb()` w `db.php`. Migracje w `migrateSchema()` — idempotentne (s
 
 - **WordPress REST API** (`includes/wp_api.php`) — Basic Auth (App Passwords), auto-detect pretty vs `?rest_route=`, posts CRUD + media + users + categories
 - **Google Search Console** (`includes/gsc_api.php`) — OAuth 2.0 offline, tokeny w settings, cache 6h w `gsc_cache`
-- **Claude API** — model z `settings.ai_model` (default `claude-sonnet-4-6`), klucz w `settings.anthropic_api_key`, prompty w `includes/article_prompt.php` (wielojęzyczne)
+- **Claude API** — wspólny klient `includes/claude_client.php` (raw cURL: retry 429/5xx/529, streaming SSE, prompt caching, pause_turn, server-side fallback, Message Batches). Model z `settings.ai_model` (default `claude-sonnet-5-5`), effort z `settings.ai_effort` (default `medium`), klucz w `settings.anthropic_api_key`. Pipeline treści `includes/article_pipeline.php` (research → pisanie → audyt `includes/article_validator.php` → korekta), prompty w `includes/article_prompt.php`. Szczegóły: docs/AUTO-PUBLISH.md
+- **Senuto** — `includes/senuto_api.php` (port z Ateny): login e-mail+hasło → JWT ~30 dni, auto-refresh (<5 dni lub 401), hasło szyfrowane (`settings.senuto_password_enc`). Klucze `senuto_*` NIE są dostępne przez `api/settings.php` — tylko `api/senuto-settings.php`. Cache `senuto_cache` 30 dni. `country_id` = 1 dla PL (endpointy keywords_analysis nie przyjmują 200)
 - **Google Gemini** — obrazki wyróżniające + inline, fallback przez kilka modeli (native → Imagen)
 - **Speed-Links.net** — indeksacja VIP po publikacji
 - **Telegram Bot** — raporty z CRON auto-publish
@@ -103,7 +104,7 @@ Singleton `getDb()` w `db.php`. Migracje w `migrateSchema()` — idempotentne (s
 Chronione tokenem `settings.cron_token`:
 - `api/cron-status.php?token=X` — HTTP + WP API statusy + skanowanie linków (900s timeout)
 - `api/cron-gsc.php?token=X` — refresh GSC dla wszystkich stron (600s timeout)
-- `api/cron-auto-publish.php?token=X` — bierze pending z kolejki, generuje treść (Claude), wysyła do WP (patrz docs/AUTO-PUBLISH.md)
+- `api/cron-auto-publish.php --token=X` — kolejka auto-publikacji; z Batch API (domyślnie) publikuje wyniki poprzedniego przebiegu i wysyła kolejny batch, `--sync` robi wszystko od razu (patrz docs/AUTO-PUBLISH.md)
 - `api/cron-indexation.php --token=X` — skan GSC URL Inspection wszystkich stron → `index_status` + dzienna migawka `index_snapshots` (zasila zakładkę Indeksacja). **Tylko CLI** — przebieg trwa kilka godzin, po HTTP padnie na timeoucie.
 
 Przy dodawaniu nowego crona: dopisz go do crontaba na prodzie **oraz** do README i tej listy.
@@ -128,6 +129,8 @@ razem z zakładką, ale nikt go nie wpiął w crontab — kod bez wpisu w cronta
 - **XLSX parser** (`api/parse-bulk-file.php`) — własny w PHP, bez PhpSpreadsheet. Czyta SharedStrings + arkusz 1, obsługuje inline strings i formula strings.
 - **QR code na 2FA setup** — biblioteka `qrcode-generator@1.4.4` w `assets/vendor/qrcode/qrcode.min.js` (nie CDN — CDN qrcode@1.5.3 miało 404, a `/lib/browser.min.js` to CommonJS bez browser bundle).
 - **Global JS state:** `gscDashboardData`, `articles`, `bulkArticles`, `bulkSitesList`, `bulkWpDataCache`, `publishedUrls`, `articlesData`, `sitesData`. Jak `null` — kolumny/tabele ukryte.
+- **Generowanie pojedyncze działa w tle:** `api/generate-job.php` startuje `bin/run-generation-job.php` przez `nohup` (jak „Uruchom teraz”), frontend odpytuje o postęp. Bez `exec` fallback na synchroniczne `api/generate-article.php` z keepalive.
+- **Audyt artykułu jest automatyczny** (`includes/article_validator.php`): reguły skilla seo-blog-post-writer-v2. Zmieniając prompt, zmień też walidator, i odwrotnie.
 - **Session timer w topbarze** (`assets/js/session-timer.js`) — poll `/api/session-info.php` co 60s, tick locally 1s, warning <30min, danger pulse <5min.
 
 ## Dokumentacja szczegółowa

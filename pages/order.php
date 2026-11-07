@@ -71,7 +71,13 @@
             </div>
             <div class="col-md-6">
                 <label class="form-label">Słowa kluczowe pomocnicze <span class="text-secondary">(opcjonalnie)</span></label>
-                <input type="text" class="form-control" id="orderSecondaryKeywords" placeholder="np. panele słoneczne, energia odnawialna">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="orderSecondaryKeywords" placeholder="np. panele słoneczne, energia odnawialna">
+                    <button class="btn btn-outline-secondary" type="button" id="orderSenutoBtn" onclick="orderFetchSenuto()" title="Pobierz frazy z Senuto dla głównego słowa kluczowego (z filtrem trafności)">
+                        <i class="ti ti-search"></i> Frazy z Senuto
+                    </button>
+                </div>
+                <div class="form-hint small">Bez wpisanych fraz Senuto dobierze je samo przy generowaniu (artykuły PL).</div>
             </div>
             <div class="col-12">
                 <label class="form-label">Dodatkowe informacje <span class="text-secondary">(opcjonalnie)</span></label>

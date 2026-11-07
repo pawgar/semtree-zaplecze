@@ -5,7 +5,8 @@
  * Sends Telegram report after completion.
  *
  * Usage (CLI — recommended, no HTTP timeout):
- *   php cron-auto-publish.php --token=SECRET
+ *   php cron-auto-publish.php --token=SECRET          (Batch API, jeśli włączone w Ustawieniach)
+ *   php cron-auto-publish.php --token=SECRET --sync   (wszystko w jednym przebiegu)
  *
  * Usage (HTTP — fallback, may hit server timeout for many sites):
  *   curl -s "https://app.com/api/cron-auto-publish.php?token=SECRET"
@@ -23,7 +24,7 @@ if ($isCli && function_exists('pcntl_signal')) {
 
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../includes/wp_api.php';
-require_once __DIR__ . '/../includes/article_prompt.php';
+require_once __DIR__ . '/../includes/article_pipeline.php';
 require_once __DIR__ . '/../includes/image_utils.php';
 
 if (!$isCli) header('Content-Type: application/json');
@@ -71,8 +72,6 @@ cronLog('CRON start — stuck articles reset');
 $apiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'anthropic_api_key'", true);
 $anthropicKey = $apiKeyRow ? trim($apiKeyRow['value']) : '';
 
-$modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-5';
 
 $geminiKeyRow = $db->querySingle("SELECT value FROM settings WHERE key = 'gemini_api_key'", true);
 $geminiKey = $geminiKeyRow ? trim($geminiKeyRow['value']) : '';
@@ -85,7 +84,14 @@ if (!$anthropicKey) {
     exit;
 }
 
-// ── Get enabled sites with pending articles ──────────────────
+// ── Tryb Batch API ───────────────────────────────────────────
+// Włączony (domyślnie): przebieg N wysyła pisanie artykułów jako jeden batch (50% taniej),
+// przebieg N+1 odbiera wyniki, kończy audyt/korektę i publikuje. Przy dziennym cronie
+// artykuł wychodzi następnego dnia. Wyłączony: wszystko synchronicznie w jednym przebiegu.
+$forceSync = $isCli && in_array('--sync', $argv ?? [], true);   // ręczne „Uruchom teraz” z panelu
+$batchMode = claudeSetting('auto_publish_batch') !== '0' && !$forceSync;
+
+// ── Enabled sites ────────────────────────────────────────────
 $sites = [];
 $result = $db->query('
     SELECT s.id, s.name, s.url, s.username, s.app_password,
@@ -95,38 +101,84 @@ $result = $db->query('
     WHERE apc.enabled = 1
     ORDER BY s.name
 ');
-while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-    // Check if site has pending articles
-    $pendingStmt = $db->prepare('SELECT COUNT(*) as cnt FROM auto_publish_queue WHERE site_id = :sid AND status = "pending"');
-    $pendingStmt->bindValue(':sid', $row['id'], SQLITE3_INTEGER);
-    $pending = $pendingStmt->execute()->fetchArray(SQLITE3_ASSOC)['cnt'];
-    if ($pending > 0) {
-        $row['pending_count'] = $pending;
-        $sites[] = $row;
-    }
-}
+while ($row = $result->fetchArray(SQLITE3_ASSOC)) $sites[(int)$row['id']] = $row;
 
-if (empty($sites)) {
+$hasWork = (int)$db->querySingle("SELECT COUNT(*) FROM auto_publish_queue WHERE status IN ('pending', 'batched')");
+if (empty($sites) || !$hasWork) {
     echo json_encode(['success' => true, 'message' => 'Brak stron z oczekującymi artykułami.', 'published' => 0]);
     exit;
 }
 
-// ── Process each site ────────────────────────────────────────
 $totalPublished = 0;
 $totalErrors = 0;
-$report = []; // For Telegram
+$report = [];          // site_id => {site, published, errors, articles[]} (Telegram)
 $speedLinksUrls = [];
+$siteCtxCache = [];
 
-cronLog('Sites to process: ' . count($sites));
+cronLog('Tryb: ' . ($batchMode ? 'Batch API (publikacja w kolejnym przebiegu)' : 'synchroniczny'));
 
-foreach ($sites as $site) {
-    $siteId = $site['id'];
+// ── Faza A: odbiór zakończonych batchy i publikacja ─────────
+$batchedItems = [];
+$r = $db->query("SELECT * FROM auto_publish_queue WHERE status = 'batched' AND batch_id IS NOT NULL ORDER BY id");
+while ($row = $r->fetchArray(SQLITE3_ASSOC)) $batchedItems[$row['batch_id']][] = $row;
+
+foreach ($batchedItems as $batchId => $items) {
+    try {
+        $info = claudeBatchGet($batchId);
+    } catch (Exception $e) {
+        cronLog("Batch $batchId: błąd odczytu statusu: " . $e->getMessage());
+        continue;
+    }
+    if (($info['processing_status'] ?? '') !== 'ended') {
+        cronLog("Batch $batchId: w trakcie (" . count($items) . ' artykułów), sprawdzę w kolejnym przebiegu');
+        continue;
+    }
+    try {
+        $results = claudeBatchResults($info['results_url']);
+    } catch (Exception $e) {
+        cronLog("Batch $batchId: błąd pobrania wyników: " . $e->getMessage());
+        continue;
+    }
+    cronLog("Batch $batchId: zakończony, " . count($results) . ' wyników');
+
+    foreach ($items as $article) {
+        $site = $sites[(int)$article['site_id']] ?? null;
+        if (!$site) {
+            // Strona wyłączona w międzyczasie — wpis wraca do kolejki
+            $db->exec("UPDATE auto_publish_queue SET status = 'pending', batch_id = NULL WHERE id = " . (int)$article['id']);
+            continue;
+        }
+        cronLog("  [{$site['name']}] #{$article['id']}: {$article['title']}");
+        $db->exec("UPDATE auto_publish_queue SET status = 'generating' WHERE id = " . (int)$article['id']);
+        try {
+            $res = $results['q' . $article['id']] ?? null;
+            if (!$res || $res['type'] !== 'succeeded') {
+                $why = $res ? ($res['type'] . ($res['error'] ? ': ' . $res['error'] : '')) : 'brak wyniku w batchu';
+                throw new ClaudeApiException("Batch: $why", true);
+            }
+            if ($res['stop_reason'] === 'max_tokens') throw new ClaudeApiException('Batch: odpowiedź ucięta (max_tokens)', true);
+            $saved = json_decode((string)$article['quality_report'], true) ?: [];
+            $ctx = $saved['ctx'] ?? null;
+            if (!$ctx) throw new RuntimeException('Brak zapisanego kontekstu researchu');
+            articleTrackUsage($ctx, $res);
+            $article['_batch'] = true;
+            $result = articleFinish($ctx, $res['text'], null, fn($m) => cronLog("    $m"));
+            cronPublishArticle($site, $article, $result);
+        } catch (Exception $e) {
+            cronArticleFailed($site, $article, $e);
+        }
+    }
+}
+
+// ── Faza B: nowe artykuły z kolejki ─────────────────────────
+$batchRequests = [];
+$batchContexts = [];
+
+foreach ($sites as $siteId => $site) {
     $limit = max(1, (int)$site['daily_limit']);
     $lang = $site['lang'] ?: 'pl';
-    cronLog("Processing site #$siteId: {$site['name']} (limit: $limit)");
 
-    // Get pending articles — skip ones with unmapped categories (safer: leave pending, user can map later)
-    // Ready = no category OR wp_category_id set OR category name is in mapping table
+    // Pending gotowe do generacji — pomija niezmapowane kategorie (zostają pending, user zmapuje)
     $qStmt = $db->prepare('
         SELECT * FROM auto_publish_queue
         WHERE site_id = :sid AND status = "pending"
@@ -140,208 +192,214 @@ foreach ($sites as $site) {
     $qStmt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
     $qStmt->bindValue(':sid2', $siteId, SQLITE3_INTEGER);
     $qStmt->bindValue(':lim', $limit, SQLITE3_INTEGER);
-    $result = $qStmt->execute();
+    $res = $qStmt->execute();
     $articles = [];
-    while ($row = $result->fetchArray(SQLITE3_ASSOC)) $articles[] = $row;
-
+    while ($row = $res->fetchArray(SQLITE3_ASSOC)) $articles[] = $row;
     if (empty($articles)) continue;
 
-    // Get category mappings for this site
+    cronLog("Site #$siteId: {$site['name']} (limit: $limit)");
+
+    foreach ($articles as $article) {
+        $articleId = (int)$article['id'];
+        cronLog("  Article #$articleId: {$article['title']}");
+        $db->exec("UPDATE auto_publish_queue SET status = 'generating' WHERE id = $articleId");
+
+        $in = [
+            'title'              => $article['title'],
+            'main_keyword'       => $article['main_keyword'],
+            'secondary_keywords' => $article['secondary_keywords'],
+            'notes'              => $article['notes'],
+            'lang'               => $lang,
+            'category'           => $article['category_name'],
+        ];
+        try {
+            if ($batchMode) {
+                // Research teraz (Senuto + SERP), samo pisanie w batchu
+                $ctx = articlePrepare($in, fn($m) => cronLog("    $m"));
+                $batchRequests['q' . $articleId] = articleWriteParams($ctx);
+                $batchContexts[$articleId] = $ctx;
+            } else {
+                $result = generateArticleFull($in, null, fn($m) => cronLog("    $m"));
+                cronPublishArticle($site, $article, $result);
+            }
+        } catch (Exception $e) {
+            cronArticleFailed($site, $article, $e);
+        }
+    }
+}
+
+if ($batchRequests) {
+    try {
+        $batchId = claudeBatchCreate($batchRequests);
+        $st = $db->prepare('UPDATE auto_publish_queue SET status = "batched", batch_id = :b, quality_report = :qr WHERE id = :id');
+        foreach ($batchContexts as $articleId => $ctx) {
+            $st->bindValue(':b', $batchId, SQLITE3_TEXT);
+            $st->bindValue(':qr', json_encode(['ctx' => $ctx], JSON_UNESCAPED_UNICODE), SQLITE3_TEXT);
+            $st->bindValue(':id', $articleId, SQLITE3_INTEGER);
+            $st->execute();
+            $st->reset();
+        }
+        cronLog("Batch $batchId wysłany: " . count($batchRequests) . ' artykułów (publikacja w kolejnym przebiegu)');
+    } catch (Exception $e) {
+        // Nie udało się wysłać batcha — wpisy wracają do kolejki bez zużycia prób
+        $ids = implode(',', array_map('intval', array_keys($batchContexts)));
+        $db->exec("UPDATE auto_publish_queue SET status = 'pending' WHERE id IN ($ids)");
+        cronLog('Błąd wysyłki batcha: ' . $e->getMessage());
+        $totalErrors++;
+    }
+}
+
+$report = array_values($report);
+
+// ── Helpers: publikacja / błąd pojedynczego wpisu ────────────
+
+/** Kategorie i autorzy strony — pobierane raz na przebieg. */
+function cronSiteContext(array $site): array {
+    global $db, $siteCtxCache;
+    $siteId = (int)$site['id'];
+    if (isset($siteCtxCache[$siteId])) return $siteCtxCache[$siteId];
+
     $catStmt = $db->prepare('SELECT category_name, wp_category_id FROM auto_publish_category_map WHERE site_id = :sid');
     $catStmt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
     $catResult = $catStmt->execute();
     $catMap = [];
-    while ($row = $catResult->fetchArray(SQLITE3_ASSOC)) {
-        $catMap[mb_strtolower($row['category_name'])] = (int)$row['wp_category_id'];
-    }
+    while ($row = $catResult->fetchArray(SQLITE3_ASSOC)) $catMap[mb_strtolower($row['category_name'])] = (int)$row['wp_category_id'];
 
-    // Get authors if random_author enabled
     $authors = [];
     if ($site['random_author']) {
         try {
-            $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
-            $authors = $wpApi->getAuthors();
+            $authors = (new WpApi($site['url'], $site['username'], $site['app_password']))->getAuthors();
         } catch (Exception $e) {
             // Fallback: no random author
         }
     }
+    return $siteCtxCache[$siteId] = ['catMap' => $catMap, 'authors' => $authors];
+}
 
-    $sitePublished = 0;
-    $siteErrors = 0;
-    $siteArticles = [];
+function cronReportSite(array $site): void {
+    global $report;
+    $report[$site['id']] ??= ['site' => $site['name'], 'published' => 0, 'errors' => 0, 'articles' => []];
+}
 
-    foreach ($articles as $article) {
-        $articleId = $article['id'];
-        $articleTitle = $article['title'];
-        cronLog("  Article #$articleId: $articleTitle");
+/** Okładka (Gemini) + publikacja w WP + zapis w kolejce i publications. */
+function cronPublishArticle(array $site, array $article, array $result): void {
+    global $db, $geminiKey, $speedLinksUrls, $report, $totalPublished;
+    $articleId = (int)$article['id'];
+    $articleTitle = $article['title'];
+    $siteCtx = cronSiteContext($site);
+    cronReportSite($site);
 
-        // Mark as generating
-        $db->exec("UPDATE auto_publish_queue SET status = 'generating' WHERE id = $articleId");
+    $failed = array_column(articleFailures($result['checks']), 'name');
+    cronLog('    Audyt: ' . ($failed ? 'FAIL ' . implode(', ', $failed) : 'OK') . ", {$result['char_count']} znaków, ~\${$result['cost_usd']}" . (!empty($article['_batch']) ? ' (batch)' : ''));
+    foreach ($result['notes'] as $n) cronLog("    $n");
 
+    $qrStmt = $db->prepare('UPDATE auto_publish_queue SET status = "generated", quality_report = :qr WHERE id = :id');
+    $qrStmt->bindValue(':qr', json_encode([
+        'checks' => $result['checks'], 'research' => $result['research'], 'usage' => $result['usage'],
+        'cost_usd' => $result['cost_usd'], 'model' => $result['model'], 'notes' => $result['notes'],
+        'batch' => !empty($article['_batch']),
+    ], JSON_UNESCAPED_UNICODE), SQLITE3_TEXT);
+    $qrStmt->bindValue(':id', $articleId, SQLITE3_INTEGER);
+    $qrStmt->execute();
+
+    // Okładka przez Gemini
+    $featuredMediaId = 0;
+    $imageError = '';
+    if ($geminiKey) {
         try {
-            // 1. Generate article content via Claude API
-            $systemPrompt = getArticleSystemPrompt($lang);
-            $userPrompt = buildArticleUserPrompt(
-                $articleTitle,
-                $article['main_keyword'],
-                $article['secondary_keywords'],
-                $article['notes'],
-                $lang
-            );
-
-            $payload = [
-                'model' => $aiModel,
-                'max_tokens' => 16000,
-                'system' => $systemPrompt,
-                'messages' => [['role' => 'user', 'content' => $userPrompt]],
-            ];
-
-            $ch = curl_init('https://api.anthropic.com/v1/messages');
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json',
-                    'x-api-key: ' . $anthropicKey,
-                    'anthropic-version: 2023-06-01',
-                ],
-                CURLOPT_POSTFIELDS => json_encode($payload),
-                CURLOPT_TIMEOUT => 180,
-                CURLOPT_CONNECTTIMEOUT => 30,
-                CURLOPT_SSL_VERIFYPEER => false,
-            ]);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            if (curl_errno($ch)) throw new RuntimeException('cURL: ' . curl_error($ch));
-            curl_close($ch);
-
-            if ($httpCode >= 400) {
-                $errData = json_decode($response, true);
-                throw new RuntimeException('Claude API HTTP ' . $httpCode . ': ' . ($errData['error']['message'] ?? 'Unknown error'));
-            }
-
-            $data = json_decode($response, true);
-            $markdown = '';
-            foreach (($data['content'] ?? []) as $block) {
-                if (($block['type'] ?? '') === 'text') $markdown .= $block['text'];
-            }
-            if (!$markdown) throw new RuntimeException('Claude API nie zwróciło treści');
-
-            // Remove H1, convert to HTML
-            $markdown = preg_replace('/^#\s+.+\n*/m', '', $markdown, 1);
-            $htmlContent = markdownToHtml($markdown);
-            $htmlContent = sanitizeArticleHtml($htmlContent);
-
-            // Mark as generated
-            $db->exec("UPDATE auto_publish_queue SET status = 'generated' WHERE id = $articleId");
-
-            // 2. Generate featured image via Gemini (always)
-            $featuredMediaId = 0;
-            $imageError = '';
-            if ($geminiKey) {
-                try {
-                    $imagePrompt = "Professional blog header image for article titled: \"$articleTitle\". Modern, clean, editorial style. No text on image.";
-                    $geminiErrors = [];
-                    $imageData = generateGeminiImage($geminiKey, $imagePrompt, $geminiErrors);
-                    if ($imageData) {
-                        $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
-                        $optimized = optimizeImage(base64_decode($imageData), 'featured.jpg');
-                        $featuredMediaId = $wpApi->uploadMedia($optimized['filename'], $optimized['data'], $optimized['mime']);
-                    } else {
-                        $imageError = 'Gemini: ' . implode('; ', $geminiErrors ?: ['brak danych']);
+            $imagePrompt = "Professional blog header image for article titled: \"$articleTitle\". Modern, clean, editorial style. No text on image.";
+            $geminiErrors = [];
+            $imageData = generateGeminiImage($geminiKey, $imagePrompt, $geminiErrors);
+            if ($imageData) {
+                $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
+                // Nazwa pliku i alt z frazy / tytułu (wcześniej losowy hex i brak alt)
+                $imageSlug = slugify($article['main_keyword'] ?: $articleTitle) ?: 'okladka';
+                $optimized = optimizeImage(base64_decode($imageData), $imageSlug . '.jpg', true);
+                $featuredMediaId = $wpApi->uploadMedia($optimized['filename'], $optimized['data'], $optimized['mime']);
+                if ($featuredMediaId) {
+                    try {
+                        $wpApi->updateMedia($featuredMediaId, ['alt_text' => $articleTitle, 'title' => $articleTitle]);
+                    } catch (Exception $e) {
+                        cronLog('    Alt obrazka nie zapisany: ' . $e->getMessage());
                     }
-                } catch (Exception $e) {
-                    $imageError = $e->getMessage();
                 }
             } else {
-                $imageError = 'Brak klucza Gemini API';
+                $imageError = 'Gemini: ' . implode('; ', $geminiErrors ?: ['brak danych']);
             }
-
-            // 3. Publish to WordPress
-            $db->exec("UPDATE auto_publish_queue SET status = 'publishing' WHERE id = $articleId");
-
-            $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
-
-            // Publish immediately — WordPress uses current server time
-            // Random delay 0-180s between articles makes publish times look natural
-            $postData = [
-                'title' => $articleTitle,
-                'content' => $htmlContent,
-                'status' => 'publish',
-            ];
-
-            // Category mapping
-            $wpCatId = $article['wp_category_id'];
-            if (!$wpCatId && $article['category_name']) {
-                $wpCatId = $catMap[mb_strtolower($article['category_name'])] ?? 0;
-            }
-            if ($wpCatId > 0) $postData['categories'] = [$wpCatId];
-
-            // Random author
-            if ($site['random_author'] && !empty($authors)) {
-                $randomAuthor = $authors[array_rand($authors)];
-                $postData['author'] = $randomAuthor['id'];
-            }
-
-            // Featured image
-            if ($featuredMediaId > 0) $postData['featured_media'] = $featuredMediaId;
-
-            $result = $wpApi->createPost($postData);
-            $postUrl = $result['link'] ?? '';
-
-            // Mark as published
-            $upStmt = $db->prepare('UPDATE auto_publish_queue SET status = "published", published_url = :url, published_at = datetime("now") WHERE id = :id');
-            $upStmt->bindValue(':url', $postUrl, SQLITE3_TEXT);
-            $upStmt->bindValue(':id', $articleId, SQLITE3_INTEGER);
-            $upStmt->execute();
-
-            // Record publication — use first admin as the CRON "user" (FK to users.id)
-            static $cronUserId = null;
-            if ($cronUserId === null) {
-                $u = $db->querySingle("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1", true);
-                $cronUserId = $u ? (int)$u['id'] : 1;
-            }
-            $pubStmt = $db->prepare('INSERT INTO publications (user_id, site_id, post_url, post_title) VALUES (:uid, :sid, :url, :title)');
-            $pubStmt->bindValue(':uid', $cronUserId, SQLITE3_INTEGER);
-            $pubStmt->bindValue(':sid', $siteId, SQLITE3_INTEGER);
-            $pubStmt->bindValue(':url', $postUrl, SQLITE3_TEXT);
-            $pubStmt->bindValue(':title', $articleTitle, SQLITE3_TEXT);
-            $pubStmt->execute();
-
-            // Zbieraj do indeksacji (Rapid URL Indexer) — wysyłka zbiorcza po całym przebiegu
-            if ($site['use_speed_links'] && $postUrl) $speedLinksUrls[] = $postUrl;
-
-            $sitePublished++;
-            $totalPublished++;
-            $articleInfo = ['title' => $articleTitle, 'url' => $postUrl, 'status' => 'ok'];
-            if ($imageError) $articleInfo['image_error'] = $imageError;
-            if (!$featuredMediaId) $articleInfo['no_image'] = true;
-            $siteArticles[] = $articleInfo;
-
-            cronLog("  Published: $postUrl");
-            // Random delay between articles — avoids rate limits + makes publish times look natural
-            sleep(rand(3, 15));
-
         } catch (Exception $e) {
-            $errMsg = $e->getMessage();
-            $errStmt = $db->prepare('UPDATE auto_publish_queue SET status = "error", error_message = :err WHERE id = :id');
-            $errStmt->bindValue(':err', $errMsg, SQLITE3_TEXT);
-            $errStmt->bindValue(':id', $articleId, SQLITE3_INTEGER);
-            $errStmt->execute();
-
-            $siteErrors++;
-            $totalErrors++;
-            $siteArticles[] = ['title' => $articleTitle, 'url' => '', 'status' => 'error', 'error' => $errMsg];
+            $imageError = $e->getMessage();
         }
+    } else {
+        $imageError = 'Brak klucza Gemini API';
     }
 
-    $report[] = [
-        'site' => $site['name'],
-        'published' => $sitePublished,
-        'errors' => $siteErrors,
-        'articles' => $siteArticles,
-    ];
+    // Publikacja w WordPress (czas publikacji = czas serwera WP)
+    $db->exec("UPDATE auto_publish_queue SET status = 'publishing' WHERE id = $articleId");
+    $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
+    $postData = ['title' => $articleTitle, 'content' => $result['html'], 'status' => 'publish'];
+
+    $wpCatId = $article['wp_category_id'];
+    if (!$wpCatId && $article['category_name']) $wpCatId = $siteCtx['catMap'][mb_strtolower($article['category_name'])] ?? 0;
+    if ($wpCatId > 0) $postData['categories'] = [$wpCatId];
+
+    if ($site['random_author'] && !empty($siteCtx['authors'])) {
+        $postData['author'] = $siteCtx['authors'][array_rand($siteCtx['authors'])]['id'];
+    }
+    if ($featuredMediaId > 0) $postData['featured_media'] = $featuredMediaId;
+
+    $created = $wpApi->createPost($postData);
+    $postUrl = $created['link'] ?? '';
+
+    $upStmt = $db->prepare('UPDATE auto_publish_queue SET status = "published", published_url = :url, published_at = datetime("now") WHERE id = :id');
+    $upStmt->bindValue(':url', $postUrl, SQLITE3_TEXT);
+    $upStmt->bindValue(':id', $articleId, SQLITE3_INTEGER);
+    $upStmt->execute();
+
+    // Record publication — use first admin as the CRON "user" (FK to users.id)
+    static $cronUserId = null;
+    if ($cronUserId === null) {
+        $u = $db->querySingle("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1", true);
+        $cronUserId = $u ? (int)$u['id'] : 1;
+    }
+    $pubStmt = $db->prepare('INSERT INTO publications (user_id, site_id, post_url, post_title) VALUES (:uid, :sid, :url, :title)');
+    $pubStmt->bindValue(':uid', $cronUserId, SQLITE3_INTEGER);
+    $pubStmt->bindValue(':sid', (int)$site['id'], SQLITE3_INTEGER);
+    $pubStmt->bindValue(':url', $postUrl, SQLITE3_TEXT);
+    $pubStmt->bindValue(':title', $articleTitle, SQLITE3_TEXT);
+    $pubStmt->execute();
+
+    // Zbieraj do indeksacji (Rapid URL Indexer) — wysyłka zbiorcza po całym przebiegu
+    if ($site['use_speed_links'] && $postUrl) $speedLinksUrls[] = $postUrl;
+
+    $report[$site['id']]['published']++;
+    $totalPublished++;
+    $articleInfo = ['title' => $articleTitle, 'url' => $postUrl, 'status' => 'ok'];
+    if ($imageError) $articleInfo['image_error'] = $imageError;
+    if (!$featuredMediaId) $articleInfo['no_image'] = true;
+    $report[$site['id']]['articles'][] = $articleInfo;
+
+    cronLog("  Published: $postUrl");
+    // Losowa przerwa między publikacjami — rate limit WP + naturalne godziny publikacji
+    sleep(rand(3, 15));
+}
+
+function cronArticleFailed(array $site, array $article, Exception $e): void {
+    global $db, $report, $totalErrors;
+    cronReportSite($site);
+    $errMsg = $e->getMessage();
+    // Błąd przejściowy API (przeciążenie, timeout, nieudany wynik batcha) po wyczerpaniu retry
+    // w kliencie: wpis wraca do kolejki i spróbuje w kolejnym przebiegu, maks. 3 razy
+    $retry = ($e instanceof ClaudeApiException && $e->retryable && (int)($article['attempts'] ?? 0) < 2);
+    $errStmt = $db->prepare('UPDATE auto_publish_queue SET status = :st, error_message = :err, attempts = attempts + 1, batch_id = NULL WHERE id = :id');
+    $errStmt->bindValue(':st', $retry ? 'pending' : 'error', SQLITE3_TEXT);
+    $errStmt->bindValue(':err', $errMsg, SQLITE3_TEXT);
+    $errStmt->bindValue(':id', (int)$article['id'], SQLITE3_INTEGER);
+    $errStmt->execute();
+    cronLog(($retry ? '    Błąd przejściowy, wpis wraca do kolejki: ' : '    Błąd: ') . $errMsg);
+
+    $report[$site['id']]['errors']++;
+    $totalErrors++;
+    $report[$site['id']]['articles'][] = ['title' => $article['title'], 'url' => '', 'status' => 'error', 'error' => $errMsg];
 }
 
 // ── Rapid URL Indexer — jedna zbiorcza paczka za cały dzienny przebieg ──

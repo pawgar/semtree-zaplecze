@@ -60,11 +60,40 @@ $isAdminUser = isAdmin();
                 <div class="mb-3">
                     <label class="form-label">Model AI</label>
                     <select class="form-select" id="settingsAiModel">
-                        <option value="claude-sonnet-5">Claude Sonnet 5 (domyślny, do treści)</option>
-                        <option value="claude-opus-4-8">Claude Opus 4.8 (najwyższa jakość, droższy)</option>
-                        <option value="claude-haiku-4-5">Claude Haiku 4.5 (szybki, tańszy)</option>
+                        <?php
+                        require_once __DIR__ . '/../includes/claude_client.php';
+                        foreach (claudeModelOptions() as $id => $label) {
+                            echo '<option value="' . htmlspecialchars($id) . '">' . htmlspecialchars($label) . "</option>\n";
+                        }
+                        ?>
                     </select>
-                    <small class="form-hint">Model używany do generowania i korekty artykułów.</small>
+                    <small class="form-hint">Model do researchu SERP, pisania, poprawek i korekty. Filtr fraz Senuto działa na Claude Haiku 5.5.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Poziom rozumowania (effort)</label>
+                    <select class="form-select" id="settingsAiEffort">
+                        <?php foreach (claudeEffortOptions() as $id => $label) {
+                            echo '<option value="' . htmlspecialchars($id) . '">' . htmlspecialchars($label) . "</option>\n";
+                        } ?>
+                    </select>
+                    <small class="form-hint">Wyższy = dokładniejsze teksty, więcej tokenów (wyższy koszt).</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="settingsSerpEnabled" checked>
+                        <span class="form-check-label">Analiza SERP przed pisaniem (web search top wyników)</span>
+                    </label>
+                    <small class="form-hint">Format i encje z top 3-5 wyników Google. Wynik cache'owany 14 dni per fraza.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="settingsAutoPublishBatch" checked>
+                        <span class="form-check-label">Auto-publikacja przez Batch API (pisanie 50% taniej)</span>
+                    </label>
+                    <small class="form-hint">CRON wysyła pisanie artykułów paczką, a publikuje je w kolejnym przebiegu (przy dziennym cronie następnego dnia).</small>
                 </div>
 
                 <div class="mb-3">
@@ -84,6 +113,31 @@ $isAdminUser = isAdmin();
                 <button class="btn btn-primary" onclick="saveContentSettings()">
                     <i class="ti ti-check me-1"></i>Zapisz ustawienia
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Senuto -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="ti ti-chart-dots me-2"></i>Senuto</h3>
+            </div>
+            <div class="card-body">
+                <p class="text-secondary small mb-3">Frazy, pytania i grupy tematyczne do artykułów PL (auto-publikacja i generowanie pojedyncze). Logowanie e-mailem i hasłem, token odświeża się sam. Hasło zapisywane zaszyfrowane.</p>
+                <div class="mb-3">
+                    <label class="form-label">E-mail konta Senuto</label>
+                    <input type="email" class="form-control" id="senutoEmail" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Hasło</label>
+                    <input type="password" class="form-control" id="senutoPassword" autocomplete="new-password" placeholder="(bez zmian)">
+                </div>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <button class="btn btn-primary" onclick="saveSenutoSettings()">Zapisz i testuj</button>
+                    <button class="btn btn-outline-secondary" onclick="testSenutoConnection()">Test połączenia</button>
+                    <span class="small" id="senutoStatus"></span>
+                </div>
             </div>
         </div>
     </div>

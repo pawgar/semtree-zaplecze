@@ -1,133 +1,72 @@
 <?php
 /**
- * Generate an SEO blog article using Anthropic Claude API.
- * Returns HTML content converted from Markdown.
+ * Generate an SEO blog article (Zamów i opublikuj — pojedynczo i masowo).
+ * Ten sam pipeline co auto-publikacja: research Senuto + SERP -> pisanie -> audyt -> korekta.
+ * Zwraca HTML + Markdown + raport audytu.
  */
-set_time_limit(180);
+set_time_limit(900);
+ignore_user_abort(true);
 require_once __DIR__ . '/../auth.php';
-require_once __DIR__ . '/../includes/article_prompt.php';
+require_once __DIR__ . '/../includes/article_pipeline.php';
 header('Content-Type: application/json');
+header('X-Accel-Buffering: no');
 requireLoginApi();
 
 $input = json_decode(file_get_contents('php://input'), true);
 
 $title = trim($input['title'] ?? '');
-$mainKeyword = trim($input['main_keyword'] ?? '');
-$secondaryKeywords = trim($input['secondary_keywords'] ?? '');
-$notes = trim($input['notes'] ?? '');
-$lang = trim($input['lang'] ?? 'pl');
-
 if (!$title) {
     http_response_code(400);
     echo json_encode(['error' => 'Tytuł jest wymagany']);
     exit;
 }
 
-// Get Anthropic API key from settings
-$db = getDb();
-$stmt = $db->prepare('SELECT value FROM settings WHERE key = "anthropic_api_key"');
-$row = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
-$apiKey = $row ? trim($row['value']) : '';
-
-if (!$apiKey) {
+if (claudeApiKey() === '') {
     echo json_encode(['error' => 'Klucz Anthropic API nie jest skonfigurowany. Ustaw go w ustawieniach.']);
     exit;
 }
 
-$systemPrompt = getArticleSystemPrompt($lang);
-$userPrompt = buildArticleUserPrompt($title, $mainKeyword, $secondaryKeywords, $notes, $lang);
+// Sesja nie jest potrzebna dalej — zwolnij lock, żeby równoległe requesty (masowe zamówienie) nie czekały
+if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
 
-// Get configured model
-$modelRow = $db->querySingle("SELECT value FROM settings WHERE key = 'ai_model'", true);
-$aiModel = ($modelRow && !empty($modelRow['value'])) ? $modelRow['value'] : 'claude-sonnet-5';
+// Pipeline trwa kilka minut. Spacja co ~10 s podtrzymuje połączenie (proxy/LiteSpeed
+// nie zrywa go jako bezczynnego); JSON.parse ignoruje wiodące białe znaki.
+while (ob_get_level() > 0) ob_end_flush();
+$keepalive = function () {
+    echo ' ';
+    @flush();
+};
 
-// Call Anthropic Claude API
-$url = 'https://api.anthropic.com/v1/messages';
-$payload = [
-    'model' => $aiModel,
-    'max_tokens' => 16000,
-    'system' => $systemPrompt,
-    'messages' => [
-        ['role' => 'user', 'content' => $userPrompt],
-    ],
-];
-
-$ch = curl_init($url);
-curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER => [
-        'Content-Type: application/json',
-        'x-api-key: ' . $apiKey,
-        'anthropic-version: 2023-06-01',
-    ],
-    CURLOPT_POSTFIELDS => json_encode($payload),
-    CURLOPT_TIMEOUT => 150,
-    CURLOPT_CONNECTTIMEOUT => 30,
-    CURLOPT_SSL_VERIFYPEER => false,
-]);
-
-$response = curl_exec($ch);
-
-if (curl_errno($ch)) {
-    $error = curl_error($ch);
-    curl_close($ch);
-    echo json_encode(['error' => 'Błąd połączenia z API: ' . $error]);
+try {
+    $result = generateArticleFull([
+        'title'              => $title,
+        'main_keyword'       => trim($input['main_keyword'] ?? ''),
+        'secondary_keywords' => trim($input['secondary_keywords'] ?? ''),
+        'notes'              => trim($input['notes'] ?? ''),
+        'lang'               => trim($input['lang'] ?? 'pl'),
+        'category'           => trim($input['category'] ?? ''),
+    ], $keepalive, fn($m) => $keepalive());
+} catch (ClaudeApiException $e) {
+    echo json_encode(['error' => 'Błąd API: ' . $e->getMessage()]);
+    exit;
+} catch (Throwable $e) {
+    echo json_encode(['error' => $e->getMessage()]);
     exit;
 }
 
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-$data = json_decode($response, true) ?? [];
-
-if ($httpCode === 401 || $httpCode === 403) {
-    echo json_encode(['error' => 'Nieprawidłowy klucz Anthropic API.']);
-    exit;
-}
-
-if ($httpCode === 429) {
-    echo json_encode(['error' => 'Przekroczony limit zapytań API. Spróbuj za chwilę.']);
-    exit;
-}
-
-if ($httpCode >= 400) {
-    $msg = $data['error']['message'] ?? "HTTP {$httpCode}";
-    echo json_encode(['error' => 'Błąd API: ' . $msg]);
-    exit;
-}
-
-// Extract text content from response
-$markdown = '';
-$inputTokens = $data['usage']['input_tokens'] ?? 0;
-$outputTokens = $data['usage']['output_tokens'] ?? 0;
-
-if (isset($data['content'])) {
-    foreach ($data['content'] as $block) {
-        if (($block['type'] ?? '') === 'text') {
-            $markdown .= $block['text'];
-        }
-    }
-}
-
-if (!$markdown) {
-    echo json_encode(['error' => 'API nie zwróciło treści artykułu.']);
-    exit;
-}
-
-// Remove H1 from markdown (title is separate)
-$markdown = preg_replace('/^#\s+.+\n*/m', '', $markdown, 1);
-
-// Convert Markdown to HTML and sanitize
-$htmlContent = markdownToHtml($markdown);
-$htmlContent = sanitizeArticleHtml($htmlContent);
-$charCount = mb_strlen(strip_tags($htmlContent), 'UTF-8');
+$sum = fn(string $k) => array_sum(array_map(fn($u) => $u[$k] ?? 0, $result['usage']));
 
 echo json_encode([
-    'success' => true,
-    'html_content' => $htmlContent,
-    'markdown' => $markdown,
-    'char_count' => $charCount,
-    'input_tokens' => $inputTokens,
-    'output_tokens' => $outputTokens,
+    'success'       => true,
+    'html_content'  => $result['html'],
+    'markdown'      => $result['markdown'],
+    'char_count'    => $result['char_count'],
+    'checks'        => $result['checks'],
+    'research'      => $result['research'],
+    'notes'         => $result['notes'],
+    'cost_usd'      => $result['cost_usd'],
+    'model'         => $result['model'],
+    'proofread'     => true,
+    'input_tokens'  => $sum('input_tokens'),
+    'output_tokens' => $sum('output_tokens'),
 ]);

@@ -189,6 +189,13 @@ class WpApi {
     }
 
     /**
+     * Update media metadata (alt_text, title, caption).
+     */
+    public function updateMedia(int $mediaId, array $data): array {
+        return $this->request('POST', '/media/' . $mediaId, $data);
+    }
+
+    /**
      * Create a new post on WordPress.
      */
     public function createPost(array $postData): array {

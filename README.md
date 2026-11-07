@@ -23,7 +23,8 @@ Aplikacja webowa do zarządzania siecią stron zapleczowych WordPress (PBN). Cen
 
 | Klucz | Do czego | Wymagany |
 |-------|----------|----------|
-| Anthropic API Key | Generowanie artykułów AI (Claude) | Opcjonalny |
+| Anthropic API Key | Generowanie artykułów AI (Claude): research SERP, pisanie, audyt, korekta | Opcjonalny |
+| Senuto (e-mail + hasło) | Frazy, pytania i grupy tematyczne do artykułów PL (sekcja Senuto) | Opcjonalny |
 | Gemini API Key | Generowanie obrazów AI | Opcjonalny |
 | GSC Client ID + Secret | Dane z Google Search Console | Opcjonalny |
 
@@ -47,7 +48,9 @@ Ustaw w crontab serwera:
 # Odświeżanie danych GSC (codziennie o 6:00)
 0 6 * * * curl -s "https://twoja-domena.pl/api/cron-gsc.php?token=TWOJ_TOKEN" > /dev/null
 
-# Auto-publish — generowanie i publikacja z kolejki (codziennie o 9:00)
+# Auto-publish — generowanie i publikacja z kolejki (codziennie o 9:00).
+# Z włączonym Batch API (Ustawienia) przebieg publikuje artykuły z poprzedniego dnia
+# i wysyła pisanie kolejnych paczką; --sync wymusza publikację w tym samym przebiegu.
 0 9 * * * /usr/local/php83/bin/php /SCIEZKA/public_html/api/cron-auto-publish.php --token=TWOJ_TOKEN >> /SCIEZKA/public_html/data/cron-auto-publish.log 2>&1
 
 # Skan indeksacji GSC URL Inspection (codziennie o 3:00) — MUSI być przez CLI, nie curl:
@@ -82,7 +85,7 @@ w UTC — start o 1:00 lokalnego przeciąłby północ UTC i rozbił jeden przeb
 - Usuwanie linków z wpisów WordPress (zachowuje tekst, usuwa tag `<a>`)
 
 ### Publikowanie artykułów
-- Generowanie artykułów przez AI (Claude API)
+- Generowanie artykułów przez AI (Claude API) w tle: research Senuto + analiza SERP, pisanie, automatyczny audyt zgodności ze skillem SEO i korekta (`includes/article_pipeline.php`)
 - Upload obrazków z optymalizacją (GD library)
 - Import artykułów z plików DOCX
 - Wybór autora, kategorii, daty publikacji
