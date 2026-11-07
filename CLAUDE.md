@@ -96,7 +96,7 @@ Singleton `getDb()` w `db.php`. Migracje w `migrateSchema()` — idempotentne (s
 - **Claude API** — wspólny klient `includes/claude_client.php` (raw cURL: retry 429/5xx/529, streaming SSE, prompt caching, pause_turn, server-side fallback, Message Batches). Model z `settings.ai_model` (default `claude-sonnet-5-5`), effort z `settings.ai_effort` (default `medium`), klucz w `settings.anthropic_api_key`. Pipeline treści `includes/article_pipeline.php` (research → pisanie → audyt `includes/article_validator.php` → korekta), prompty w `includes/article_prompt.php`. Szczegóły: docs/AUTO-PUBLISH.md
 - **Senuto** — `includes/senuto_api.php` (port z Ateny): login e-mail+hasło → JWT ~30 dni, auto-refresh (<5 dni lub 401), hasło szyfrowane (`settings.senuto_password_enc`). Klucze `senuto_*` NIE są dostępne przez `api/settings.php` — tylko `api/senuto-settings.php`. Cache `senuto_cache` 30 dni. `country_id` = 1 dla PL (endpointy keywords_analysis nie przyjmują 200)
 - **Google Gemini** — obrazki wyróżniające + inline, fallback przez kilka modeli (native → Imagen)
-- **Speed-Links.net** — indeksacja VIP po publikacji
+- **Rapid URL Indexer** — `includes/rapid_indexing.php` (klient z Hefajstosa przez port w seo-ai): KAŻDA publikacja trafia do kolejki `index_queue` (api/publish.php, CRON), wysyłka paczkami jako projekt Rapid (koniec przebiegu CRON / worker / od razu bez workera). Przed wysyłką 200 + brak noindex, dedupe 30 dni, kontrola kredytów, wpisy zaplanowane czekają do daty. **Rapid zwraca 403 HTML dla domyślnego User-Agenta curla** — zawsze `CURLOPT_USERAGENT`. Status projektów (`rapid_projects`) odświeża worker co godzinę. Wyłącznik: `settings.index_auto`
 - **Telegram Bot** — raporty z CRON auto-publish
 
 ## CRON

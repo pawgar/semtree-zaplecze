@@ -54,6 +54,10 @@ Raport (checki, research, usage, koszt w USD) zapisywany w `auto_publish_queue.q
 
 Błędy przejściowe API (429/5xx/529/timeout, nieudany wynik batcha) po retry w kliencie: wpis wraca do `pending`, maks. 3 próby (`attempts`).
 
+## Indeksacja (Rapid URL Indexer)
+
+Każda publikacja (auto-publikacja, Publikuj, Publikuj masowo, Zamów i opublikuj) trafia do kolejki `index_queue` (`includes/rapid_indexing.php`). Przebieg auto-publikacji wysyła na końcu jedną paczkę z tym, co opublikował; pozostałe publikacje wysyła worker, gdy paczka dojrzeje (najstarszy URL czeka 10 min albo jest 50 URL-i), a bez workera — od razu po publikacji. URL musi zwracać 200 i nie mieć noindex (zaplanowane wpisy czekają do daty publikacji, nieosiągalne są ponawiane co 6 h), nie jest zgłaszany ponownie przez 30 dni, a przy saldzie poniżej 5 kredytów paczka czeka. Statystyki i wyłącznik: Ustawienia → Rapid URL Indexer.
+
 ## Category mapping
 
 Content plan ma kategorie jako tekst (`"Poradniki"`), WordPress jako `wp_category_id`. Mapping trzyma `auto_publish_category_map`.

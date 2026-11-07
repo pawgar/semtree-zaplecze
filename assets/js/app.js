@@ -80,6 +80,7 @@ function loadSettingsPage() {
     loadAnthropicKey();
     loadGeminiKey();
     loadRapidIndexerKey();
+    loadIndexSettings();
     loadCronToken();
     loadContentSettings();
     loadGscSettings();
@@ -1881,6 +1882,29 @@ async function loadRapidIndexerKey() {
         document.getElementById('rapidIndexerApiKey').value = r.value || '';
     } catch (e) {
         // ignore
+    }
+}
+
+async function loadIndexSettings() {
+    try {
+        const r = await api('GET', 'api/index-stats.php');
+        const el = document.getElementById('settingsIndexAuto');
+        if (el) el.checked = r.auto !== false;
+        const line = document.getElementById('indexStatsLine');
+        if (line && r.stats) {
+            const s = r.stats;
+            line.textContent = `Kolejka: ${s.queued} · zgłoszone w 7 dni: ${s.submitted_7d} · zaindeksowane (projekty z 20 dni): ${s.indexed_20d}/${s.submitted_20d}`
+                + (r.credits !== null && r.credits !== undefined ? ` · kredyty Rapid: ${r.credits}` : '');
+        }
+    } catch (e) {}
+}
+
+async function saveIndexAuto(on) {
+    try {
+        await api('POST', 'api/settings.php', { key: 'index_auto', value: on ? '1' : '0' });
+        showToast(on ? 'Automatyczna indeksacja włączona' : 'Automatyczna indeksacja wyłączona', 'success');
+    } catch (e) {
+        showToast('Blad zapisu: ' + e.message, 'error');
     }
 }
 

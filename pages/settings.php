@@ -45,6 +45,11 @@ $isAdminUser = isAdmin();
                         </button>
                         <button class="btn btn-primary" onclick="saveRapidIndexerKey()">Zapisz</button>
                     </div>
+                    <label class="form-check form-switch mt-2 mb-1">
+                        <input class="form-check-input" type="checkbox" id="settingsIndexAuto" checked onchange="saveIndexAuto(this.checked)">
+                        <span class="form-check-label small">Automatycznie zgłaszaj do indeksacji każdą publikację (auto-publikacja, Publikuj, Publikuj masowo, Zamów i opublikuj)</span>
+                    </label>
+                    <div class="small text-secondary" id="indexStatsLine"></div>
                 </div>
             </div>
         </div>

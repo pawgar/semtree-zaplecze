@@ -26,6 +26,7 @@ Aplikacja webowa do zarządzania siecią stron zapleczowych WordPress (PBN). Cen
 | Anthropic API Key | Generowanie artykułów AI (Claude): research SERP, pisanie, audyt, korekta | Opcjonalny |
 | Senuto (e-mail + hasło) | Frazy, pytania i grupy tematyczne do artykułów PL (sekcja Senuto) | Opcjonalny |
 | Gemini API Key | Generowanie obrazów AI | Opcjonalny |
+| Rapid URL Indexer API Key | Automatyczne zgłaszanie każdej publikacji do indeksacji Google | Opcjonalny |
 | GSC Client ID + Secret | Dane z Google Search Console | Opcjonalny |
 
 ### Google Search Console
