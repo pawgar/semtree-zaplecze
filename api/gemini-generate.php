@@ -4,6 +4,7 @@
  * Tries Gemini native models first, then Imagen as fallback.
  */
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../includes/cover_image.php';
 header('Content-Type: application/json');
 requireLoginApi();
 
@@ -28,38 +29,20 @@ if (!$apiKey) {
     exit;
 }
 
-$prompt = "Create a professional, high-quality blog featured image for an article titled: "
-    . "\"{$title}\". The image should be visually appealing, relevant to the topic, "
-    . "photorealistic style, suitable for a blog header. No text on the image. "
-    . "Landscape orientation, wide format.";
-
-// Models to try in order
-$geminiModels = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview'];
-$imagenModels = ['imagen-4.0-fast-generate-001', 'imagen-4.0-generate-001'];
-
+// Bez napisów: tytuł nie idzie do promptu, gotowa grafika jest sprawdzana pod kątem tekstu
 $errors = [];
-
-// Try Gemini native models
-foreach ($geminiModels as $model) {
-    $result = tryGeminiNative($apiKey, $model, $prompt);
-    if ($result['success']) {
-        echo json_encode($result);
-        exit;
-    }
-    $errors[] = $result['error'];
+$bin = generateTextFreeImage($apiKey, $title, '', '16:9', $errors);
+if ($bin !== null) {
+    echo json_encode([
+        'success' => true,
+        'image_data' => base64_encode(stripImageMetadata($bin, 1200, 675)),
+        'image_filename' => bin2hex(random_bytes(6)) . '.jpg',
+        'mime_type' => 'image/jpeg',
+    ]);
+    exit;
 }
-
-// Try Imagen models
-foreach ($imagenModels as $model) {
-    $result = tryImagen($apiKey, $model, $prompt);
-    if ($result['success']) {
-        echo json_encode($result);
-        exit;
-    }
-    $errors[] = $result['error'];
-}
-
-echo json_encode(['error' => 'Wszystkie modele zawiodly: ' . implode('; ', $errors)]);
+echo json_encode(['error' => 'Nie udało się wygenerować grafiki: ' . implode('; ', $errors)]);
+exit;
 
 // ── Gemini Native Model ─────────────────────────────────────
 function tryGeminiNative(string $apiKey, string $model, string $prompt): array {

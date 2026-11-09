@@ -26,6 +26,7 @@ require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../includes/wp_api.php';
 require_once __DIR__ . '/../includes/article_pipeline.php';
 require_once __DIR__ . '/../includes/image_utils.php';
+require_once __DIR__ . '/../includes/cover_image.php';
 require_once __DIR__ . '/../includes/rapid_indexing.php';
 
 if (!$isCli) header('Content-Type: application/json');
@@ -342,9 +343,10 @@ function cronPublishArticle(array $site, array $article, array $result): void {
     $imageError = '';
     if ($geminiKey) {
         try {
-            $imagePrompt = "Professional blog header image for article titled: \"$articleTitle\". Modern, clean, editorial style. No text on image.";
+            // Bez napisów: tytuł nie idzie do promptu, gotowa grafika jest sprawdzana pod kątem tekstu
             $geminiErrors = [];
-            $imageData = generateGeminiImage($geminiKey, $imagePrompt, $geminiErrors);
+            $imageBin = generateTextFreeImage($geminiKey, $articleTitle, '', '16:9', $geminiErrors, fn($m) => cronLog("    $m"));
+            $imageData = $imageBin !== null ? base64_encode($imageBin) : null;
             if ($imageData) {
                 $wpApi = new WpApi($site['url'], $site['username'], $site['app_password']);
                 // Nazwa pliku i alt z frazy / tytułu (wcześniej losowy hex i brak alt)
@@ -474,89 +476,6 @@ echo json_encode([
     'telegram' => $telegramResult,
 ]);
 
-// ── Helper: Generate image via Gemini ────────────────────────
-function generateGeminiImage(string $apiKey, string $prompt, array &$errors = []): ?string {
-    // Try Gemini native models first, then Imagen
-    $geminiModels = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview'];
-    $imagenModels = ['imagen-4.0-fast-generate-001', 'imagen-4.0-generate-001'];
-
-    // Gemini native (responseModalities: IMAGE only)
-    foreach ($geminiModels as $model) {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey";
-        $payload = [
-            'contents' => [['parts' => [['text' => $prompt]]]],
-            'generationConfig' => [
-                'responseModalities' => ['IMAGE'],
-                'imageConfig' => ['aspectRatio' => '16:9'],
-            ],
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_POSTFIELDS => json_encode($payload),
-            CURLOPT_TIMEOUT => 60,
-            CURLOPT_SSL_VERIFYPEER => false,
-        ]);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode === 200) {
-            $data = json_decode($response, true);
-            $parts = $data['candidates'][0]['content']['parts'] ?? [];
-            foreach ($parts as $part) {
-                if (isset($part['inlineData']['data'])) {
-                    return $part['inlineData']['data'];
-                }
-            }
-            $errors[] = "$model: HTTP 200 but no image data";
-        } else {
-            $errData = json_decode($response, true);
-            $errMsg = $errData['error']['message'] ?? "HTTP $httpCode";
-            $errors[] = "$model: $errMsg";
-        }
-    }
-
-    // Imagen fallback (predict endpoint)
-    foreach ($imagenModels as $model) {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/$model:predict?key=$apiKey";
-        $payload = [
-            'instances' => [['prompt' => $prompt]],
-            'parameters' => ['sampleCount' => 1, 'aspectRatio' => '16:9'],
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_POSTFIELDS => json_encode($payload),
-            CURLOPT_TIMEOUT => 60,
-            CURLOPT_SSL_VERIFYPEER => false,
-        ]);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode === 200) {
-            $data = json_decode($response, true);
-            $predictions = $data['predictions'] ?? [];
-            if (!empty($predictions[0]['bytesBase64Encoded'])) {
-                return $predictions[0]['bytesBase64Encoded'];
-            }
-            $errors[] = "$model: HTTP 200 but no predictions";
-        } else {
-            $errData = json_decode($response, true);
-            $errMsg = $errData['error']['message'] ?? "HTTP $httpCode";
-            $errors[] = "$model: $errMsg";
-        }
-    }
-
-    return null;
-}
 
 // ── Helper: Send Telegram report ─────────────────────────────
 function sendTelegramReport(SQLite3 $db, array $report, int $totalPublished, int $totalErrors, string $speedLinksResult): string {
