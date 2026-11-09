@@ -194,7 +194,7 @@ foreach ($batchedItems as $batchId => $items) {
             $ctx = $saved['ctx'] ?? null;
             if (!$ctx) throw new RuntimeException('Brak zapisanego kontekstu researchu');
             // Pisanie z batcha liczone po stawce Batch API (osobny klucz "batch:<model>" w usage)
-            articleTrackUsage($ctx, ['model' => 'batch:' . ($res['model'] ?: $ctx['model'])] + $res);
+            articleTrackUsage($ctx, ['model' => 'batch:' . ($res['model'] ?: $ctx['model'])] + $res, 'write');
             $article['_batch'] = true;
             $result = articleFinish($ctx, $res['text'], null, fn($m) => cronLog("    $m"));
             cronPublishArticle($site, $article, $result);
@@ -325,11 +325,12 @@ function cronPublishArticle(array $site, array $article, array $result): void {
 
     $failed = array_column(articleFailures($result['checks']), 'name');
     cronLog('    Audyt: ' . ($failed ? 'FAIL ' . implode(', ', $failed) : 'OK') . ", {$result['char_count']} znaków, ~\${$result['cost_usd']}" . (!empty($article['_batch']) ? ' (batch)' : ''));
+    if (!empty($result['steps'])) cronLog('    Koszt kroków: ' . articleStepsSummary($result['steps']));
     foreach ($result['notes'] as $n) cronLog("    $n");
 
     $qrStmt = $db->prepare('UPDATE auto_publish_queue SET status = "generated", quality_report = :qr WHERE id = :id');
     $qrStmt->bindValue(':qr', json_encode([
-        'checks' => $result['checks'], 'research' => $result['research'], 'usage' => $result['usage'],
+        'checks' => $result['checks'], 'research' => $result['research'], 'usage' => $result['usage'], 'steps' => $result['steps'] ?? [],
         'cost_usd' => $result['cost_usd'], 'model' => $result['model'], 'notes' => $result['notes'],
         'batch' => !empty($article['_batch']),
     ], JSON_UNESCAPED_UNICODE), SQLITE3_TEXT);

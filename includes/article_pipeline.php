@@ -36,7 +36,7 @@ function generateArticleFull(array $in, ?callable $progress = null, ?callable $l
     // 3. Pisanie
     $log('Pisanie artykułu (' . $ctx['model'] . ')');
     $resp = claudeRequest(articleWriteParams($ctx) + ['on_progress' => $progress]);
-    articleTrackUsage($ctx, $resp);
+    articleTrackUsage($ctx, $resp, 'write');
 
     return articleFinish($ctx, $resp['text'], $progress, $log);
 }
@@ -56,10 +56,11 @@ function articlePrepare(array $in, ?callable $log = null): array {
         'category'  => trim($in['category'] ?? ''),
         'model'     => claudeMainModel(),
         'usage'     => [],
+        'steps'     => [],
         'pipeline_notes' => [],
     ];
     $notes = [];
-    $track = function (array $resp) use (&$ctx) { articleTrackUsage($ctx, $resp); };
+    $track = function (array $resp, string $step = 'research') use (&$ctx) { articleTrackUsage($ctx, $resp, $step); };
     $ctx['research'] = articleResearch($ctx['title'], $ctx['main_kw'], $ctx['secondary'], $ctx['lang'], $track, $notes, $log);
     $ctx['pipeline_notes'] = $notes;
     return $ctx;
@@ -77,11 +78,35 @@ function articleWriteParams(array $ctx): array {
     ];
 }
 
-function articleTrackUsage(array &$ctx, array $resp): void {
+/**
+ * Sumuje zużycie tokenów: łącznie per model ($ctx['usage']) oraz per krok ($ctx['steps'][$step]:
+ * serp, filter, write, fix, proofread) z kosztem kroku w USD — do analizy, który etap kosztuje najwięcej.
+ */
+function articleTrackUsage(array &$ctx, array $resp, string $step = ''): void {
     $m = $resp['model'] ?? '';
+    $one = [];
     foreach ($resp['usage'] ?? [] as $k => $v) {
-        if (is_int($v)) $ctx['usage'][$m][$k] = ($ctx['usage'][$m][$k] ?? 0) + $v;
+        if (!is_int($v)) continue;
+        $ctx['usage'][$m][$k] = ($ctx['usage'][$m][$k] ?? 0) + $v;
+        $one[$k] = $v;
     }
+    if ($step === '') return;
+    $s = $ctx['steps'][$step] ?? ['calls' => 0, 'cost_usd' => 0.0, 'output_tokens' => 0, 'input_tokens' => 0, 'cache_read_input_tokens' => 0, 'cache_creation_input_tokens' => 0, 'web_search_requests' => 0];
+    $s['calls']++;
+    foreach (['output_tokens', 'input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'web_search_requests'] as $k) $s[$k] += $one[$k] ?? 0;
+    $s['cost_usd'] = round($s['cost_usd'] + articleCostUsd([$m => $one]), 4);
+    $ctx['steps'][$step] = $s;
+}
+
+/** Krótki opis kosztu kroków do logu: "serp $0.08, pisanie $0.04 (batch), ..." */
+function articleStepsSummary(array $steps): string {
+    $names = ['serp' => 'SERP', 'filter' => 'filtr Senuto', 'write' => 'pisanie', 'fix' => 'poprawki', 'proofread' => 'korekta', 'other' => 'inne (bez podziału)'];
+    $parts = [];
+    foreach ($steps as $k => $s) {
+        if (empty($s['calls'])) { $parts[] = ($names[$k] ?? $k) . ' $' . number_format((float)$s['cost_usd'], 3); continue; }
+        $parts[] = ($names[$k] ?? $k) . ' $' . number_format((float)$s['cost_usd'], 3) . ' ('. number_format((int)$s['output_tokens'], 0, ',', ' ') . ' tok. wyj.' . ($s['calls'] > 1 ? ', ' . $s['calls'] . '×' : '') . ')';
+    }
+    return implode(', ', $parts);
 }
 
 /**
@@ -113,7 +138,7 @@ function articleFinish(array $ctx, string $markdown, ?callable $progress = null,
             'max_tokens' => 32000,
             'on_progress' => $progress,
         ]);
-        articleTrackUsage($ctx, $fix);
+        articleTrackUsage($ctx, $fix, 'fix');
         if (trim($fix['text']) !== '') $markdown = autoFixArticle(trim($fix['text']), $lang);
         $checks = validateArticle($markdown, $lang, $ctx['main_kw'], $ctx['notes']);
     }
@@ -122,7 +147,7 @@ function articleFinish(array $ctx, string $markdown, ?callable $progress = null,
     try {
         $log('Korekta językowa');
         $proof = proofreadMarkdown($markdown, $lang, $progress);
-        articleTrackUsage($ctx, $proof);
+        articleTrackUsage($ctx, $proof, 'proofread');
         if (trim($proof['text']) !== '') {
             $candidate = autoFixArticle(trim($proof['text']), $lang);
             $candidateChecks = validateArticle($candidate, $lang, $ctx['main_kw'], $ctx['notes']);
@@ -136,6 +161,12 @@ function articleFinish(array $ctx, string $markdown, ?callable $progress = null,
         $ctx['pipeline_notes'][] = 'Korekta pominięta: ' . $e->getMessage();
     }
 
+    // Zużycie sprzed wprowadzenia pomiaru kroków (np. research zapisany w starszym batchu) — jako "inne"
+    $steps = $ctx['steps'] ?? [];
+    $rest = round(articleCostUsd($ctx['usage']) - array_sum(array_column($steps, 'cost_usd')), 4);
+    if ($rest > 0.0005) $steps['other'] = ['calls' => 0, 'cost_usd' => $rest, 'output_tokens' => 0];
+    $ctx['steps'] = $steps;
+
     $body = preg_replace('/^#\s+.+\n*/m', '', $markdown, 1);
     return [
         'markdown'   => $body,
@@ -144,6 +175,7 @@ function articleFinish(array $ctx, string $markdown, ?callable $progress = null,
         'checks'     => $checks,
         'research'   => $ctx['research'],
         'usage'      => $ctx['usage'],
+        'steps'      => $ctx['steps'] ?? [],
         'cost_usd'   => articleCostUsd($ctx['usage']),
         'model'      => $model,
         'notes'      => $ctx['pipeline_notes'],
