@@ -317,7 +317,8 @@ $greetingPrefix = $h < 10 ? 'Dzień dobry' : ($h < 18 ? 'Witaj' : 'Dobry wieczó
                         <div class="text-secondary small">
                             <div>Ostatni run: <span id="cronApLast">—</span></div>
                             <div>Następny: <span id="cronApNext">—</span></div>
-                            <div class="mt-1">Dziś: <strong id="cronApToday">0</strong> opublikowanych · <strong class="text-danger" id="cronApErrors">0</strong> błędów</div>
+                            <div class="mt-1">Dziś: <strong id="cronApToday">0</strong> opublikowanych</div>
+                            <div title="Wszystkie wpisy w kolejce ze statusem błędu, niezależnie od daty">W kolejce z błędem (łącznie): <strong class="text-danger" id="cronApErrors">0</strong></div>
                         </div>
                     </div>
                 </div>
