@@ -349,7 +349,7 @@ function cronPublishArticle(array $site, array $article, array $result): void {
 
     $qrStmt = $db->prepare('UPDATE auto_publish_queue SET status = "generated", quality_report = :qr WHERE id = :id');
     $qrStmt->bindValue(':qr', json_encode([
-        'checks' => $result['checks'], 'research' => $result['research'], 'usage' => $result['usage'], 'steps' => $result['steps'] ?? [],
+        'checks' => $result['checks'], 'research' => $result['research'], 'usage' => $result['usage'], 'steps' => $result['steps'] ?? [], 'fix_issues' => $result['fix_issues'] ?? [],
         'cost_usd' => $result['cost_usd'], 'model' => $result['model'], 'notes' => $result['notes'],
         'batch' => !empty($article['_batch']),
     ], JSON_UNESCAPED_UNICODE), SQLITE3_TEXT);

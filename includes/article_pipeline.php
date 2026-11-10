@@ -123,16 +123,22 @@ function articleFinish(array $ctx, string $markdown, ?callable $progress = null,
     // 4. Audyt + poprawki
     $markdown = autoFixArticle($markdown, $lang);
     $checks = validateArticle($markdown, $lang, $ctx['main_kw'], $ctx['notes']);
+    // Usterki, które wywołały poprawkę (per runda) — do dopracowania promptu pisania
+    $fixIssues = [];
     for ($round = 1; $round <= 2 && articleFailures($checks); $round++) {
-        $issues = implode("\n", array_map(fn($c) => "- {$c['name']}: {$c['message']}", articleFailures($checks)));
-        $log("Poprawka po audycie (runda $round)");
+        $failures = articleFailures($checks);
+        $fixIssues[] = array_map(fn($c) => $c['name'] . ': ' . $c['message'], $failures);
+        $issues = implode("\n", array_map(fn($c) => "- {$c['name']}: {$c['message']}", $failures));
+        $log("Poprawka po audycie (runda $round): " . implode(', ', array_column($failures, 'name')));
         $fix = claudeRequest([
             'model' => $model,
             'system' => $system,   // ten sam system prompt = odczyt z cache
             'messages' => [['role' => 'user', 'content' =>
                 "Poniższy artykuł nie przeszedł audytu zgodności. Usterki:\n{$issues}\n\n"
-                . "Popraw WYŁĄCZNIE te usterki, zachowując treść, tytuł H1, styl i pozostałe zasady. "
+                . "Popraw te usterki, zachowując treść, tytuł H1, styl i pozostałe zasady. "
                 . "Jeśli długość jest poza zakresem, rozbuduj lub skróć sekcje merytorycznie (bez lania wody). "
+                . "Przy okazji zrób korektę językową całego tekstu: popraw błędy ortograficzne, literówki, interpunkcję, "
+                . "fleksję i błędne znaki diakrytyczne, ale poza usterkami z audytu nie przeformułowuj zdań i nie zmieniaj treści. "
                 . "Zwróć cały poprawiony artykuł w Markdown, bez komentarzy.\n\n---\n\n" . $markdown]],
             'effort' => claudeMainEffort(),
             'max_tokens' => 32000,
@@ -143,8 +149,11 @@ function articleFinish(array $ctx, string $markdown, ?callable $progress = null,
         $checks = validateArticle($markdown, $lang, $ctx['main_kw'], $ctx['notes']);
     }
 
-    // 5. Korekta językowa (po niej znów deterministyczne poprawki — korektor potrafi wstawić myślnik)
-    try {
+    // 5. Korekta językowa (po niej znów deterministyczne poprawki — korektor potrafi wstawić myślnik).
+    // Gdy była poprawka po audycie, korekta została zrobiona w tym samym zapytaniu — bez drugiego przepisywania.
+    if ($fixIssues) {
+        $log('Korekta językowa wykonana razem z poprawką');
+    } else try {
         $log('Korekta językowa');
         $proof = proofreadMarkdown($markdown, $lang, $progress);
         articleTrackUsage($ctx, $proof, 'proofread');
@@ -176,6 +185,7 @@ function articleFinish(array $ctx, string $markdown, ?callable $progress = null,
         'research'   => $ctx['research'],
         'usage'      => $ctx['usage'],
         'steps'      => $ctx['steps'] ?? [],
+        'fix_issues' => $fixIssues,
         'cost_usd'   => articleCostUsd($ctx['usage']),
         'model'      => $model,
         'notes'      => $ctx['pipeline_notes'],
