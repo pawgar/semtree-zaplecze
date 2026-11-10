@@ -288,6 +288,24 @@ $report = array_values($report);
 
 // ── Helpers: publikacja / błąd pojedynczego wpisu ────────────
 
+/**
+ * Losowa data publikacji (UTC, format WP REST) z przedziału [teraz − N h, teraz − 5 min],
+ * bez godzin nocnych 0:00–5:59 czasu polskiego. null = wyłączone (WP ustawi bieżącą godzinę).
+ * Ustawienia: auto_publish_backdate (0/1, domyślnie 1), auto_publish_backdate_hours (1–23, domyślnie 12).
+ */
+function cronBackdateGmt(): ?string {
+    if (claudeSetting('auto_publish_backdate') === '0') return null;
+    $hours = max(1, min(23, (int)(claudeSetting('auto_publish_backdate_hours') ?: 12)));
+    $now = time();
+    $tz = new DateTimeZone('Europe/Warsaw');
+    for ($i = 0; $i < 50; $i++) {
+        $ts = $now - random_int(300, $hours * 3600);
+        $hour = (int)(new DateTime('@' . $ts))->setTimezone($tz)->format('G');
+        if ($hour >= 6) return gmdate('Y-m-d\TH:i:s', $ts);
+    }
+    return gmdate('Y-m-d\TH:i:s', $now - 300);   // całe okno w nocy — 5 minut temu
+}
+
 /** Kategorie i autorzy strony — pobierane raz na przebieg. */
 function cronSiteContext(array $site): array {
     global $db, $siteCtxCache;
@@ -384,7 +402,19 @@ function cronPublishArticle(array $site, array $article, array $result): void {
     }
     if ($featuredMediaId > 0) $postData['featured_media'] = $featuredMediaId;
 
+    // Losowa godzina publikacji wstecz (każdy wpis osobno) — bez wspólnego wzorca godzin w sieci.
+    // date_gmt (UTC) = niezależnie od strefy czasowej WP; tylko przeszłość, więc wpis nie staje się "zaplanowany".
+    $backdate = cronBackdateGmt();
+    if ($backdate) $postData['date_gmt'] = $backdate;
+
     $created = $wpApi->createPost($postData);
+    if (($created['status'] ?? 'publish') !== 'publish' && !empty($created['id'])) {
+        // Zabezpieczenie: WP uznał datę za przyszłą (np. zła godzina serwera) — publikujemy z bieżącą godziną
+        cronLog('    WP oznaczył wpis jako "' . ($created['status'] ?? '?') . '" — publikuję z bieżącą godziną');
+        $created = $wpApi->updatePost((int)$created['id'], ['status' => 'publish', 'date_gmt' => gmdate('Y-m-d\TH:i:s', time() - 60)]);
+    } elseif ($backdate) {
+        cronLog('    Data publikacji: ' . (new DateTime($backdate . 'Z'))->setTimezone(new DateTimeZone('Europe/Warsaw'))->format('Y-m-d H:i'));
+    }
     $postUrl = $created['link'] ?? '';
 
     $upStmt = $db->prepare('UPDATE auto_publish_queue SET status = "published", published_url = :url, published_at = datetime("now") WHERE id = :id');

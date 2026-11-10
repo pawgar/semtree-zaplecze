@@ -107,6 +107,12 @@ async function loadContentSettings() {
         const r5 = await api('GET', 'api/settings.php?key=auto_publish_batch');
         const batchEl = document.getElementById('settingsAutoPublishBatch');
         if (batchEl) batchEl.checked = r5.value !== '0';
+        const r6 = await api('GET', 'api/settings.php?key=auto_publish_backdate');
+        const bdEl = document.getElementById('settingsBackdate');
+        if (bdEl) bdEl.checked = r6.value !== '0';
+        const r7 = await api('GET', 'api/settings.php?key=auto_publish_backdate_hours');
+        const bdhEl = document.getElementById('settingsBackdateHours');
+        if (bdhEl) bdhEl.value = r7.value || '12';
         const s = await api('GET', 'api/senuto-settings.php');
         const emailEl = document.getElementById('senutoEmail');
         if (emailEl) {
@@ -159,6 +165,13 @@ async function saveContentSettings() {
         if (serpEl) await api('POST', 'api/settings.php', { key: 'serp_enabled', value: serpEl.checked ? '1' : '0' });
         const batchEl = document.getElementById('settingsAutoPublishBatch');
         if (batchEl) await api('POST', 'api/settings.php', { key: 'auto_publish_batch', value: batchEl.checked ? '1' : '0' });
+        const bdEl = document.getElementById('settingsBackdate');
+        if (bdEl) await api('POST', 'api/settings.php', { key: 'auto_publish_backdate', value: bdEl.checked ? '1' : '0' });
+        const bdhEl = document.getElementById('settingsBackdateHours');
+        if (bdhEl) {
+            const h = Math.max(1, Math.min(23, parseInt(bdhEl.value, 10) || 12));
+            await api('POST', 'api/settings.php', { key: 'auto_publish_backdate_hours', value: String(h) });
+        }
         showToast('Ustawienia zapisane', 'success');
     } catch (e) {
         showToast('Blad zapisu: ' + e.message, 'error');

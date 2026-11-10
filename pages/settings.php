@@ -102,6 +102,19 @@ $isAdminUser = isAdmin();
                 </div>
 
                 <div class="mb-3">
+                    <label class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="settingsBackdate" checked>
+                        <span class="form-check-label">Auto-publikacja: losowa godzina publikacji wstecz</span>
+                    </label>
+                    <div class="input-group input-group-sm mt-1" style="max-width: 260px;">
+                        <span class="input-group-text">do</span>
+                        <input type="number" class="form-control" id="settingsBackdateHours" min="1" max="23" value="12">
+                        <span class="input-group-text">godzin wstecz</span>
+                    </div>
+                    <small class="form-hint">Każdy wpis dostaje losową godzinę z tego okna (bez nocy 0:00–6:00), więc strony nie publikują o tej samej porze. Tylko wstecz, wpis nigdy nie staje się zaplanowany.</small>
+                </div>
+
+                <div class="mb-3">
                     <label class="form-label">Domyślny język</label>
                     <select class="form-select" id="settingsDefaultLang">
                         <?php
