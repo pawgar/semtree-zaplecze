@@ -304,6 +304,60 @@ try {
             ]);
             break;
 
+        // ── Koszty generowania i usterki z audytu (z quality_report) ──
+        case 'cost-stats':
+            requireAdminApi();
+            require_once __DIR__ . '/../includes/article_pipeline.php';
+            $days = max(1, min(60, (int)($_GET['days'] ?? 14)));
+            $db = getDb();
+            $st = $db->prepare('SELECT published_at, quality_report FROM auto_publish_queue
+                WHERE status = "published" AND quality_report IS NOT NULL AND published_at >= datetime("now", :since)');
+            $st->bindValue(':since', "-$days days");
+            $res = $st->execute();
+            $tz = new DateTimeZone('Europe/Warsaw');
+            $byDay = [];
+            $issues = [];
+            $stepNames = ['serp', 'filter', 'write', 'fix', 'proofread', 'other'];
+            while ($row = $res->fetchArray(SQLITE3_ASSOC)) {
+                $qr = json_decode((string)$row['quality_report'], true);
+                if (!is_array($qr)) continue;
+                $day = (new DateTime($row['published_at'], new DateTimeZone('UTC')))->setTimezone($tz)->format('Y-m-d');
+                $d = &$byDay[$day];
+                $d ??= ['day' => $day, 'articles' => 0, 'cost' => 0.0, 'with_fix' => 0, 'with_steps' => 0, 'steps' => array_fill_keys($stepNames, 0.0)];
+                $d['articles']++;
+                $d['cost'] += articleCostUsd($qr['usage'] ?? []);
+                $steps = $qr['steps'] ?? [];
+                if ($steps) {
+                    $d['with_steps']++;
+                    if (!empty($steps['fix'])) $d['with_fix']++;
+                    foreach ($steps as $name => $s) {
+                        $k = in_array($name, $stepNames, true) ? $name : 'other';
+                        $d['steps'][$k] += (float)($s['cost_usd'] ?? 0);
+                    }
+                }
+                foreach ($qr['fix_issues'] ?? [] as $round) {
+                    foreach ((array)$round as $line) {
+                        $name = trim(explode(':', (string)$line, 2)[0]);
+                        if ($name !== '') $issues[$name] = ($issues[$name] ?? 0) + 1;
+                    }
+                }
+                unset($d);
+            }
+            krsort($byDay);
+            foreach ($byDay as &$d) {
+                $d['cost'] = round($d['cost'], 3);
+                $d['avg'] = $d['articles'] ? round($d['cost'] / $d['articles'], 3) : 0;
+                $d['steps'] = array_map(fn($v) => round($v, 3), $d['steps']);
+            }
+            unset($d);
+            arsort($issues);
+            echo json_encode([
+                'success' => true,
+                'days' => array_values($byDay),
+                'issues' => array_map(fn($n, $c) => ['name' => $n, 'count' => $c], array_keys($issues), $issues),
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
         default:
             throw new RuntimeException('Nieznana akcja: ' . $action);
     }

@@ -146,6 +146,56 @@ requireAdmin();
     </div>
 </div>
 
+<!-- Koszty generowania i usterki z audytu -->
+<div class="row row-cards mt-3">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="ti ti-coin me-2"></i>Koszty generowania (14 dni)</h3>
+                <div class="card-actions">
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadApCostStats()"><i class="ti ti-refresh"></i></button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Dzień</th>
+                            <th class="text-end">Artykuły</th>
+                            <th class="text-end">Razem</th>
+                            <th class="text-end">Na artykuł</th>
+                            <th class="text-end" title="Analiza wyników Google + filtr">SERP</th>
+                            <th class="text-end">Pisanie</th>
+                            <th class="text-end" title="Poprawka po audycie (od 11.11 z korektą językową)">Poprawka</th>
+                            <th class="text-end" title="Osobna korekta językowa (tylko artykuły bez poprawki)">Korekta</th>
+                            <th class="text-end" title="Koszty bez przypisanego kroku">Inne</th>
+                        </tr>
+                    </thead>
+                    <tbody id="apCostBody">
+                        <tr><td colspan="9" class="text-center text-secondary py-3">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer small text-secondary">
+                Kwoty w USD, liczone z tokenów zużytych przez Claude (grafiki Gemini nie są wliczone). Podział na kroki jest dostępny od 10.11; wcześniejsze dni mają tylko sumę.
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="ti ti-bug me-2"></i>Najczęstsze usterki z audytu</h3>
+            </div>
+            <div class="card-body" id="apIssuesBody">
+                <div class="text-secondary small">Ładowanie...</div>
+            </div>
+            <div class="card-footer small text-secondary">
+                Usterki, przez które artykuł poszedł do poprawki. Zapisywane od 11.11.
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Queue Modal -->
 <div class="modal modal-blur fade" id="apQueueModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">

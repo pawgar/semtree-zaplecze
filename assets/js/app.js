@@ -5087,6 +5087,48 @@ let apWpCategories = {};
 function initAutoPublish() {
     if (!document.getElementById('apSitesTable')) return;
     loadAutoPublish();
+    loadApCostStats();
+}
+
+async function loadApCostStats() {
+    const body = document.getElementById('apCostBody');
+    const issuesBox = document.getElementById('apIssuesBody');
+    if (!body) return;
+    try {
+        const data = await api('GET', 'api/auto-publish.php?action=cost-stats&days=14');
+        const usd = v => v ? '$' + Number(v).toFixed(2) : '<span class="text-secondary">—</span>';
+        const days = data.days || [];
+        body.innerHTML = days.length ? days.map(d => {
+            const s = d.with_steps ? d.steps : {};
+            const fixInfo = d.with_steps ? `<div class="text-secondary small">${d.with_fix}/${d.with_steps} art.</div>` : '';
+            return `<tr>
+                <td>${esc(d.day)}</td>
+                <td class="text-end">${d.articles}</td>
+                <td class="text-end fw-bold">${usd(d.cost)}</td>
+                <td class="text-end">$${Number(d.avg).toFixed(3)}</td>
+                <td class="text-end">${usd((s.serp || 0) + (s.filter || 0))}</td>
+                <td class="text-end">${usd(s.write)}</td>
+                <td class="text-end">${usd(s.fix)}${fixInfo}</td>
+                <td class="text-end">${usd(s.proofread)}</td>
+                <td class="text-end">${usd(s.other)}</td>
+            </tr>`;
+        }).join('') : '<tr><td colspan="9" class="text-center text-secondary py-3">Brak opublikowanych artykułów w tym okresie</td></tr>';
+
+        const issues = data.issues || [];
+        if (!issues.length) {
+            issuesBox.innerHTML = '<div class="text-secondary small">Brak danych — pojawią się po najbliższym przebiegu.</div>';
+        } else {
+            const max = issues[0].count;
+            issuesBox.innerHTML = issues.slice(0, 12).map(i => `
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between small"><span>${esc(i.name)}</span><strong>${i.count}</strong></div>
+                    <div class="progress progress-sm"><div class="progress-bar bg-orange" style="width:${Math.round(i.count / max * 100)}%"></div></div>
+                </div>`).join('');
+        }
+    } catch (e) {
+        body.innerHTML = `<tr><td colspan="9" class="text-danger small py-3">Błąd: ${esc(e.message)}</td></tr>`;
+        if (issuesBox) issuesBox.innerHTML = '';
+    }
 }
 
 async function loadAutoPublish() {
