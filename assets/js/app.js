@@ -5120,7 +5120,7 @@ async function loadApCostStats() {
         } else {
             const max = issues[0].count;
             issuesBox.innerHTML = issues.slice(0, 12).map(i => `
-                <div class="mb-2">
+                <div class="mb-2" title="${esc((i.examples || []).join('\n'))}">
                     <div class="d-flex justify-content-between small"><span>${esc(i.name)}</span><strong>${i.count}</strong></div>
                     <div class="progress progress-sm"><div class="progress-bar bg-orange" style="width:${Math.round(i.count / max * 100)}%"></div></div>
                 </div>`).join('');

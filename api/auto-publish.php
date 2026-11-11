@@ -317,6 +317,7 @@ try {
             $tz = new DateTimeZone('Europe/Warsaw');
             $byDay = [];
             $issues = [];
+            $examples = [];
             $stepNames = ['serp', 'filter', 'write', 'fix', 'proofread', 'other'];
             while ($row = $res->fetchArray(SQLITE3_ASSOC)) {
                 $qr = json_decode((string)$row['quality_report'], true);
@@ -337,8 +338,11 @@ try {
                 }
                 foreach ($qr['fix_issues'] ?? [] as $round) {
                     foreach ((array)$round as $line) {
-                        $name = trim(explode(':', (string)$line, 2)[0]);
-                        if ($name !== '') $issues[$name] = ($issues[$name] ?? 0) + 1;
+                        [$name, $msg] = array_pad(explode(':', (string)$line, 2), 2, '');
+                        $name = trim($name);
+                        if ($name === '') continue;
+                        $issues[$name] = ($issues[$name] ?? 0) + 1;
+                        if (count($examples[$name] ?? []) < 3) $examples[$name][] = trim($msg);
                     }
                 }
                 unset($d);
@@ -354,7 +358,7 @@ try {
             echo json_encode([
                 'success' => true,
                 'days' => array_values($byDay),
-                'issues' => array_map(fn($n, $c) => ['name' => $n, 'count' => $c], array_keys($issues), $issues),
+                'issues' => array_map(fn($n, $c) => ['name' => $n, 'count' => $c, 'examples' => $examples[$n] ?? []], array_keys($issues), $issues),
             ], JSON_UNESCAPED_UNICODE);
             break;
 
