@@ -75,6 +75,12 @@ try {
             echo json_encode(getReportData($gsc, $dateFrom, $dateTo, $prevFrom, $prevTo, $ttl));
             break;
 
+        case 'verify':
+            requireAdminApi();
+            set_time_limit(900);
+            echo json_encode(verifyGscData($gsc, $dateFrom, $dateTo), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            break;
+
         case 'refresh':
             $siteUrl = $_GET['site_url'] ?? '';
             refreshGscData($gsc, $siteUrl);
@@ -323,4 +329,72 @@ function getPrevDateRange(string $dateFrom, string $dateTo): array {
 function calcChange(int|float $current, int|float $previous): float {
     if ($previous == 0) return $current > 0 ? 100.0 : 0.0;
     return round((($current - $previous) / $previous) * 100, 1);
+}
+
+// ── Weryfikacja: dane w aplikacji vs świeże zapytanie do GSC (admin) ──
+function verifyGscData(GscApi $gsc, string $dateFrom, string $dateTo): array {
+    $db = getDb();
+    $props = $gsc->getSiteList();
+    $hostOf = function (string $u): string {
+        $h = str_starts_with($u, 'sc-domain:') ? substr($u, 10) : (string)parse_url($u, PHP_URL_HOST);
+        return preg_replace('/^www\./', '', strtolower($h));
+    };
+    $sum = function (array $rows): array {
+        $r = $rows[0] ?? [];
+        return ['clicks' => (int)($r['clicks'] ?? 0), 'impressions' => (int)($r['impressions'] ?? 0)];
+    };
+    $lastDate = function (array $rows): ?string {
+        $d = array_map(fn($r) => $r['keys'][0], $rows);
+        return $d ? max($d) : null;
+    };
+    $today = date('Y-m-d');
+    $weekAgo = date('Y-m-d', strtotime('-7 days'));
+    $out = [];
+    $res = $db->query('SELECT id, name, url, gsc_clicks, gsc_impressions, gsc_last_update FROM sites ORDER BY name');
+    while ($site = $res->fetchArray(SQLITE3_ASSOC)) {
+        $host = $hostOf((string)$site['url']);
+        $row = [
+            'name' => $site['name'],
+            'app_clicks' => (int)$site['gsc_clicks'],
+            'app_impressions' => (int)$site['gsc_impressions'],
+            'app_updated' => $site['gsc_last_update'],
+            'matched' => null,
+            'candidates' => [],
+        ];
+        try {
+            $row['matched'] = $gsc->matchSiteToProperty($site['url']);
+        } catch (Throwable $e) {
+            $row['error'] = $e->getMessage();
+        }
+        foreach ($props as $p) {
+            if ($hostOf($p['siteUrl']) !== $host) continue;
+            $c = ['property' => $p['siteUrl'], 'permission' => $p['permissionLevel']];
+            try {
+                $c += $sum($gsc->searchAnalytics($p['siteUrl'], $dateFrom, $dateTo, [], 1));
+            } catch (Throwable $e) {
+                $c['error'] = $e->getMessage();
+            }
+            $row['candidates'][] = $c;
+        }
+        if ($row['matched']) {
+            $m = $row['matched'];
+            $st = $db->prepare('SELECT data, fetched_at FROM gsc_cache WHERE site_url = :u AND metric_type = "summary" AND date_from = :f AND date_to = :t');
+            $st->bindValue(':u', $m); $st->bindValue(':f', $dateFrom); $st->bindValue(':t', $dateTo);
+            $cache = $st->execute()->fetchArray(SQLITE3_ASSOC);
+            if ($cache) {
+                $cd = json_decode($cache['data'], true) ?: [];
+                $row['cache'] = ['clicks' => (int)($cd['clicks'] ?? 0), 'impressions' => (int)($cd['impressions'] ?? 0), 'fetched_at' => $cache['fetched_at']];
+            }
+            try {
+                $row['fresh_all'] = $sum($gsc->searchAnalytics($m, $dateFrom, $dateTo, [], 1, ['dataState' => 'all']));
+                $row['last_final_date'] = $lastDate($gsc->searchAnalytics($m, $weekAgo, $today, ['date'], 20));
+                $row['last_all_date'] = $lastDate($gsc->searchAnalytics($m, $weekAgo, $today, ['date'], 20, ['dataState' => 'all']));
+            } catch (Throwable $e) {
+                $row['error'] = $e->getMessage();
+            }
+        }
+        $out[] = $row;
+        usleep(200000);
+    }
+    return ['success' => true, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'properties_total' => count($props), 'sites' => $out];
 }

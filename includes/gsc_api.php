@@ -181,14 +181,14 @@ class GscApi {
      * @param int $rowLimit
      * @return array
      */
-    public function searchAnalytics(string $siteUrl, string $startDate, string $endDate, array $dimensions = [], int $rowLimit = 1000): array {
+    public function searchAnalytics(string $siteUrl, string $startDate, string $endDate, array $dimensions = [], int $rowLimit = 1000, array $extra = []): array {
         $this->ensureValidToken();
 
         $payload = [
             'startDate' => $startDate,
             'endDate' => $endDate,
             'rowLimit' => $rowLimit,
-        ];
+        ] + $extra;
         if (!empty($dimensions)) {
             $payload['dimensions'] = $dimensions;
         }
