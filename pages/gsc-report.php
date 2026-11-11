@@ -129,6 +129,8 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <!-- Report table -->
+    <div id="gscReportSkipped" class="alert alert-warning mb-3 small" style="display:none" role="alert"></div>
+
     <div class="card" id="gscReportTableCard" style="display:none">
         <div class="card-header">
             <h3 class="card-title"><i class="ti ti-chart-line me-2"></i>Raport GSC — wszystkie strony</h3>

@@ -240,6 +240,19 @@ class GscApi {
     }
 
     /**
+     * Liczba wszystkich fraz (zapytań) z wyświetleniami w okresie — bez limitu top N.
+     */
+    public function countKeywords(string $siteUrl, string $startDate, string $endDate): int {
+        $count = 0;
+        for ($start = 0; $start < 250000; $start += 25000) {
+            $rows = $this->searchAnalytics($siteUrl, $startDate, $endDate, ['query'], 25000, ['startRow' => $start]);
+            $count += count($rows);
+            if (count($rows) < 25000) break;
+        }
+        return $count;
+    }
+
+    /**
      * Get top keywords for a site.
      */
     public function getTopKeywords(string $siteUrl, string $startDate, string $endDate, int $limit = 20): array {
@@ -596,5 +609,48 @@ class GscApi {
         $stmt->bindValue(':key', $key, SQLITE3_TEXT);
         $stmt->bindValue(':value', $value, SQLITE3_TEXT);
         $stmt->execute();
+    }
+}
+
+/**
+ * Odświeża metryki GSC strony i zapisuje je w tabeli sites (cron + przycisk „Odśwież”).
+ * Błąd (np. utrata uprawnień do usługi) zapisuje w sites.gsc_error — stare liczby zostają,
+ * ale panel pokazuje je jako nieaktualne i nie wlicza do sum. Zwraca true przy sukcesie.
+ */
+function gscRefreshSiteMetrics(GscApi $gsc, SQLite3 $db, array $site, string $dateFrom, string $dateTo, string $prevFrom, string $prevTo): bool {
+    $change = fn($cur, $prev) => $prev == 0 ? ($cur > 0 ? 100.0 : 0.0) : round((($cur - $prev) / $prev) * 100, 1);
+    try {
+        $gscUrl = $gsc->matchSiteToProperty($site['url']);
+        if (!$gscUrl) throw new RuntimeException('Brak usługi w Google Search Console dla tej domeny');
+
+        $summary = $gsc->getCachedOrFetch($gscUrl, 'summary', $dateFrom, $dateTo, 0);
+        $prevSummary = $gsc->getCachedOrFetch($gscUrl, 'summary', $prevFrom, $prevTo, 0);
+        $gsc->getCachedOrFetch($gscUrl, 'keywords', $dateFrom, $dateTo, 0);
+        $gsc->getCachedOrFetch($gscUrl, 'pages', $dateFrom, $dateTo, 0);
+        $gsc->getCachedOrFetch($gscUrl, 'daily', $dateFrom, $dateTo, 0);
+        $kwCount = $gsc->countKeywords($gscUrl, $dateFrom, $dateTo);
+
+        $clicks = (int)($summary['clicks'] ?? 0);
+        $impressions = (int)($summary['impressions'] ?? 0);
+        $stmt = $db->prepare('UPDATE sites SET gsc_clicks = :c, gsc_impressions = :i, gsc_clicks_change = :cc, gsc_impressions_change = :ic,
+            gsc_keywords_count = :kw, gsc_last_update = datetime("now"), gsc_error = NULL, gsc_error_since = NULL WHERE id = :id');
+        $stmt->bindValue(':c', $clicks, SQLITE3_INTEGER);
+        $stmt->bindValue(':i', $impressions, SQLITE3_INTEGER);
+        $stmt->bindValue(':cc', $change($clicks, (int)($prevSummary['clicks'] ?? 0)), SQLITE3_FLOAT);
+        $stmt->bindValue(':ic', $change($impressions, (int)($prevSummary['impressions'] ?? 0)), SQLITE3_FLOAT);
+        $stmt->bindValue(':kw', $kwCount, SQLITE3_INTEGER);
+        $stmt->bindValue(':id', $site['id'], SQLITE3_INTEGER);
+        $stmt->execute();
+        return true;
+    } catch (Throwable $e) {
+        $msg = preg_replace('/^GSC API error:\s*/', '', $e->getMessage());
+        if (stripos($msg, 'sufficient permission') !== false) {
+            $msg = 'Brak uprawnień do usługi w GSC (konto nie jest już zweryfikowanym właścicielem)';
+        }
+        $stmt = $db->prepare('UPDATE sites SET gsc_error = :e, gsc_error_since = COALESCE(gsc_error_since, datetime("now")) WHERE id = :id');
+        $stmt->bindValue(':e', mb_substr($msg, 0, 300), SQLITE3_TEXT);
+        $stmt->bindValue(':id', $site['id'], SQLITE3_INTEGER);
+        $stmt->execute();
+        return false;
     }
 }

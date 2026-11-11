@@ -201,10 +201,14 @@ function getReportData(GscApi $gsc, string $dateFrom, string $dateTo, string $pr
     }
 
     $siteData = [];
+    $skipped = [];
     foreach ($sites as $site) {
         try {
             $gscUrl = $gsc->matchSiteToProperty($site['url']);
-            if (!$gscUrl) continue;
+            if (!$gscUrl) {
+                $skipped[] = ['name' => $site['name'], 'reason' => 'Brak usługi w Google Search Console'];
+                continue;
+            }
 
             $summary = $gsc->getCachedOrFetch($gscUrl, 'summary', $dateFrom, $dateTo, $ttl);
             $prevSummary = $gsc->getCachedOrFetch($gscUrl, 'summary', $prevFrom, $prevTo, $ttl);
@@ -226,7 +230,9 @@ function getReportData(GscApi $gsc, string $dateFrom, string $dateTo, string $pr
                 'goal_value' => $site['gsc_goal_value'] !== null ? (int)$site['gsc_goal_value'] : null,
             ];
         } catch (Exception $e) {
-            // Skip sites with permission errors or API issues
+            $msg = preg_replace('/^GSC API error:\s*/', '', $e->getMessage());
+            if (stripos($msg, 'sufficient permission') !== false) $msg = 'Brak uprawnień do usługi w GSC';
+            $skipped[] = ['name' => $site['name'], 'reason' => $msg];
             continue;
         }
     }
@@ -234,6 +240,7 @@ function getReportData(GscApi $gsc, string $dateFrom, string $dateTo, string $pr
     return [
         'success' => true,
         'sites' => $siteData,
+        'skipped' => $skipped,
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
     ];
@@ -273,35 +280,7 @@ function refreshGscData(GscApi $gsc, string $siteUrl = ''): void {
 }
 
 function refreshAndStoreSiteGsc(GscApi $gsc, SQLite3 $db, array $site, string $dateFrom, string $dateTo, string $prevFrom, string $prevTo): void {
-    try {
-        $gscUrl = $gsc->matchSiteToProperty($site['url']);
-        if (!$gscUrl) return;
-
-        $summary = $gsc->getCachedOrFetch($gscUrl, 'summary', $dateFrom, $dateTo, 0);
-        $prevSummary = $gsc->getCachedOrFetch($gscUrl, 'summary', $prevFrom, $prevTo, 0);
-        $keywords = $gsc->getCachedOrFetch($gscUrl, 'keywords', $dateFrom, $dateTo, 0);
-
-        // Also refresh daily and pages cache for site-detail/report
-        $gsc->getCachedOrFetch($gscUrl, 'daily', $dateFrom, $dateTo, 0);
-        $gsc->getCachedOrFetch($gscUrl, 'pages', $dateFrom, $dateTo, 0);
-
-        $clicks = (int)($summary['clicks'] ?? 0);
-        $impressions = (int)($summary['impressions'] ?? 0);
-        $clicksChange = calcChange($clicks, (int)($prevSummary['clicks'] ?? 0));
-        $impressionsChange = calcChange($impressions, (int)($prevSummary['impressions'] ?? 0));
-        $kwCount = count($keywords);
-
-        $stmt = $db->prepare('UPDATE sites SET gsc_clicks = :c, gsc_impressions = :i, gsc_clicks_change = :cc, gsc_impressions_change = :ic, gsc_keywords_count = :kw, gsc_last_update = datetime("now") WHERE id = :id');
-        $stmt->bindValue(':c', $clicks, SQLITE3_INTEGER);
-        $stmt->bindValue(':i', $impressions, SQLITE3_INTEGER);
-        $stmt->bindValue(':cc', $clicksChange, SQLITE3_FLOAT);
-        $stmt->bindValue(':ic', $impressionsChange, SQLITE3_FLOAT);
-        $stmt->bindValue(':kw', $kwCount, SQLITE3_INTEGER);
-        $stmt->bindValue(':id', $site['id'], SQLITE3_INTEGER);
-        $stmt->execute();
-    } catch (Exception $e) {
-        // Skip sites with permission errors
-    }
+    gscRefreshSiteMetrics($gsc, $db, $site, $dateFrom, $dateTo, $prevFrom, $prevTo);
 }
 
 // ── Helpers ───────────────────────────────────────────────

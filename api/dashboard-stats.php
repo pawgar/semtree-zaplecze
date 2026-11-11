@@ -77,6 +77,7 @@ try {
             COALESCE(SUM(gsc_impressions),0) as impressions,
             COALESCE(SUM(gsc_keywords_count),0) as keywords
         FROM sites
+        WHERE gsc_error IS NULL
     ", true);
     $totalClicks = (int)($gscRow['clicks'] ?? 0);
     $totalImpressions = (int)($gscRow['impressions'] ?? 0);
@@ -88,7 +89,7 @@ try {
             AVG(gsc_clicks_change) as avg_c,
             AVG(gsc_impressions_change) as avg_i
         FROM sites
-        WHERE gsc_clicks IS NOT NULL
+        WHERE gsc_clicks IS NOT NULL AND gsc_error IS NULL
     ", true);
 
     // ── GSC daily series (last 30 days) — aggregate from gsc_cache daily metrics ──

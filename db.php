@@ -262,6 +262,13 @@ function migrateSchema(SQLite3 $db): void {
     if (!in_array('gsc_last_update', $siteCols)) {
         $db->exec('ALTER TABLE sites ADD COLUMN gsc_last_update DATETIME DEFAULT NULL');
     }
+    // Błąd pobierania z GSC (np. utrata uprawnień) — dane GSC strony są wtedy nieaktualne
+    if (!in_array('gsc_error', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN gsc_error TEXT DEFAULT NULL');
+    }
+    if (!in_array('gsc_error_since', $siteCols)) {
+        $db->exec('ALTER TABLE sites ADD COLUMN gsc_error_since DATETIME DEFAULT NULL');
+    }
 
     // Per-site GSC goals (Raport GSC → kolumna "Cel"): target clicks/impressions + value
     if (!in_array('gsc_goal_type', $siteCols)) {

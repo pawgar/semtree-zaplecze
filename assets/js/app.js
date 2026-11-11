@@ -276,7 +276,9 @@ function updateDashboardGscFromSites() {
 
     // Calculate totals from sitesData (already loaded from sites.php)
     let totalClicks = 0, totalImpressions = 0, totalKeywords = 0;
-    sitesData.forEach(s => {
+    // Strony z błędem GSC (np. utrata uprawnień) mają nieaktualne liczby — nie wliczamy ich do sum
+    const gscOk = sitesData.filter(s => !s.gsc_error);
+    gscOk.forEach(s => {
         totalClicks += parseInt(s.gsc_clicks) || 0;
         totalImpressions += parseInt(s.gsc_impressions) || 0;
         totalKeywords += parseInt(s.gsc_keywords_count) || 0;
@@ -289,14 +291,14 @@ function updateDashboardGscFromSites() {
     // Calculate weighted average changes
     let clicksChange = 0, impChange = 0;
     if (totalClicks > 0) {
-        sitesData.forEach(s => {
+        gscOk.forEach(s => {
             const c = parseInt(s.gsc_clicks) || 0;
             clicksChange += (parseFloat(s.gsc_clicks_change) || 0) * c;
         });
         clicksChange /= totalClicks;
     }
     if (totalImpressions > 0) {
-        sitesData.forEach(s => {
+        gscOk.forEach(s => {
             const i = parseInt(s.gsc_impressions) || 0;
             impChange += (parseFloat(s.gsc_impressions_change) || 0) * i;
         });
@@ -409,8 +411,9 @@ function renderSites(sites) {
             <td class="text-secondary" id="posts-${s.id}">${postCount}</td>
             <td><a href="#" class="text-reset" onclick="goToLinks(${s.id}); return false;" title="Pokaż linki">${s.link_count || 0}</a></td>
             ${gscDashboardData ? `
+            ${s.gsc_error ? `<td colspan="2" class="text-end text-nowrap gsc-col"><span class="badge bg-warning-lt" title="${esc(s.gsc_error)}${s.gsc_last_update ? ' — ostatnie dane: ' + esc(s.gsc_last_update.slice(0, 10)) : ''}"><i class="ti ti-alert-triangle me-1"></i>Brak dostępu do GSC od ${esc((s.gsc_error_since || '').slice(0, 10))}</span></td>` : `
             <td class="text-end text-nowrap gsc-col">${s.gsc_clicks != null ? formatNumber(s.gsc_clicks) : '-'} ${s.gsc_clicks_change != null ? formatChange(s.gsc_clicks_change) : ''}</td>
-            <td class="text-end text-nowrap gsc-col">${s.gsc_impressions != null ? formatNumber(s.gsc_impressions) : '-'} ${s.gsc_impressions_change != null ? formatChange(s.gsc_impressions_change) : ''}</td>
+            <td class="text-end text-nowrap gsc-col">${s.gsc_impressions != null ? formatNumber(s.gsc_impressions) : '-'} ${s.gsc_impressions_change != null ? formatChange(s.gsc_impressions_change) : ''}</td>`}
             ` : ''}
             <td class="text-center" id="status-${s.id}">${httpLed}</td>
             <td class="text-center" id="api-${s.id}">${apiLed}</td>
@@ -4810,6 +4813,16 @@ async function loadGscReport(force = false) {
 
         const dateInfo = document.getElementById('gscReportDateInfo');
         if (dateInfo) dateInfo.textContent = `${data.date_from} — ${data.date_to}`;
+
+        const skippedBox = document.getElementById('gscReportSkipped');
+        if (skippedBox) {
+            const sk = data.skipped || [];
+            skippedBox.style.display = sk.length ? '' : 'none';
+            skippedBox.innerHTML = sk.length
+                ? `<strong><i class="ti ti-alert-triangle me-1"></i>Pominięte w raporcie (${sk.length}):</strong> `
+                  + sk.map(x => `${esc(x.name)} <span class="text-secondary">(${esc(x.reason)})</span>`).join(', ')
+                : '';
+        }
 
         gscReportData = data.sites || [];
         if (gscReportData.length === 0) {

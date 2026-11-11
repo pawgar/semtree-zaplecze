@@ -49,41 +49,12 @@ $refreshed = 0;
 $errors = [];
 
 foreach ($sites as $site) {
-    try {
-        $gscUrl = $gsc->matchSiteToProperty($site['url']);
-        if (!$gscUrl) continue;
-
-        // Fetch and cache all metric types
-        $summary = $gsc->getCachedOrFetch($gscUrl, 'summary', $dateFrom, $dateTo, 0);
-        $prevSummary = $gsc->getCachedOrFetch($gscUrl, 'summary', $prevFrom, $prevTo, 0);
-        $keywords = $gsc->getCachedOrFetch($gscUrl, 'keywords', $dateFrom, $dateTo, 0);
-        $gsc->getCachedOrFetch($gscUrl, 'pages', $dateFrom, $dateTo, 0);
-        $gsc->getCachedOrFetch($gscUrl, 'daily', $dateFrom, $dateTo, 0);
-
-        // Store metrics in sites table for instant dashboard loading
-        $clicks = (int)($summary['clicks'] ?? 0);
-        $impressions = (int)($summary['impressions'] ?? 0);
-        $clicksChange = ($prevSummary['clicks'] ?? 0) == 0
-            ? ($clicks > 0 ? 100.0 : 0.0)
-            : round((($clicks - ($prevSummary['clicks'] ?? 0)) / ($prevSummary['clicks'] ?? 1)) * 100, 1);
-        $impressionsChange = ($prevSummary['impressions'] ?? 0) == 0
-            ? ($impressions > 0 ? 100.0 : 0.0)
-            : round((($impressions - ($prevSummary['impressions'] ?? 0)) / ($prevSummary['impressions'] ?? 1)) * 100, 1);
-
-        $stmt = $db->prepare('UPDATE sites SET gsc_clicks = :c, gsc_impressions = :i, gsc_clicks_change = :cc, gsc_impressions_change = :ic, gsc_keywords_count = :kw, gsc_last_update = datetime("now") WHERE id = :id');
-        $stmt->bindValue(':c', $clicks, SQLITE3_INTEGER);
-        $stmt->bindValue(':i', $impressions, SQLITE3_INTEGER);
-        $stmt->bindValue(':cc', $clicksChange, SQLITE3_FLOAT);
-        $stmt->bindValue(':ic', $impressionsChange, SQLITE3_FLOAT);
-        $stmt->bindValue(':kw', count($keywords), SQLITE3_INTEGER);
-        $stmt->bindValue(':id', $site['id'], SQLITE3_INTEGER);
-        $stmt->execute();
-
+    if (gscRefreshSiteMetrics($gsc, $db, $site, $dateFrom, $dateTo, $prevFrom, $prevTo)) {
         $refreshed++;
-        usleep(300000); // 0.3s between sites to avoid rate limits
-    } catch (Exception $e) {
-        $errors[] = $site['name'] . ': ' . $e->getMessage();
+    } else {
+        $errors[] = $site['name'] . ': ' . $db->querySingle('SELECT gsc_error FROM sites WHERE id = ' . (int)$site['id']);
     }
+    usleep(300000); // 0.3s between sites to avoid rate limits
 }
 
 echo json_encode([
