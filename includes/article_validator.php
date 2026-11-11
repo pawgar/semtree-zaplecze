@@ -8,7 +8,7 @@
  * deterministycznie (znaki zapytania, myślniki w PL) naprawia autoFixArticle().
  */
 
-const ARTICLE_MIN_CHARS = 8500;
+const ARTICLE_MIN_CHARS = 7000;
 const ARTICLE_MAX_CHARS = 9500;
 
 // Zakazane frazy PL (references/banned-ai-patterns.md skilla v2 + grep z audytu)
