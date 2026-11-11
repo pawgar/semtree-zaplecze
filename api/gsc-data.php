@@ -78,7 +78,7 @@ try {
         case 'verify':
             requireAdminApi();
             set_time_limit(900);
-            echo json_encode(verifyGscData($gsc, $dateFrom, $dateTo), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            echo json_encode(verifyGscData($gsc, $dateFrom, $dateTo, (int)($_GET['offset'] ?? 0), (int)($_GET['limit'] ?? 8)), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             break;
 
         case 'refresh':
@@ -332,7 +332,7 @@ function calcChange(int|float $current, int|float $previous): float {
 }
 
 // ── Weryfikacja: dane w aplikacji vs świeże zapytanie do GSC (admin) ──
-function verifyGscData(GscApi $gsc, string $dateFrom, string $dateTo): array {
+function verifyGscData(GscApi $gsc, string $dateFrom, string $dateTo, int $offset = 0, int $limit = 8): array {
     $db = getDb();
     $props = $gsc->getSiteList();
     $hostOf = function (string $u): string {
@@ -350,7 +350,8 @@ function verifyGscData(GscApi $gsc, string $dateFrom, string $dateTo): array {
     $today = date('Y-m-d');
     $weekAgo = date('Y-m-d', strtotime('-7 days'));
     $out = [];
-    $res = $db->query('SELECT id, name, url, gsc_clicks, gsc_impressions, gsc_last_update FROM sites ORDER BY name');
+    $total = (int)$db->querySingle('SELECT COUNT(*) FROM sites');
+    $res = $db->query('SELECT id, name, url, gsc_clicks, gsc_impressions, gsc_last_update FROM sites ORDER BY name LIMIT ' . max(1, min(50, $limit)) . ' OFFSET ' . max(0, $offset));
     while ($site = $res->fetchArray(SQLITE3_ASSOC)) {
         $host = $hostOf((string)$site['url']);
         $row = [
@@ -396,5 +397,5 @@ function verifyGscData(GscApi $gsc, string $dateFrom, string $dateTo): array {
         $out[] = $row;
         usleep(200000);
     }
-    return ['success' => true, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'properties_total' => count($props), 'sites' => $out];
+    return ['success' => true, 'total_sites' => $total, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'properties_total' => count($props), 'sites' => $out];
 }
