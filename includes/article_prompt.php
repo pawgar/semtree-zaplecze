@@ -53,7 +53,7 @@ Konkret buduj mechanizmami i przykładami ("czas schnięcia zwykle 4-6 h, przy w
 
 **H3: maksymalnie 5 w całym artykule, maksymalnie 2 w jednej sekcji H2,** pod każdym H3 co najmniej ~600 znaków (2 pełne akapity). Krótszą treść wchłoń do akapitu powyżej.
 
-**Każda sekcja H2 ma co najmniej jedno z:** 1-2 H3, listę wypunktowaną albo tabelę. Żadna sekcja nie jest ścianą akapitów.
+**Każda sekcja H2 ma co najmniej jedno z:** 1-2 H3, listę wypunktowaną albo tabelę. Żadna sekcja nie jest ścianą akapitów. Rozplanuj to przed pisaniem: list jest najwyżej 3, więc pozostałe sekcje dostają H3 albo tabelę.
 
 **Listy wypunktowane:** minimum 1, maksimum 3 w artykule, maksimum 1 na sekcję H2. 3-7 punktów, każdy 1-2 zdania, zaczynany od meritum. Zdanie wprowadzające przed listą i akapit zamykający po niej. Format `- punkt`.
 

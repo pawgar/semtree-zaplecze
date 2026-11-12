@@ -113,7 +113,8 @@ function validateArticle(string $markdown, string $lang = 'pl', string $mainKeyw
         $tooManyH3 ? 'Ponad 2 H3 w: ' . implode('; ', array_column($tooManyH3, 'heading')) : 'maks. 2 H3 w każdej sekcji');
     // 5. Urozmaicenie
     $walls = array_filter($sections, fn($s) => !$s['h3'] && !$s['lists'] && !$s['tables']);
-    $add('Urozmaicenie sekcji', $walls ? 'FAIL' : 'PASS',
+    // Jedna sekcja bez urozmaicenia = ostrzeżenie (nie warto za nią płacić poprawką), dwie i więcej = FAIL
+    $add('Urozmaicenie sekcji', count($walls) >= 2 ? 'FAIL' : ($walls ? 'WARN' : 'PASS'),
         $walls ? 'Sekcje bez H3/listy/tabeli: ' . implode('; ', array_column($walls, 'heading')) : 'każda sekcja H2 ma H3, listę lub tabelę');
     // 14-15. Listy
     $add('Listy wypunktowane', ($lists >= 1 && $lists <= 3) ? 'PASS' : 'FAIL', "$lists list (wymagane 1-3)");
